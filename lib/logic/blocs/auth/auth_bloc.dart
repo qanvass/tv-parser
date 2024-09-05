@@ -4,6 +4,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mbark_iptv/repository/api/api.dart';
 import 'package:mbark_iptv/repository/models/user.dart';
 
+import '../../../helpers/helpers.dart';
+
 part 'auth_event.dart';
 part 'auth_state.dart';
 
@@ -48,21 +50,5 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       changeDeviceOrientBack();
       emit(AuthFailed("LogOut"));
     });
-  }
-
-  void changeDeviceOrient() {
-    //change portrait mobile
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
-  }
-
-  void changeDeviceOrientBack() {
-    //change portrait mobile
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitDown,
-      DeviceOrientation.portraitUp,
-    ]);
   }
 }

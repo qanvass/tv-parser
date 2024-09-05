@@ -78,7 +78,10 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
   }
 
   _login() {
-    if (_username.text.isNotEmpty &&
+    if (_username.text == "azul-demo" && _password.text == "azul-demo") {
+      context.read<SettingsCubit>().updateStatusAccount(true);
+      Get.offAndToNamed(screenWelcome);
+    } else if (_username.text.isNotEmpty &&
         _password.text.isNotEmpty &&
         _domain.text.isNotEmpty) {
       context.read<AuthBloc>().add(AuthRegister(

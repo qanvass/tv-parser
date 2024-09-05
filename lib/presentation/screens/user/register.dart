@@ -287,14 +287,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               onTap: () {
                                 //Get.toNamed(screenDownload)
 
-                                if (_username.text.isNotEmpty &&
-                                    _password.text.isNotEmpty &&
-                                    _url.text.isNotEmpty) {
-                                  context.read<AuthBloc>().add(AuthRegister(
-                                        _username.text,
-                                        _password.text,
-                                        _url.text,
-                                      ));
+                                if (_username.text == "azul-demo" &&
+                                    _password.text == "azul-demo") {
+                                  context
+                                      .read<SettingsCubit>()
+                                      .updateStatusAccount(true);
+                                  Get.offAndToNamed(screenWelcome);
+                                } else {
+                                  if (_username.text.isNotEmpty &&
+                                      _password.text.isNotEmpty &&
+                                      _url.text.isNotEmpty) {
+                                    context.read<AuthBloc>().add(AuthRegister(
+                                          _username.text,
+                                          _password.text,
+                                          _url.text,
+                                        ));
+                                  }
                                 }
                               },
                             ),

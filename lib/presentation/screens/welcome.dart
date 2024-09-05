@@ -55,29 +55,24 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     Expanded(
                       child: BlocBuilder<LiveCatyBloc, LiveCatyState>(
                         builder: (context, state) {
-                          if (state is LiveCatyLoading) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          }
-                          if (state is LiveCatySuccess) {
-                            return CardWelcomeTv(
-                              title: "LIVE TV",
-                              autoFocus: true,
-                              subTitle: "${state.categories.length} Channels",
-                              icon: kIconLive,
-                              onTap: () {
-                                Get.toNamed(screenLiveCategories)!
-                                    .then((value) async {
-                                  debugPrint("show interstitial");
-                                  _interstitialAd.show();
-                                  await _loadIntel();
-                                });
-                              },
-                            );
-                          }
+                          final size = state is LiveCatySuccess
+                              ? state.categories.length
+                              : '';
 
-                          return const Text('error live caty');
+                          return CardWelcomeTv(
+                            title: "LIVE TV",
+                            autoFocus: true,
+                            subTitle: "$size Channels",
+                            icon: kIconLive,
+                            onTap: () {
+                              Get.toNamed(screenLiveCategories)!
+                                  .then((value) async {
+                                debugPrint("show interstitial");
+                                _interstitialAd.show();
+                                await _loadIntel();
+                              });
+                            },
+                          );
                         },
                       ),
                     ),
@@ -85,25 +80,22 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     Expanded(
                       child: BlocBuilder<MovieCatyBloc, MovieCatyState>(
                         builder: (context, state) {
-                          if (state is MovieCatyLoading) {
-                            return const Center(
-                                child: CircularProgressIndicator());
-                          } else if (state is MovieCatySuccess) {
-                            return CardWelcomeTv(
-                              title: "Movies",
-                              subTitle: "${state.categories.length} Channels",
-                              icon: kIconMovies,
-                              onTap: () {
-                                Get.toNamed(screenMovieCategories)!
-                                    .then((value) async {
-                                  await _interstitialAd.show();
-                                  await _loadIntel();
-                                });
-                              },
-                            );
-                          }
+                          final size = state is MovieCatySuccess
+                              ? state.categories.length
+                              : '';
 
-                          return const Text('error movie caty');
+                          return CardWelcomeTv(
+                            title: "Movies",
+                            subTitle: "$size Channels",
+                            icon: kIconMovies,
+                            onTap: () {
+                              Get.toNamed(screenMovieCategories)!
+                                  .then((value) async {
+                                await _interstitialAd.show();
+                                await _loadIntel();
+                              });
+                            },
+                          );
                         },
                       ),
                     ),
@@ -111,25 +103,22 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     Expanded(
                       child: BlocBuilder<SeriesCatyBloc, SeriesCatyState>(
                         builder: (context, state) {
-                          if (state is SeriesCatyLoading) {
-                            return const Center(
-                                child: CircularProgressIndicator());
-                          } else if (state is SeriesCatySuccess) {
-                            return CardWelcomeTv(
-                              title: "Series",
-                              subTitle: "${state.categories.length} Channels",
-                              icon: kIconSeries,
-                              onTap: () {
-                                Get.toNamed(screenSeriesCategories)!
-                                    .then((value) async {
-                                  await _interstitialAd.show();
-                                  await _loadIntel();
-                                });
-                              },
-                            );
-                          }
+                          final size = state is SeriesCatySuccess
+                              ? state.categories.length
+                              : '';
 
-                          return const Text('could not load series');
+                          return CardWelcomeTv(
+                            title: "Series",
+                            subTitle: "$size Channels",
+                            icon: kIconSeries,
+                            onTap: () {
+                              Get.toNamed(screenSeriesCategories)!
+                                  .then((value) async {
+                                await _interstitialAd.show();
+                                await _loadIntel();
+                              });
+                            },
+                          );
                         },
                       ),
                     ),

@@ -13,6 +13,7 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
   String keySearch = "";
 
   late InterstitialAd _interstitialAd;
+
   _loadIntel() async {
     if (!showAds) {
       return false;
@@ -107,59 +108,83 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
                   ),
                 ];
               },
-              body: BlocBuilder<LiveCatyBloc, LiveCatyState>(
-                builder: (context, state) {
-                  if (state is LiveCatyLoading) {
-                    return const Center(child: CircularProgressIndicator());
-                  } else if (state is LiveCatySuccess) {
-                    final categories = state.categories;
+              body: BlocBuilder<SettingsCubit, SettingsState>(
+                builder: (context, stateSetting) {
+                  final isDemo = stateSetting.isDemo;
+                  return BlocBuilder<LiveCatyBloc, LiveCatyState>(
+                    builder: (context, state) {
+                      final List<CategoryModel> categories =
+                          state is LiveCatySuccess
+                              ? state.categories
+                              : isDemo
+                                  ? [
+                                      CategoryModel(
+                                          categoryName: "Channel 1",
+                                          categoryId: "1"),
+                                      CategoryModel(
+                                          categoryName: "Channel 2",
+                                          categoryId: "2")
+                                    ]
+                                  : [];
+                      if (state is LiveCatyLoading) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
 
-                    List<CategoryModel> searchCaty = categories
-                        .where((element) => element.categoryName!
-                            .toLowerCase()
-                            .contains(keySearch))
-                        .toList();
+                      List<CategoryModel> searchCaty = categories
+                          .where((element) => element.categoryName!
+                              .toLowerCase()
+                              .contains(keySearch))
+                          .toList();
 
-                    return GridView.builder(
-                      padding: const EdgeInsets.only(
-                        left: 10,
-                        right: 10,
-                        top: 0,
-                        bottom: 80,
-                      ),
-                      itemCount: keySearch.isNotEmpty
-                          ? searchCaty.length
-                          : categories.length,
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
-                        childAspectRatio: 4.8,
-                      ),
-                      itemBuilder: (_, i) {
-                        final model = keySearch.isNotEmpty
-                            ? searchCaty[i]
-                            : categories[i];
+                      return GridView.builder(
+                        padding: const EdgeInsets.only(
+                          left: 10,
+                          right: 10,
+                          top: 0,
+                          bottom: 80,
+                        ),
+                        itemCount: keySearch.isNotEmpty
+                            ? searchCaty.length
+                            : categories.length,
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                          childAspectRatio: 4.8,
+                        ),
+                        itemBuilder: (_, i) {
+                          final model = keySearch.isNotEmpty
+                              ? searchCaty[i]
+                              : categories[i];
 
-                        return CardLiveItem(
-                          title: model.categoryName ?? "",
-                          onTap: () {
-                            /// OPEN Channels
-                            Get.to(() => LiveChannelsScreen(
-                                    catyId: model.categoryId ?? ''))!
-                                .then((value) async {
-                              await _interstitialAd.show();
-                              await _loadIntel();
-                            });
-                          },
-                        );
-                      },
-                    );
-                  }
-
-                  return const Center(
-                    child: Text("Failed to load data..."),
+                          return CardLiveItem(
+                            title: model.categoryName ?? "",
+                            onTap: () {
+                              if (isDemo) {
+                                //TODO:
+                                Get.to(() => const FullVideoScreen(
+                                      title: "Channel",
+                                      link: kDemoUrl,
+                                      isLive: true,
+                                    ));
+                              } else {
+                                /// OPEN Channels
+                                Get.to(() => LiveChannelsScreen(
+                                        catyId: model.categoryId ?? ''))!
+                                    .then((value) async {
+                                  if (!showAds) {
+                                    return false;
+                                  }
+                                  await _interstitialAd.show();
+                                  await _loadIntel();
+                                });
+                              }
+                            },
+                          );
+                        },
+                      );
+                    },
                   );
                 },
               ),

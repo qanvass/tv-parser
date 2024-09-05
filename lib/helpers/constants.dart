@@ -14,6 +14,9 @@ const String kImageIntro = "assets/images/intro h.jpeg";
 const String kPrivacy = "https://www.whmcssmarters.com/terms-of-service/";
 const String kContact = "https://mouadzizi.me";
 
+const String kDemoUrl =
+    "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
+
 const double sizeTablet = 950;
 
 enum TypeCategory {

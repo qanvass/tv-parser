@@ -15,6 +15,7 @@ class _MovieChannelsState extends State<MovieChannels> {
   String keySearch = "";
 
   late InterstitialAd _interstitialAd;
+
   _loadIntel() async {
     if (!showAds) {
       return false;
@@ -110,57 +111,60 @@ class _MovieChannelsState extends State<MovieChannels> {
                   ),
                 ];
               },
-              body: BlocBuilder<ChannelsBloc, ChannelsState>(
-                builder: (context, state) {
-                  if (state is ChannelsLoading) {
-                    return const Center(child: CircularProgressIndicator());
-                  } else if (state is ChannelsMovieSuccess) {
-                    final channels = state.channels;
+              body: BlocBuilder<SettingsCubit, SettingsState>(
+                builder: (context, stateSett) {
+                  return BlocBuilder<ChannelsBloc, ChannelsState>(
+                    builder: (context, state) {
+                      if (state is ChannelsLoading) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
 
-                    List<ChannelMovie> searchList = channels
-                        .where((element) =>
-                            element.name!.toLowerCase().contains(keySearch))
-                        .toList();
+                      final List<ChannelMovie> channels =
+                          state is ChannelsMovieSuccess ? state.channels : [];
 
-                    return GridView.builder(
-                      padding: const EdgeInsets.only(
-                        left: 10,
-                        right: 10,
-                        top: 10,
-                        bottom: 80,
-                      ),
-                      itemCount: keySearch.isEmpty
-                          ? channels.length
-                          : searchList.length,
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 5,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
-                        childAspectRatio: .7,
-                      ),
-                      itemBuilder: (_, i) {
-                        final model =
-                            keySearch.isEmpty ? channels[i] : searchList[i];
+                      List<ChannelMovie> searchList = channels
+                          .where((element) =>
+                              element.name!.toLowerCase().contains(keySearch))
+                          .toList();
 
-                        return CardChannelMovieItem(
-                          title: model.name,
-                          image: model.streamIcon,
-                          onTap: () {
-                            Get.to(() => MovieContent(
-                                    channelMovie: model,
-                                    videoId: model.streamId ?? ''))!
-                                .then((value) async {
-                              _interstitialAd.show();
-                              _loadIntel();
-                            });
-                          },
-                        );
-                      },
-                    );
-                  }
+                      return GridView.builder(
+                        padding: const EdgeInsets.only(
+                          left: 10,
+                          right: 10,
+                          top: 10,
+                          bottom: 80,
+                        ),
+                        itemCount: keySearch.isEmpty
+                            ? channels.length
+                            : searchList.length,
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 5,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                          childAspectRatio: .7,
+                        ),
+                        itemBuilder: (_, i) {
+                          final model =
+                              keySearch.isEmpty ? channels[i] : searchList[i];
 
-                  return const SizedBox();
+                          return CardChannelMovieItem(
+                            title: model.name,
+                            image: model.streamIcon,
+                            onTap: () {
+                              Get.to(() => MovieContent(
+                                      channelMovie: model,
+                                      videoId: model.streamId ?? ''))!
+                                  .then((value) async {
+                                _interstitialAd.show();
+                                _loadIntel();
+                              });
+                            },
+                          );
+                        },
+                      );
+                    },
+                  );
                 },
               ),
             ),

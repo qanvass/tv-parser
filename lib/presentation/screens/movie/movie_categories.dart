@@ -104,58 +104,78 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
                   ),
                 ];
               },
-              body: BlocBuilder<MovieCatyBloc, MovieCatyState>(
-                builder: (context, state) {
-                  if (state is MovieCatyLoading) {
-                    return const Center(child: CircularProgressIndicator());
-                  } else if (state is MovieCatySuccess) {
-                    final categories = state.categories;
+              body: BlocBuilder<SettingsCubit, SettingsState>(
+                builder: (context, stateSett) {
+                  return BlocBuilder<MovieCatyBloc, MovieCatyState>(
+                    builder: (context, state) {
+                      if (state is MovieCatyLoading) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
 
-                    List<CategoryModel> searchList = categories
-                        .where((element) => element.categoryName!
-                            .toLowerCase()
-                            .contains(keySearch))
-                        .toList();
+                      final List<CategoryModel> categories =
+                          state is MovieCatySuccess
+                              ? state.categories
+                              : [
+                                  if (stateSett.isDemo)
+                                    CategoryModel(
+                                        categoryId: "1",
+                                        categoryName: "Movies 1"),
+                                ];
 
-                    return GridView.builder(
-                      itemCount: keySearch.isEmpty
-                          ? categories.length
-                          : searchList.length,
-                      padding: const EdgeInsets.only(
-                        left: 10,
-                        right: 10,
-                        top: 15,
-                        bottom: 70,
-                      ),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
-                        childAspectRatio: 5,
-                      ),
-                      itemBuilder: (_, i) {
-                        final model =
-                            keySearch.isEmpty ? categories[i] : searchList[i];
+                      List<CategoryModel> searchList = categories
+                          .where((element) => element.categoryName!
+                              .toLowerCase()
+                              .contains(keySearch))
+                          .toList();
 
-                        return CardLiveItem(
-                          title: model.categoryName ?? "",
-                          onTap: () {
-                            // OPEN Channels
-                            Get.to(() => MovieChannels(
-                                    catyId: model.categoryId ?? ''))!
-                                .then((value) async {
-                              _interstitialAd.show();
-                              _loadIntel();
-                            });
-                          },
-                        );
-                      },
-                    );
-                  }
+                      return GridView.builder(
+                        itemCount: keySearch.isEmpty
+                            ? categories.length
+                            : searchList.length,
+                        padding: const EdgeInsets.only(
+                          left: 10,
+                          right: 10,
+                          top: 15,
+                          bottom: 70,
+                        ),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                          childAspectRatio: 5,
+                        ),
+                        itemBuilder: (_, i) {
+                          final model =
+                              keySearch.isEmpty ? categories[i] : searchList[i];
 
-                  return const Center(
-                    child: Text("Failed to load data..."),
+                          return CardLiveItem(
+                            title: model.categoryName ?? "",
+                            onTap: () {
+                              if (stateSett.isDemo) {
+                                //TODO:
+                                Get.to(() => const FullVideoScreen(
+                                      title: "Movie",
+                                      link: kDemoUrl,
+                                      isLive: true,
+                                    ));
+                              } else {
+                                // OPEN Channels
+                                Get.to(() => MovieChannels(
+                                        catyId: model.categoryId ?? ''))!
+                                    .then((value) async {
+                                  if (!showAds) {
+                                    return false;
+                                  }
+                                  _interstitialAd.show();
+                                  _loadIntel();
+                                });
+                              }
+                            },
+                          );
+                        },
+                      );
+                    },
                   );
                 },
               ),

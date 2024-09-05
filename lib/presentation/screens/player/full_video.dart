@@ -78,30 +78,36 @@ class _FullVideoScreenState extends State<FullVideoScreen> {
   void listener() async {
     if (!mounted) return;
 
-    if (progress) {
-      if (_videoPlayerController.value.isPlaying) {
-        setState(() {
-          progress = false;
-        });
+    try {
+      if (progress) {
+        if (_videoPlayerController.value.isPlaying) {
+          setState(() {
+            progress = false;
+          });
+        }
       }
-    }
 
-    if (_videoPlayerController.value.isInitialized) {
-      var oPosition = _videoPlayerController.value.position;
-      var oDuration = _videoPlayerController.value.duration;
+      if (_videoPlayerController.value.isInitialized) {
+        var oPosition = _videoPlayerController.value.position;
+        var oDuration = _videoPlayerController.value.duration;
 
-      if (oDuration.inHours == 0) {
-        var strPosition = oPosition.toString().split('.')[0];
-        var strDuration = oDuration.toString().split('.')[0];
-        position = "${strPosition.split(':')[1]}:${strPosition.split(':')[2]}";
-        duration = "${strDuration.split(':')[1]}:${strDuration.split(':')[2]}";
-      } else {
-        position = oPosition.toString().split('.')[0];
-        duration = oDuration.toString().split('.')[0];
+        if (oDuration.inHours == 0) {
+          var strPosition = oPosition.toString().split('.')[0];
+          var strDuration = oDuration.toString().split('.')[0];
+          position =
+              "${strPosition.split(':')[1]}:${strPosition.split(':')[2]}";
+          duration =
+              "${strDuration.split(':')[1]}:${strDuration.split(':')[2]}";
+        } else {
+          position = oPosition.toString().split('.')[0];
+          duration = oDuration.toString().split('.')[0];
+        }
+        validPosition = oDuration.compareTo(oPosition) >= 0;
+        sliderValue = validPosition ? oPosition.inSeconds.toDouble() : 0;
+        setState(() {});
       }
-      validPosition = oDuration.compareTo(oPosition) >= 0;
-      sliderValue = validPosition ? oPosition.inSeconds.toDouble() : 0;
-      setState(() {});
+    } catch (e) {
+      debugPrint("Error: $e");
     }
   }
 
@@ -114,12 +120,24 @@ class _FullVideoScreenState extends State<FullVideoScreen> {
   }
 
   @override
+  void deactivate() {
+    // Pause or stop the VLC player before closing the page
+    _videoPlayerController.pause(); // or _vlcPlayerController.stop();
+    _videoPlayerController.stop();
+    super.deactivate();
+  }
+
+  @override
   void dispose() async {
+    try {
+      _videoPlayerController.stopRendererScanning();
+      _videoPlayerController.dispose();
+      timer.cancel();
+      VolumeController().removeListener();
+    } catch (e) {
+      debugPrint("Error dispose: $e");
+    }
     super.dispose();
-    await _videoPlayerController.stopRendererScanning();
-    await _videoPlayerController.dispose();
-    timer.cancel();
-    VolumeController().removeListener();
   }
 
   @override

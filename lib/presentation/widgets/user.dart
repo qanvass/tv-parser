@@ -94,10 +94,12 @@ class _IntroImageAnimatedState extends State<IntroImageAnimated> {
       curve: Curves.linear,
     );
 
-    setState(() {
-      isImage = !isImage;
-    });
-    await _startAnimation();
+    if (mounted) {
+      setState(() {
+        isImage = !isImage;
+      });
+      await _startAnimation();
+    }
   }
 
   @override
