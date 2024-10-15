@@ -171,6 +171,7 @@ class CardInfoMovie extends StatelessWidget {
                   title,
                   style: Get.textTheme.titleSmall!.copyWith(
                     fontWeight: FontWeight.w100,
+                    color: Colors.white,
                   ),
                 )
               : ReadMoreText(
@@ -180,8 +181,9 @@ class CardInfoMovie extends StatelessWidget {
                   trimMode: TrimMode.Line,
                   trimCollapsedText: 'more',
                   trimExpandedText: 'less',
-                  style: Get.textTheme.titleSmall!.copyWith(
+                  style: TextStyle(
                     fontWeight: FontWeight.w100,
+                    color: Colors.white,
                   ),
                   moreStyle: Get.textTheme.headlineSmall!.copyWith(
                     color: kColorFocus,
