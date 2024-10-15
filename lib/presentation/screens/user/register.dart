@@ -10,9 +10,9 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _fullUrl = TextEditingController();
 
-  final _username = TextEditingController();
-  final _password = TextEditingController();
-  final _url = TextEditingController();
+  final _username = TextEditingController(text: "iptv125");
+  final _password = TextEditingController(text: "iptv125");
+  final _url = TextEditingController(text: "http://xtv.ooo:8080");
 
   _convertM3utoXtreme(style) {
     showDialog(

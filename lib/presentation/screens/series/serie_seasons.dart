@@ -13,20 +13,31 @@ class _SerieSeasonsState extends State<SerieSeasons> {
   int selectedSeason = 0;
   int selectedEpisode = 0;
 
+  List<String> seasons = [];
   @override
   void initState() {
     serieDetails = widget.serieDetails;
     super.initState();
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    List<String> seasons = [];
     if (serieDetails.episodes != null && serieDetails.episodes!.isNotEmpty) {
       serieDetails.episodes!.forEach((k, v) {
         seasons.add(k);
       });
+
+      if (serieDetails.episodes != null && serieDetails.episodes!.isNotEmpty) {
+        // Get the first season (key) from the map
+        String firstSeason = serieDetails.episodes!.keys.first;
+        // Set selectedSeason to the list of episodes for the first season
+        selectedSeason = int.parse(firstSeason);
+      }
+
+      setState(() {});
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // debugPrint("EPISOD: ${serieDetails.episodes}");
 
     return Scaffold(
       body: Ink(
@@ -54,18 +65,15 @@ class _SerieSeasonsState extends State<SerieSeasons> {
                               physics: const ScrollPhysics(),
                               itemBuilder: (_, i) {
                                 return CardSeasonItem(
-                                  isSelected: i == selectedSeason,
+                                  isSelected: int.tryParse(seasons[i]) ==
+                                      selectedSeason,
                                   number: seasons[i],
                                   onTap: () {
                                     setState(() {
-                                      selectedSeason = i;
+                                      selectedSeason = int.parse(seasons[i]);
                                     });
                                   },
-                                  onFocused: (val) {
-                                    setState(() {
-                                      selectedSeason = i;
-                                    });
-                                  },
+                                  onFocused: (val) {},
                                 );
                               },
                             ),
@@ -74,10 +82,10 @@ class _SerieSeasonsState extends State<SerieSeasons> {
                         Expanded(
                           child: ListView.builder(
                             itemCount: serieDetails
-                                .episodes!["${selectedSeason + 1}"]!.length,
+                                .episodes!["${selectedSeason}"]!.length,
                             itemBuilder: (_, i) {
                               final model = serieDetails
-                                  .episodes!["${selectedSeason + 1}"]![i];
+                                  .episodes!["${selectedSeason}"]![i];
 
                               return CardEpisodeItem(
                                 isSelected: selectedEpisode == i,
