@@ -13,12 +13,12 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:responsive_sizer/responsive_sizer.dart';
-import 'package:screen_brightness_util/screen_brightness_util.dart';
+import 'package:screen_brightness/screen_brightness.dart';
 
 import 'package:url_launcher/url_launcher.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 import 'package:volume_controller/volume_controller.dart';
-import 'package:wakelock/wakelock.dart';
+
 //import 'package:wakelock/wakelock.dart';
 
 import '../../helpers/helpers.dart';

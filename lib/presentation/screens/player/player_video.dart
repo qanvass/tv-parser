@@ -16,7 +16,7 @@ class _StreamPlayerPageState extends State<StreamPlayerPage> {
 
   @override
   void initState() {
-    Wakelock.enable();
+    //  Wakelock.enable();
     super.initState();
     timer = Timer.periodic(const Duration(seconds: 5), (timer) {
       if (showControllersVideo) {

@@ -28,11 +28,9 @@ class _FullVideoScreenState extends State<FullVideoScreen> {
   double _currentBright = 0.0;
   late Timer timer;
 
-  final ScreenBrightnessUtil _screenBrightnessUtil = ScreenBrightnessUtil();
-
   _settingPage() async {
     try {
-      double brightness = await _screenBrightnessUtil.getBrightness();
+      double brightness = await ScreenBrightness.instance.application;
       if (brightness == -1) {
         debugPrint("Oops... something wrong!");
       } else {
@@ -53,7 +51,7 @@ class _FullVideoScreenState extends State<FullVideoScreen> {
 
   @override
   void initState() {
-    Wakelock.enable();
+    //Wakelock.enable();
     _videoPlayerController = VlcPlayerController.network(
       widget.link,
       hwAcc: HwAcc.full,
@@ -321,8 +319,8 @@ class _FullVideoScreenState extends State<FullVideoScreen> {
                     height: 40.h,
                     width: 30,
                     onFinish: (value) async {
-                      bool success =
-                          await _screenBrightnessUtil.setBrightness(value);
+                      await ScreenBrightness.instance
+                          .setApplicationScreenBrightness(value);
 
                       setState(() {
                         _currentBright = value;
