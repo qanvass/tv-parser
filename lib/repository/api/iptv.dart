@@ -24,6 +24,8 @@ class IpTvApi {
         },
       );
 
+      debugPrint("URL: ${response.realUri}");
+
       if (response.statusCode == 200) {
         final List<dynamic> json = jsonDecode(response.data ?? "[]");
 
