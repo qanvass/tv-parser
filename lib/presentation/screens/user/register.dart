@@ -242,12 +242,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           MainAxisAlignment.start,
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Icon(
-                                          FontAwesomeIcons.solidCircle,
-                                          color: Colors.white70,
-                                          size: 12.sp,
-                                        ),
-                                        const SizedBox(width: 8),
                                         Text(
                                           'By registering, you are agreeing to our ',
                                           style: Get.textTheme.bodyMedium!
