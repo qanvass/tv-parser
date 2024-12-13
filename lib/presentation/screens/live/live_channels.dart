@@ -26,6 +26,7 @@ class _ListChannelsScreen extends State<LiveChannelsScreen> {
       _videoPlayerController!.pause();
       _videoPlayerController!.stop();
       _videoPlayerController = null;
+      setState(() {});
       await Future.delayed(const Duration(milliseconds: 300));
     } else {
       _videoPlayerController = null;
@@ -47,10 +48,7 @@ class _ListChannelsScreen extends State<LiveChannelsScreen> {
           VlcAdvancedOptions.liveCaching(2000),
         ]),
         http: VlcHttpOptions([
-          VlcHttpOptions.httpReconnect(true),
-        ]),
-        rtp: VlcRtpOptions([
-          VlcRtpOptions.rtpOverRtsp(true),
+          // VlcHttpOptions.httpReconnect(true),
         ]),
       ),
     );

@@ -16,7 +16,7 @@ class FullVideoScreen extends StatefulWidget {
 }
 
 class _FullVideoScreenState extends State<FullVideoScreen> {
-  late VlcPlayerController _videoPlayerController;
+  VlcPlayerController? _videoPlayerController;
   bool isPlayed = true;
   bool progress = true;
   bool showControllersVideo = true;
@@ -52,16 +52,21 @@ class _FullVideoScreenState extends State<FullVideoScreen> {
   @override
   void initState() {
     //Wakelock.enable();
-    _videoPlayerController = VlcPlayerController.network(
-      widget.link,
-      hwAcc: HwAcc.full,
-      autoPlay: true,
-      autoInitialize: true,
-      options: VlcPlayerOptions(),
-    );
 
     super.initState();
-    _videoPlayerController.addListener(listener);
+
+    WidgetsBinding.instance.addPostFrameCallback((callback) {
+      _videoPlayerController = VlcPlayerController.network(
+        widget.link,
+        hwAcc: HwAcc.full,
+        autoPlay: true,
+        autoInitialize: true,
+        options: VlcPlayerOptions(),
+      );
+
+      _videoPlayerController?.addListener(listener);
+    });
+
     _settingPage();
 
     timer = Timer.periodic(const Duration(seconds: 5), (timer) {
@@ -78,16 +83,16 @@ class _FullVideoScreenState extends State<FullVideoScreen> {
 
     try {
       if (progress) {
-        if (_videoPlayerController.value.isPlaying) {
+        if (_videoPlayerController!.value.isPlaying) {
           setState(() {
             progress = false;
           });
         }
       }
 
-      if (_videoPlayerController.value.isInitialized) {
-        var oPosition = _videoPlayerController.value.position;
-        var oDuration = _videoPlayerController.value.duration;
+      if (_videoPlayerController!.value.isInitialized) {
+        var oPosition = _videoPlayerController!.value.position;
+        var oDuration = _videoPlayerController!.value.duration;
 
         if (oDuration.inHours == 0) {
           var strPosition = oPosition.toString().split('.')[0];
@@ -114,22 +119,22 @@ class _FullVideoScreenState extends State<FullVideoScreen> {
       sliderValue = progress.floor().toDouble();
     });
     //convert to Milliseconds since VLC requires MS to set time
-    _videoPlayerController.setTime(sliderValue.toInt() * 1000);
+    _videoPlayerController!.setTime(sliderValue.toInt() * 1000);
   }
 
   @override
   void deactivate() {
     // Pause or stop the VLC player before closing the page
-    _videoPlayerController.pause(); // or _vlcPlayerController.stop();
-    _videoPlayerController.stop();
+    _videoPlayerController?.pause(); // or _vlcPlayerController.stop();
+    _videoPlayerController?.stop();
     super.deactivate();
   }
 
   @override
   void dispose() async {
     try {
-      _videoPlayerController.stopRendererScanning();
-      _videoPlayerController.dispose();
+      _videoPlayerController?.stopRendererScanning();
+      _videoPlayerController?.dispose();
       timer.cancel();
       VolumeController().removeListener();
     } catch (e) {
@@ -150,12 +155,14 @@ class _FullVideoScreenState extends State<FullVideoScreen> {
             width: getSize(context).width,
             height: getSize(context).height,
             color: Colors.black,
-            child: VlcPlayer(
-              controller: _videoPlayerController,
-              aspectRatio: 16 / 9,
-              virtualDisplay: true,
-              placeholder: const SizedBox(),
-            ),
+            child: _videoPlayerController == null
+                ? const SizedBox()
+                : VlcPlayer(
+                    controller: _videoPlayerController!,
+                    aspectRatio: 16 / 9,
+                    virtualDisplay: true,
+                    placeholder: const SizedBox(),
+                  ),
           ),
 
           if (progress)
@@ -199,7 +206,7 @@ class _FullVideoScreenState extends State<FullVideoScreen> {
                                               ? null
                                               : [
                                                   sliderValue,
-                                                  _videoPlayerController
+                                                  _videoPlayerController!
                                                       .value.duration.inSeconds
                                                       .toDouble()
                                                 ]);
@@ -239,7 +246,7 @@ class _FullVideoScreenState extends State<FullVideoScreen> {
                                         min: 0.0,
                                         max: (!validPosition)
                                             ? 1.0
-                                            : _videoPlayerController
+                                            : _videoPlayerController!
                                                 .value.duration.inSeconds
                                                 .toDouble(),
                                         onChanged: validPosition
@@ -297,10 +304,10 @@ class _FullVideoScreenState extends State<FullVideoScreen> {
                     onPressed: () {
                       setState(() {
                         if (isPlayed) {
-                          _videoPlayerController.pause();
+                          _videoPlayerController?.pause();
                           isPlayed = false;
                         } else {
-                          _videoPlayerController.play();
+                          _videoPlayerController?.play();
                           isPlayed = true;
                         }
                       });
