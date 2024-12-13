@@ -10,9 +10,9 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _fullUrl = TextEditingController();
 
-  final _username = TextEditingController(text: "98db66bb3cd9");
-  final _password = TextEditingController(text: "441669bcd0");
-  final _url = TextEditingController(text: "http://tuniplay.xyz");
+  final _username = TextEditingController();
+  final _password = TextEditingController();
+  final _url = TextEditingController();
 
   _convertM3utoXtreme(style) {
     showDialog(
