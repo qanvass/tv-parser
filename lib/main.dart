@@ -18,6 +18,7 @@ import 'logic/cubits/video/video_cubit.dart';
 import 'logic/cubits/watch/watching_cubit.dart';
 import 'presentation/screens/screens.dart';
 
+//test
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // await Wakelock.enable();
@@ -27,12 +28,14 @@ void main() async {
     MobileAds.instance.initialize();
   }
 
-  runApp(MyApp(
-    iptv: IpTvApi(),
-    authApi: AuthApi(),
-    watchingLocale: WatchingLocale(),
-    favoriteLocale: FavoriteLocale(),
-  ));
+  runApp(
+    MyApp(
+      iptv: IpTvApi(),
+      authApi: AuthApi(),
+      watchingLocale: WatchingLocale(),
+      favoriteLocale: FavoriteLocale(),
+    ),
+  );
 }
 
 class MyApp extends StatefulWidget {
@@ -40,12 +43,13 @@ class MyApp extends StatefulWidget {
   final AuthApi authApi;
   final WatchingLocale watchingLocale;
   final FavoriteLocale favoriteLocale;
-  const MyApp(
-      {super.key,
-      required this.iptv,
-      required this.authApi,
-      required this.watchingLocale,
-      required this.favoriteLocale});
+  const MyApp({
+    super.key,
+    required this.iptv,
+    required this.authApi,
+    required this.watchingLocale,
+    required this.favoriteLocale,
+  });
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -90,12 +94,12 @@ class _MyAppState extends State<MyApp> {
             create: (BuildContext context) => SettingsCubit(),
           ),
           BlocProvider<WatchingCubit>(
-            create: (BuildContext context) =>
-                WatchingCubit(widget.watchingLocale),
+            create:
+                (BuildContext context) => WatchingCubit(widget.watchingLocale),
           ),
           BlocProvider<FavoritesCubit>(
-            create: (BuildContext context) =>
-                FavoritesCubit(widget.favoriteLocale),
+            create:
+                (BuildContext context) => FavoritesCubit(widget.favoriteLocale),
           ),
         ],
         child: ResponsiveSizer(
@@ -110,24 +114,37 @@ class _MyAppState extends State<MyApp> {
                 GetPage(name: screenWelcome, page: () => const WelcomeScreen()),
                 GetPage(name: screenIntro, page: () => const IntroScreen()),
                 GetPage(
-                    name: screenLiveCategories,
-                    page: () => const LiveCategoriesScreen()),
+                  name: screenLiveCategories,
+                  page: () => const LiveCategoriesScreen(),
+                ),
                 GetPage(
-                    name: screenRegister, page: () => const RegisterScreen()),
+                  name: screenRegister,
+                  page: () => const RegisterScreen(),
+                ),
                 GetPage(
-                    name: screenRegisterTv, page: () => const RegisterUserTv()),
+                  name: screenRegisterTv,
+                  page: () => const RegisterUserTv(),
+                ),
                 GetPage(
-                    name: screenRegisterTv, page: () => const RegisterUserTv()),
+                  name: screenRegisterTv,
+                  page: () => const RegisterUserTv(),
+                ),
                 GetPage(
-                    name: screenMovieCategories,
-                    page: () => const MovieCategoriesScreen()),
+                  name: screenMovieCategories,
+                  page: () => const MovieCategoriesScreen(),
+                ),
                 GetPage(
-                    name: screenSeriesCategories,
-                    page: () => const SeriesCategoriesScreen()),
+                  name: screenSeriesCategories,
+                  page: () => const SeriesCategoriesScreen(),
+                ),
                 GetPage(
-                    name: screenSettings, page: () => const SettingsScreen()),
+                  name: screenSettings,
+                  page: () => const SettingsScreen(),
+                ),
                 GetPage(
-                    name: screenFavourite, page: () => const FavouriteScreen()),
+                  name: screenFavourite,
+                  page: () => const FavouriteScreen(),
+                ),
                 GetPage(name: screenCatchUp, page: () => const CatchUpScreen()),
               ],
             );
