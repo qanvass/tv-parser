@@ -1,0 +1,2 @@
+/Users/MAC/Documents/Work/Laregley/Applications/Azul IpTV/Azul IPTV/azul_iptv/android/app/.cxx/Debug/22020n6u/x86/CMakeFiles/edit_cache.dir
+/Users/MAC/Documents/Work/Laregley/Applications/Azul IpTV/Azul IPTV/azul_iptv/android/app/.cxx/Debug/22020n6u/x86/CMakeFiles/rebuild_cache.dir
