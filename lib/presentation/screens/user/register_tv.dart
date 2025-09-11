@@ -84,11 +84,9 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
     } else if (_username.text.isNotEmpty &&
         _password.text.isNotEmpty &&
         _domain.text.isNotEmpty) {
-      context.read<AuthBloc>().add(AuthRegister(
-            _username.text,
-            _password.text,
-            _domain.text,
-          ));
+      context.read<AuthBloc>().add(
+        AuthRegister(_username.text, _password.text, _domain.text),
+      );
     }
   }
 
@@ -119,12 +117,12 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
                       listener: (context, state) {
                         if (state is AuthSuccess) {
                           context.read<LiveCatyBloc>().add(GetLiveCategories());
-                          context
-                              .read<MovieCatyBloc>()
-                              .add(GetMovieCategories());
-                          context
-                              .read<SeriesCatyBloc>()
-                              .add(GetSeriesCategories());
+                          context.read<MovieCatyBloc>().add(
+                            GetMovieCategories(),
+                          );
+                          context.read<SeriesCatyBloc>().add(
+                            GetSeriesCategories(),
+                          );
 
                           Get.offAndToNamed(screenWelcome);
                         } else if (state is AuthFailed) {
@@ -156,14 +154,15 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
                                 child: Ink(
                                   width: getSize(context).width * .9,
                                   decoration: BoxDecoration(
-                                      gradient: kDecorBackground.gradient,
-                                      borderRadius: BorderRadius.circular(10),
-                                      boxShadow: const [
-                                        BoxShadow(
-                                          color: Colors.black38,
-                                          blurRadius: 5,
-                                        )
-                                      ]),
+                                    gradient: kDecorBackground.gradient,
+                                    borderRadius: BorderRadius.circular(10),
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: Colors.black38,
+                                        blurRadius: 5,
+                                      ),
+                                    ],
+                                  ),
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 10,
                                     vertical: 20,
