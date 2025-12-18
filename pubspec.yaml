@@ -38,8 +38,10 @@ dependencies:
   screen_brightness: ^2.1.7
 
   #M3U
-  flutter_vlc_player: ^7.4.4
+  #flutter_vlc_player: ^7.4.4
+  flutter_vlc_player_16kb: ^7.4.7
   pod_player: ^0.2.2
+
 
 
 

@@ -42,6 +42,7 @@ class _ListChannelsScreen extends State<LiveChannelsScreen> {
       videoUrl,
       hwAcc: HwAcc.full,
       autoPlay: true,
+      //   autoInitialize: false,
       options: VlcPlayerOptions(
         advanced: VlcAdvancedOptions([
           VlcAdvancedOptions.networkCaching(2000),
@@ -52,6 +53,9 @@ class _ListChannelsScreen extends State<LiveChannelsScreen> {
         ]),
       ),
     );
+
+    //await _videoPlayerController!.initialize();
+
     setState(() {});
   }
 
@@ -68,9 +72,13 @@ class _ListChannelsScreen extends State<LiveChannelsScreen> {
 
   @override
   void deactivate() {
-    // Pause or stop the VLC player before closing the page
-    _videoPlayerController?.pause(); // or _vlcPlayerController.stop();
-    _videoPlayerController?.stop();
+    try {
+      // Pause or stop the VLC player before closing the page
+      _videoPlayerController?.pause(); // or _vlcPlayerController.stop();
+      _videoPlayerController?.stop();
+    } catch (e) {
+      return;
+    }
     super.deactivate();
   }
 

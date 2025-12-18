@@ -18,14 +18,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
     showDialog(
       context: context,
       builder: (_) => CupertinoAlertDialog(
-        title: const Text('Past your M3u Link'),
+        title: const Text('Past your M3U API Link'),
         content: Material(
           color: Colors.transparent,
           child: TextField(
             controller: _fullUrl,
             decoration: InputDecoration(
               hintText:
-                  "http://domain.tr:8080?get.php/username=test&password=123",
+                  "http://domain.tr:8080/get.php?username=azul-iptv&password=azul-iptv",
               hintStyle: Get.textTheme.bodyMedium!.copyWith(color: Colors.grey),
             ),
             style: style,
@@ -145,7 +145,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   _convertM3utoXtreme(style);
                                 },
                                 label: Text(
-                                  'ADD M3U',
+                                  'ADD M3U API',
                                   style: Get.theme.textTheme.bodyMedium!
                                       .copyWith(
                                         color: Colors.white,
@@ -275,8 +275,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               onTap: () {
                                 //Get.toNamed(screenDownload)
 
-                                if (_username.text == "azul-demo" &&
-                                    _password.text == "azul-demo") {
+                                if (_username.text == "azul-iptv" &&
+                                    _password.text == "azul-iptv") {
                                   context
                                       .read<SettingsCubit>()
                                       .updateStatusAccount(true);

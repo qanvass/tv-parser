@@ -123,8 +123,12 @@ class _FullVideoScreenState extends State<FullVideoScreen> {
   @override
   void deactivate() {
     // Pause or stop the VLC player before closing the page
-    _videoPlayerController?.pause(); // or _vlcPlayerController.stop();
-    _videoPlayerController?.stop();
+    try {
+      _videoPlayerController?.pause(); // or _vlcPlayerController.stop();
+      _videoPlayerController?.stop();
+    } catch (e) {
+      return;
+    }
     super.deactivate();
   }
 
