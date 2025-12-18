@@ -30,7 +30,7 @@ String kInterstitial = Platform.isAndroid
 ///
 
 class AdmobWidget {
-  static getBanner() {
+  static Widget getBanner() {
     if (!showAds) {
       return const SizedBox(height: 10);
     }

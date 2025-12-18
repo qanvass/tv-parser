@@ -13,22 +13,23 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
   String keySearch = "";
 
   late InterstitialAd _interstitialAd;
-  _loadIntel() async {
+  void _loadIntel() async {
     if (!showAds) {
-      return false;
+      return;
     }
     InterstitialAd.load(
-        adUnitId: kInterstitial,
-        request: const AdRequest(),
-        adLoadCallback: InterstitialAdLoadCallback(
-          onAdLoaded: (InterstitialAd ad) {
-            debugPrint("Ads is Loaded");
-            _interstitialAd = ad;
-          },
-          onAdFailedToLoad: (LoadAdError error) {
-            debugPrint('InterstitialAd failed to load: $error');
-          },
-        ));
+      adUnitId: kInterstitial,
+      request: const AdRequest(),
+      adLoadCallback: InterstitialAdLoadCallback(
+        onAdLoaded: (InterstitialAd ad) {
+          debugPrint("Ads is Loaded");
+          _interstitialAd = ad;
+        },
+        onAdFailedToLoad: (LoadAdError error) {
+          debugPrint('InterstitialAd failed to load: $error');
+        },
+      ),
+    );
   }
 
   @override
@@ -64,17 +65,16 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
         child: FloatingActionButton(
           onPressed: () {
             setState(() {
-              _hideButtonController.animateTo(0,
-                  duration: const Duration(milliseconds: 400),
-                  curve: Curves.ease);
+              _hideButtonController.animateTo(
+                0,
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.ease,
+              );
               _hideButton = true;
             });
           },
           backgroundColor: kColorPrimaryDark,
-          child: const Icon(
-            FontAwesomeIcons.chevronUp,
-            color: Colors.white,
-          ),
+          child: const Icon(FontAwesomeIcons.chevronUp, color: Colors.white),
         ),
       ),
       body: Stack(
@@ -114,18 +114,21 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
 
                       final List<CategoryModel> categories =
                           state is MovieCatySuccess
-                              ? state.categories
-                              : [
-                                  if (stateSett.isDemo)
-                                    CategoryModel(
-                                        categoryId: "1",
-                                        categoryName: "Movies 1"),
-                                ];
+                          ? state.categories
+                          : [
+                              if (stateSett.isDemo)
+                                CategoryModel(
+                                  categoryId: "1",
+                                  categoryName: "Movies 1",
+                                ),
+                            ];
 
                       List<CategoryModel> searchList = categories
-                          .where((element) => element.categoryName!
-                              .toLowerCase()
-                              .contains(keySearch))
+                          .where(
+                            (element) => element.categoryName!
+                                .toLowerCase()
+                                .contains(keySearch),
+                          )
                           .toList();
 
                       return GridView.builder(
@@ -140,30 +143,35 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
                         ),
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          crossAxisSpacing: 10,
-                          mainAxisSpacing: 10,
-                          childAspectRatio: 5,
-                        ),
+                              crossAxisCount: 3,
+                              crossAxisSpacing: 10,
+                              mainAxisSpacing: 10,
+                              childAspectRatio: 5,
+                            ),
                         itemBuilder: (_, i) {
-                          final model =
-                              keySearch.isEmpty ? categories[i] : searchList[i];
+                          final model = keySearch.isEmpty
+                              ? categories[i]
+                              : searchList[i];
 
                           return CardLiveItem(
                             title: model.categoryName ?? "",
                             onTap: () {
                               if (stateSett.isDemo) {
                                 //TODO:
-                                Get.to(() => const FullVideoScreen(
-                                      title: "Movie",
-                                      link: kDemoUrl,
-                                      isLive: true,
-                                    ));
+                                Get.to(
+                                  () => const FullVideoScreen(
+                                    title: "Movie",
+                                    link: kDemoUrl,
+                                    isLive: true,
+                                  ),
+                                );
                               } else {
                                 // OPEN Channels
-                                Get.to(() => MovieChannels(
-                                        catyId: model.categoryId ?? ''))!
-                                    .then((value) async {
+                                Get.to(
+                                  () => MovieChannels(
+                                    catyId: model.categoryId ?? '',
+                                  ),
+                                )!.then((value) async {
                                   if (!showAds) {
                                     return false;
                                   }

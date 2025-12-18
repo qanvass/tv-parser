@@ -25,15 +25,17 @@ class ContinueWatchingMovies extends StatelessWidget {
               return CardMovieContinueWatch(
                 model: watching[i],
                 onTap: () {
-                  Get.to(() => FullVideoScreen(
-                            link: watching[i].stream,
-                            title: watching[i].title,
-                          ))!
-                      .then((slider) {
+                  final watchingCubit = context.read<WatchingCubit>();
+                  Get.to(
+                    () => FullVideoScreen(
+                      link: watching[i].stream,
+                      title: watching[i].title,
+                    ),
+                  )!.then((slider) {
                     if (slider != null) {
                       var newMod = watching[i];
                       newMod.sliderValue = slider[0];
-                      context.read<WatchingCubit>().addMovie(newMod);
+                      watchingCubit.addMovie(newMod);
                       // debugPrint("Value Slider: ${newMod.sliderValue}");
                     }
                   });
@@ -78,16 +80,18 @@ class ContinueWatchingSeries extends StatelessWidget {
               return CardMovieContinueWatch(
                 model: model,
                 onTap: () {
-                  Get.to(() => FullVideoScreen(
-                            link: model.stream,
-                            title: "Episode ${i + 1}: ${model.title}",
-                          ))!
-                      .then((slider) {
+                  final watch = context.read<WatchingCubit>();
+                  Get.to(
+                    () => FullVideoScreen(
+                      link: model.stream,
+                      title: "Episode ${i + 1}: ${model.title}",
+                    ),
+                  )!.then((slider) {
                     debugPrint("DATA: $slider");
                     if (slider != null) {
                       var newMod = model;
                       newMod.sliderValue = slider;
-                      context.read<WatchingCubit>().addSerie(newMod);
+                      watch.addSerie(newMod);
                     }
                   });
                 },
@@ -104,8 +108,11 @@ class ContinueWatchingSeries extends StatelessWidget {
 }
 
 class CardMovieContinueWatch extends StatelessWidget {
-  const CardMovieContinueWatch(
-      {super.key, required this.onTap, required this.model});
+  const CardMovieContinueWatch({
+    super.key,
+    required this.onTap,
+    required this.model,
+  });
 
   final Function() onTap;
   final WatchingModel model;
@@ -149,7 +156,7 @@ class CardMovieContinueWatch extends StatelessWidget {
                             child: Ink(
                               width: double.infinity,
                               height: double.infinity,
-                              color: kColorCardDark.withOpacity(.5),
+                              color: kColorCardDark.withValues(alpha: .5),
                             ),
                           ),
                         ),
@@ -172,15 +179,13 @@ class CardMovieContinueWatch extends StatelessWidget {
                     child: Row(
                       children: [
                         Expanded(
-                            flex: (model.sliderValue * 10).round(),
-                            child: Container(
-                              color: kColorPrimary,
-                            )),
+                          flex: (model.sliderValue * 10).round(),
+                          child: Container(color: kColorPrimary),
+                        ),
                         Expanded(
-                            flex: (model.durationStrm * 10).round(),
-                            child: Container(
-                              color: Colors.grey,
-                            )),
+                          flex: (model.durationStrm * 10).round(),
+                          child: Container(color: Colors.grey),
+                        ),
                       ],
                     ),
                   ),
@@ -193,9 +198,7 @@ class CardMovieContinueWatch extends StatelessWidget {
         Text(
           model.title,
           maxLines: 1,
-          style: Get.textTheme.bodyLarge!.copyWith(
-            color: Colors.white,
-          ),
+          style: Get.textTheme.bodyLarge!.copyWith(color: Colors.white),
         ),
       ],
     );
@@ -212,11 +215,7 @@ class CardNoImage extends StatelessWidget {
       height: double.infinity,
       color: kColorCardDark,
       child: Center(
-        child: Image.asset(
-          kIconSplash,
-          width: 30.sp,
-          height: 30.sp,
-        ),
+        child: Image.asset(kIconSplash, width: 30.sp, height: 30.sp),
       ),
     );
   }

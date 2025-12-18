@@ -13,22 +13,23 @@ class _SeriesCategoriesScreenState extends State<SeriesCategoriesScreen> {
   String keySearch = "";
 
   late InterstitialAd _interstitialAd;
-  _loadIntel() async {
+  void _loadIntel() async {
     if (!showAds) {
-      return false;
+      return;
     }
     InterstitialAd.load(
-        adUnitId: kInterstitial,
-        request: const AdRequest(),
-        adLoadCallback: InterstitialAdLoadCallback(
-          onAdLoaded: (InterstitialAd ad) {
-            debugPrint("Ads is Loaded");
-            _interstitialAd = ad;
-          },
-          onAdFailedToLoad: (LoadAdError error) {
-            debugPrint('InterstitialAd failed to load: $error');
-          },
-        ));
+      adUnitId: kInterstitial,
+      request: const AdRequest(),
+      adLoadCallback: InterstitialAdLoadCallback(
+        onAdLoaded: (InterstitialAd ad) {
+          debugPrint("Ads is Loaded");
+          _interstitialAd = ad;
+        },
+        onAdFailedToLoad: (LoadAdError error) {
+          debugPrint('InterstitialAd failed to load: $error');
+        },
+      ),
+    );
   }
 
   @override
@@ -64,17 +65,16 @@ class _SeriesCategoriesScreenState extends State<SeriesCategoriesScreen> {
         child: FloatingActionButton(
           onPressed: () {
             setState(() {
-              _hideButtonController.animateTo(0,
-                  duration: const Duration(milliseconds: 400),
-                  curve: Curves.ease);
+              _hideButtonController.animateTo(
+                0,
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.ease,
+              );
               _hideButton = true;
             });
           },
           backgroundColor: kColorPrimaryDark,
-          child: const Icon(
-            FontAwesomeIcons.chevronUp,
-            color: Colors.white,
-          ),
+          child: const Icon(FontAwesomeIcons.chevronUp, color: Colors.white),
         ),
       ),
       body: BlocBuilder<SettingsCubit, SettingsState>(
@@ -114,17 +114,20 @@ class _SeriesCategoriesScreenState extends State<SeriesCategoriesScreen> {
                       }
                       final List<CategoryModel> categories =
                           state is SeriesCatySuccess
-                              ? state.categories
-                              : [
-                                  if (stateSett.isDemo)
-                                    CategoryModel(
-                                        categoryName: 'Serie 1',
-                                        categoryId: "1"),
-                                ];
+                          ? state.categories
+                          : [
+                              if (stateSett.isDemo)
+                                CategoryModel(
+                                  categoryName: 'Serie 1',
+                                  categoryId: "1",
+                                ),
+                            ];
                       final searchList = categories
-                          .where((element) => element.categoryName!
-                              .toLowerCase()
-                              .contains(keySearch))
+                          .where(
+                            (element) => element.categoryName!
+                                .toLowerCase()
+                                .contains(keySearch),
+                          )
                           .toList();
 
                       return GridView.builder(
@@ -139,29 +142,34 @@ class _SeriesCategoriesScreenState extends State<SeriesCategoriesScreen> {
                             : searchList.length,
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          crossAxisSpacing: 10,
-                          mainAxisSpacing: 10,
-                          childAspectRatio: 4.9,
-                        ),
+                              crossAxisCount: 3,
+                              crossAxisSpacing: 10,
+                              mainAxisSpacing: 10,
+                              childAspectRatio: 4.9,
+                            ),
                         itemBuilder: (_, i) {
-                          final model =
-                              keySearch.isEmpty ? categories[i] : searchList[i];
+                          final model = keySearch.isEmpty
+                              ? categories[i]
+                              : searchList[i];
 
                           return CardLiveItem(
                             title: model.categoryName ?? "",
                             onTap: () {
                               if (stateSett.isDemo) {
-                                Get.to(() => const FullVideoScreen(
-                                      title: "Serie",
-                                      link: kDemoUrl,
-                                      isLive: true,
-                                    ));
+                                Get.to(
+                                  () => const FullVideoScreen(
+                                    title: "Serie",
+                                    link: kDemoUrl,
+                                    isLive: true,
+                                  ),
+                                );
                               } else {
                                 // OPEN Channels
-                                Get.to(() => SeriesChannels(
-                                        catyId: model.categoryId ?? ''))!
-                                    .then((value) async {
+                                Get.to(
+                                  () => SeriesChannels(
+                                    catyId: model.categoryId ?? '',
+                                  ),
+                                )!.then((value) async {
                                   if (!showAds) {
                                     return false;
                                   }

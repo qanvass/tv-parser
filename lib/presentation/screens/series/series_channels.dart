@@ -15,31 +15,34 @@ class SeriesChannelsState extends State<SeriesChannels> {
   String keySearch = "";
 
   late InterstitialAd _interstitialAd;
-  _loadIntel() async {
+  void _loadIntel() async {
     if (!showAds) {
-      return false;
+      return;
     }
     InterstitialAd.load(
-        adUnitId: kInterstitial,
-        request: const AdRequest(),
-        adLoadCallback: InterstitialAdLoadCallback(
-          onAdLoaded: (InterstitialAd ad) {
-            debugPrint("Ads is Loaded");
-            _interstitialAd = ad;
-          },
-          onAdFailedToLoad: (LoadAdError error) {
-            debugPrint('InterstitialAd failed to load: $error');
-          },
-        ));
+      adUnitId: kInterstitial,
+      request: const AdRequest(),
+      adLoadCallback: InterstitialAdLoadCallback(
+        onAdLoaded: (InterstitialAd ad) {
+          debugPrint("Ads is Loaded");
+          _interstitialAd = ad;
+        },
+        onAdFailedToLoad: (LoadAdError error) {
+          debugPrint('InterstitialAd failed to load: $error');
+        },
+      ),
+    );
   }
 
   @override
   void initState() {
     _loadIntel();
-    context.read<ChannelsBloc>().add(GetLiveChannelsEvent(
-          typeCategory: TypeCategory.series,
-          catyId: widget.catyId,
-        ));
+    context.read<ChannelsBloc>().add(
+      GetLiveChannelsEvent(
+        typeCategory: TypeCategory.series,
+        catyId: widget.catyId,
+      ),
+    );
     _hideButtonController.addListener(() {
       if (_hideButtonController.position.userScrollDirection ==
           ScrollDirection.reverse) {
@@ -70,17 +73,16 @@ class SeriesChannelsState extends State<SeriesChannels> {
         child: FloatingActionButton(
           onPressed: () {
             setState(() {
-              _hideButtonController.animateTo(0,
-                  duration: const Duration(milliseconds: 400),
-                  curve: Curves.ease);
+              _hideButtonController.animateTo(
+                0,
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.ease,
+              );
               _hideButton = true;
             });
           },
           backgroundColor: kColorPrimaryDark,
-          child: const Icon(
-            FontAwesomeIcons.chevronUp,
-            color: Colors.white,
-          ),
+          child: const Icon(FontAwesomeIcons.chevronUp, color: Colors.white),
         ),
       ),
       body: Stack(
@@ -90,10 +92,7 @@ class SeriesChannelsState extends State<SeriesChannels> {
             width: 100.w,
             height: 100.h,
             decoration: kDecorBackground,
-            padding: const EdgeInsets.only(
-              left: 10,
-              right: 10,
-            ),
+            padding: const EdgeInsets.only(left: 10, right: 10),
             child: NestedScrollView(
               controller: _hideButtonController,
               headerSliverBuilder: (_, ch) {
@@ -122,37 +121,39 @@ class SeriesChannelsState extends State<SeriesChannels> {
                   } else if (state is ChannelsSeriesSuccess) {
                     final channels = state.channels;
                     final List<ChannelSerie> searchList = channels
-                        .where((element) =>
-                            element.name!.toLowerCase().contains(keySearch))
+                        .where(
+                          (element) =>
+                              element.name!.toLowerCase().contains(keySearch),
+                        )
                         .toList();
 
                     return GridView.builder(
-                      padding: const EdgeInsets.only(
-                        bottom: 80,
-                        top: 10,
-                      ),
+                      padding: const EdgeInsets.only(bottom: 80, top: 10),
                       itemCount: keySearch.isEmpty
                           ? channels.length
                           : searchList.length,
                       gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 5,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
-                        childAspectRatio: .7,
-                      ),
+                            crossAxisCount: 5,
+                            crossAxisSpacing: 10,
+                            mainAxisSpacing: 10,
+                            childAspectRatio: .7,
+                          ),
                       itemBuilder: (_, i) {
-                        final model =
-                            keySearch.isEmpty ? channels[i] : searchList[i];
+                        final model = keySearch.isEmpty
+                            ? channels[i]
+                            : searchList[i];
 
                         return CardChannelMovieItem(
                           title: model.name,
                           image: model.cover,
                           onTap: () {
-                            Get.to(() => SerieContent(
-                                    channelSerie: model,
-                                    videoId: model.seriesId ?? ''))!
-                                .then((value) async {
+                            Get.to(
+                              () => SerieContent(
+                                channelSerie: model,
+                                videoId: model.seriesId ?? '',
+                              ),
+                            )!.then((value) async {
                               _interstitialAd.show();
                               _loadIntel();
                             });

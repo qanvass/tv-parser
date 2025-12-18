@@ -1,8 +1,12 @@
 part of 'widgets.dart';
 
 class CardChannelMovieItem extends StatelessWidget {
-  const CardChannelMovieItem(
-      {super.key, required this.onTap, this.title, this.image});
+  const CardChannelMovieItem({
+    super.key,
+    required this.onTap,
+    this.title,
+    this.image,
+  });
   final Function() onTap;
   final String? title;
   final String? image;
@@ -35,9 +39,7 @@ class CardChannelMovieItem extends StatelessWidget {
                     return const SizedBox();
                   },
                   placeholder: (_, i) {
-                    return const Center(
-                      child: CircularProgressIndicator(),
-                    );
+                    return const Center(child: CircularProgressIndicator());
                   },
                 ),
               ),
@@ -110,15 +112,12 @@ class _CardButtonWatchMovieState extends State<CardButtonWatchMovie> {
                   )
                 : LinearGradient(
                     colors: [
-                      kColorPrimary.withOpacity(.4),
-                      kColorPrimaryDark.withOpacity(.4)
+                      kColorPrimary.withValues(alpha: .4),
+                      kColorPrimaryDark.withValues(alpha: .4),
                     ],
                   ),
           ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: 15,
-            vertical: 8,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
           child: Center(
             child: Text(
               widget.title.toUpperCase(),
@@ -134,12 +133,13 @@ class _CardButtonWatchMovieState extends State<CardButtonWatchMovie> {
 }
 
 class CardInfoMovie extends StatelessWidget {
-  const CardInfoMovie(
-      {super.key,
-      required this.hint,
-      required this.title,
-      required this.icon,
-      this.isShowMore = false});
+  const CardInfoMovie({
+    super.key,
+    required this.hint,
+    required this.title,
+    required this.icon,
+    this.isShowMore = false,
+  });
   final String hint;
   final String title;
   final IconData icon;
@@ -154,15 +154,9 @@ class CardInfoMovie extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
-                icon,
-                size: 15.sp,
-              ),
+              Icon(icon, size: 15.sp),
               const SizedBox(width: 5),
-              Text(
-                hint,
-                style: Get.textTheme.headlineSmall,
-              ),
+              Text(hint, style: Get.textTheme.headlineSmall),
             ],
           ),
           const SizedBox(height: 3),
@@ -199,8 +193,11 @@ class CardInfoMovie extends StatelessWidget {
 }
 
 class CardMovieImageRate extends StatelessWidget {
-  const CardMovieImageRate(
-      {super.key, required this.image, required this.rate});
+  const CardMovieImageRate({
+    super.key,
+    required this.image,
+    required this.rate,
+  });
   final String image;
   final String rate;
 
@@ -216,19 +213,15 @@ class CardMovieImageRate extends StatelessWidget {
             height: 55.h,
             fit: BoxFit.cover,
             errorWidget: (_, i, e) {
-              return Container(
-                color: Colors.grey,
-              );
+              return Container(color: Colors.grey);
             },
           ),
         ),
         const SizedBox(height: 10),
         RatingBarIndicator(
           rating: double.tryParse(rate.toString()) ?? 0,
-          itemBuilder: (context, index) => const Icon(
-            FontAwesomeIcons.solidStar,
-            color: Colors.amber,
-          ),
+          itemBuilder: (context, index) =>
+              const Icon(FontAwesomeIcons.solidStar, color: Colors.amber),
           itemCount: 5,
           itemSize: 18.sp,
           direction: Axis.horizontal,
@@ -252,7 +245,7 @@ class _CardMovieImagesBackgroundState extends State<CardMovieImagesBackground> {
   late int sizeList;
   int indexImage = 0;
 
-  _runAnimation() async {
+  void _runAnimation() async {
     await Future.delayed(const Duration(seconds: 5));
 
     if (mounted) {
@@ -308,8 +301,8 @@ class _CardMovieImagesBackgroundState extends State<CardMovieImagesBackground> {
               end: Alignment.topCenter,
               begin: Alignment.bottomCenter,
               colors: [
-                kColorBackDark.withOpacity(1),
-                kColorBack.withOpacity(.5),
+                kColorBackDark.withValues(alpha: 1),
+                kColorBack.withValues(alpha: .5),
               ],
             ),
           ),
@@ -321,13 +314,14 @@ class _CardMovieImagesBackgroundState extends State<CardMovieImagesBackground> {
 
 ///Serie
 class CardEpisodeItem extends StatelessWidget {
-  const CardEpisodeItem(
-      {super.key,
-      required this.episode,
-      required this.isSelected,
-      required this.onFocused,
-      required this.onTap,
-      required this.index});
+  const CardEpisodeItem({
+    super.key,
+    required this.episode,
+    required this.isSelected,
+    required this.onFocused,
+    required this.onTap,
+    required this.index,
+  });
   final Episode? episode;
   final bool isSelected;
   final int index;
@@ -351,9 +345,7 @@ class CardEpisodeItem extends StatelessWidget {
                 imageUrl: episode!.info!.movieImage ?? "",
                 fit: BoxFit.cover,
                 placeholder: (_, i) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
+                  return const Center(child: CircularProgressIndicator());
                 },
                 errorWidget: (_, i, e) {
                   return Opacity(
@@ -420,8 +412,9 @@ class CardEpisodeItem extends StatelessWidget {
                         "Play",
                         maxLines: 3,
                         style: Get.textTheme.titleMedium!.copyWith(
-                          color:
-                              isSelected ? Colors.white : Colors.grey.shade400,
+                          color: isSelected
+                              ? Colors.white
+                              : Colors.grey.shade400,
                           fontSize: isSelected ? 16.sp : 15.sp,
                         ),
                       ),

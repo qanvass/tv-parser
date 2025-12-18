@@ -1,6 +1,6 @@
 part of 'helpers.dart';
 
-showWarningToast(context, title, message) {
+void showWarningToast(BuildContext context, String title, String message) {
   final snackBar = SnackBar(
     elevation: 15,
     behavior: SnackBarBehavior.floating,
@@ -19,7 +19,7 @@ showWarningToast(context, title, message) {
     ..showSnackBar(snackBar);
 }
 
-showSoftToast(context, title, message) {
+void showSoftToast(BuildContext context, String title, String message) {
   final snackBar = SnackBar(
     elevation: 15,
     behavior: SnackBarBehavior.floating,

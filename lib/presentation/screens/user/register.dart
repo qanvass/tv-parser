@@ -14,7 +14,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _password = TextEditingController();
   final _url = TextEditingController();
 
-  _convertM3utoXtreme(style) {
+  void _convertM3utoXtreme(TextStyle style) {
     showDialog(
       context: context,
       builder: (_) => CupertinoAlertDialog(
@@ -26,53 +26,51 @@ class _RegisterScreenState extends State<RegisterScreen> {
             decoration: InputDecoration(
               hintText:
                   "http://domain.tr:8080?get.php/username=test&password=123",
-              hintStyle: Get.textTheme.bodyMedium!.copyWith(
-                color: Colors.grey,
-              ),
+              hintStyle: Get.textTheme.bodyMedium!.copyWith(color: Colors.grey),
             ),
             style: style,
           ),
         ),
         actions: [
           TextButton(
-              onPressed: () {
-                _fullUrl.clear();
-                Get.back();
-              },
-              child: Text(
-                'Cancel',
-                style: Get.textTheme.bodyMedium!.copyWith(
-                  color: Colors.grey.shade400,
-                ),
-              )),
+            onPressed: () {
+              _fullUrl.clear();
+              Get.back();
+            },
+            child: Text(
+              'Cancel',
+              style: Get.textTheme.bodyMedium!.copyWith(
+                color: Colors.grey.shade400,
+              ),
+            ),
+          ),
           TextButton(
-              onPressed: () {
-                var txt = _fullUrl.text;
-                if (txt.isEmpty) {
-                  return;
-                }
+            onPressed: () {
+              var txt = _fullUrl.text;
+              if (txt.isEmpty) {
+                return;
+              }
 
-                if (Uri.tryParse(txt)?.hasAbsolutePath ?? false) {
-                  Uri url = Uri.parse(txt);
-                  var parameters = url.queryParameters;
-                  debugPrint("${url.scheme}://${url.host}:${url.port}");
+              if (Uri.tryParse(txt)?.hasAbsolutePath ?? false) {
+                Uri url = Uri.parse(txt);
+                var parameters = url.queryParameters;
+                debugPrint("${url.scheme}://${url.host}:${url.port}");
 
-                  _username.text = parameters['username'].toString();
-                  _password.text = parameters['password'].toString();
-                  _url.text =
-                      "${url.scheme}://${url.host}${url.hasPort ? ":${url.port}" : ""}";
-                  Get.back();
-                } else {
-                  debugPrint("this text is not url!!");
-                  Get.snackbar("Error", "This data is not correct??");
-                }
-              },
-              child: Text(
-                'Save',
-                style: Get.textTheme.bodyMedium!.copyWith(
-                  color: kColorPrimary,
-                ),
-              )),
+                _username.text = parameters['username'].toString();
+                _password.text = parameters['password'].toString();
+                _url.text =
+                    "${url.scheme}://${url.host}${url.hasPort ? ":${url.port}" : ""}";
+                Get.back();
+              } else {
+                debugPrint("this text is not url!!");
+                Get.snackbar("Error", "This data is not correct??");
+              }
+            },
+            child: Text(
+              'Save',
+              style: Get.textTheme.bodyMedium!.copyWith(color: kColorPrimary),
+            ),
+          ),
         ],
       ),
     );
@@ -131,11 +129,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               IconButton(
-                                  onPressed: () => Get.back(),
-                                  icon: const Icon(
-                                    FontAwesomeIcons.chevronLeft,
-                                    color: Colors.white,
-                                  )),
+                                onPressed: () => Get.back(),
+                                icon: const Icon(
+                                  FontAwesomeIcons.chevronLeft,
+                                  color: Colors.white,
+                                ),
+                              ),
                               TextButton.icon(
                                 icon: const Icon(
                                   FontAwesomeIcons.link,
@@ -147,19 +146,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 },
                                 label: Text(
                                   'ADD M3U',
-                                  style:
-                                      Get.theme.textTheme.bodyMedium!.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                  style: Get.theme.textTheme.bodyMedium!
+                                      .copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                 ),
                               ),
                             ],
                           ),
                           Expanded(
                             child: SingleChildScrollView(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 10),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                              ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
@@ -188,10 +188,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     controller: _username,
                                     decoration: InputDecoration(
                                       hintText: "Username",
-                                      hintStyle:
-                                          Get.textTheme.bodyMedium!.copyWith(
-                                        color: Colors.grey,
-                                      ),
+                                      hintStyle: Get.textTheme.bodyMedium!
+                                          .copyWith(color: Colors.grey),
                                       suffixIcon: const Icon(
                                         FontAwesomeIcons.solidUser,
                                         size: 18,
@@ -205,10 +203,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     controller: _password,
                                     decoration: InputDecoration(
                                       hintText: "Password",
-                                      hintStyle:
-                                          Get.textTheme.bodyMedium!.copyWith(
-                                        color: Colors.grey,
-                                      ),
+                                      hintStyle: Get.textTheme.bodyMedium!
+                                          .copyWith(color: Colors.grey),
                                       suffixIcon: const Icon(
                                         FontAwesomeIcons.lock,
                                         size: 18,
@@ -222,10 +218,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     controller: _url,
                                     decoration: InputDecoration(
                                       hintText: "http://url.domain.net:8080",
-                                      hintStyle:
-                                          Get.textTheme.bodyMedium!.copyWith(
-                                        color: Colors.grey,
-                                      ),
+                                      hintStyle: Get.textTheme.bodyMedium!
+                                          .copyWith(color: Colors.grey),
                                       suffixIcon: const Icon(
                                         FontAwesomeIcons.link,
                                         size: 18,
@@ -245,25 +239,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         Text(
                                           'By registering, you are agreeing to our ',
                                           style: Get.textTheme.bodyMedium!
-                                              .copyWith(
-                                            color: Colors.white70,
-                                          ),
+                                              .copyWith(color: Colors.white70),
                                         ),
                                         InkWell(
                                           onTap: () async {
                                             var url = Uri.parse(kPrivacy);
-                                            await launchUrl(url,
-                                                mode: LaunchMode
-                                                    .externalApplication);
+                                            await launchUrl(
+                                              url,
+                                              mode: LaunchMode
+                                                  .externalApplication,
+                                            );
                                           },
                                           child: Text(
                                             'privacy policy.',
                                             style: Get.textTheme.bodyMedium!
                                                 .copyWith(
-                                              color: kColorPrimary
-                                                  .withOpacity(.70),
-                                              fontWeight: FontWeight.bold,
-                                            ),
+                                                  color: kColorPrimary
+                                                      .withValues(alpha: .70),
+                                                  fontWeight: FontWeight.bold,
+                                                ),
                                           ),
                                         ),
                                       ],
@@ -291,11 +285,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   if (_username.text.isNotEmpty &&
                                       _password.text.isNotEmpty &&
                                       _url.text.isNotEmpty) {
-                                    context.read<AuthBloc>().add(AuthRegister(
-                                          _username.text,
-                                          _password.text,
-                                          _url.text,
-                                        ));
+                                    context.read<AuthBloc>().add(
+                                      AuthRegister(
+                                        _username.text,
+                                        _password.text,
+                                        _url.text,
+                                      ),
+                                    );
                                   }
                                 }
                               },

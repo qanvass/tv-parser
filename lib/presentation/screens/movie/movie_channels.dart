@@ -3,7 +3,7 @@ part of '../screens.dart';
 class MovieChannels extends StatefulWidget {
   final String catyId;
 
-  const MovieChannels({Key? key, required this.catyId}) : super(key: key);
+  const MovieChannels({super.key, required this.catyId});
 
   @override
   State<MovieChannels> createState() => _MovieChannelsState();
@@ -16,31 +16,34 @@ class _MovieChannelsState extends State<MovieChannels> {
 
   late InterstitialAd _interstitialAd;
 
-  _loadIntel() async {
+  void _loadIntel() async {
     if (!showAds) {
-      return false;
+      return;
     }
     InterstitialAd.load(
-        adUnitId: kInterstitial,
-        request: const AdRequest(),
-        adLoadCallback: InterstitialAdLoadCallback(
-          onAdLoaded: (InterstitialAd ad) {
-            debugPrint("Ads is Loaded");
-            _interstitialAd = ad;
-          },
-          onAdFailedToLoad: (LoadAdError error) {
-            debugPrint('InterstitialAd failed to load: $error');
-          },
-        ));
+      adUnitId: kInterstitial,
+      request: const AdRequest(),
+      adLoadCallback: InterstitialAdLoadCallback(
+        onAdLoaded: (InterstitialAd ad) {
+          debugPrint("Ads is Loaded");
+          _interstitialAd = ad;
+        },
+        onAdFailedToLoad: (LoadAdError error) {
+          debugPrint('InterstitialAd failed to load: $error');
+        },
+      ),
+    );
   }
 
   @override
   void initState() {
     _loadIntel();
-    context.read<ChannelsBloc>().add(GetLiveChannelsEvent(
-          typeCategory: TypeCategory.movies,
-          catyId: widget.catyId,
-        ));
+    context.read<ChannelsBloc>().add(
+      GetLiveChannelsEvent(
+        typeCategory: TypeCategory.movies,
+        catyId: widget.catyId,
+      ),
+    );
     _hideButtonController.addListener(() {
       if (_hideButtonController.position.userScrollDirection ==
           ScrollDirection.reverse) {
@@ -71,17 +74,16 @@ class _MovieChannelsState extends State<MovieChannels> {
         child: FloatingActionButton(
           onPressed: () {
             setState(() {
-              _hideButtonController.animateTo(0,
-                  duration: const Duration(milliseconds: 400),
-                  curve: Curves.ease);
+              _hideButtonController.animateTo(
+                0,
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.ease,
+              );
               _hideButton = true;
             });
           },
           backgroundColor: kColorPrimaryDark,
-          child: const Icon(
-            FontAwesomeIcons.chevronUp,
-            color: Colors.white,
-          ),
+          child: const Icon(FontAwesomeIcons.chevronUp, color: Colors.white),
         ),
       ),
       body: Stack(
@@ -123,8 +125,10 @@ class _MovieChannelsState extends State<MovieChannels> {
                           state is ChannelsMovieSuccess ? state.channels : [];
 
                       List<ChannelMovie> searchList = channels
-                          .where((element) =>
-                              element.name!.toLowerCase().contains(keySearch))
+                          .where(
+                            (element) =>
+                                element.name!.toLowerCase().contains(keySearch),
+                          )
                           .toList();
 
                       return GridView.builder(
@@ -139,23 +143,26 @@ class _MovieChannelsState extends State<MovieChannels> {
                             : searchList.length,
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 5,
-                          crossAxisSpacing: 10,
-                          mainAxisSpacing: 10,
-                          childAspectRatio: .7,
-                        ),
+                              crossAxisCount: 5,
+                              crossAxisSpacing: 10,
+                              mainAxisSpacing: 10,
+                              childAspectRatio: .7,
+                            ),
                         itemBuilder: (_, i) {
-                          final model =
-                              keySearch.isEmpty ? channels[i] : searchList[i];
+                          final model = keySearch.isEmpty
+                              ? channels[i]
+                              : searchList[i];
 
                           return CardChannelMovieItem(
                             title: model.name,
                             image: model.streamIcon,
                             onTap: () {
-                              Get.to(() => MovieContent(
-                                      channelMovie: model,
-                                      videoId: model.streamId ?? ''))!
-                                  .then((value) async {
+                              Get.to(
+                                () => MovieContent(
+                                  channelMovie: model,
+                                  videoId: model.streamId ?? '',
+                                ),
+                              )!.then((value) async {
                                 _interstitialAd.show();
                                 _loadIntel();
                               });

@@ -6,18 +6,18 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: 3.10.0
+  sdk: ">=3.10.3 <4.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
 
   cupertino_icons: ^1.0.8
-  font_awesome_flutter: ^10.10.0
+  font_awesome_flutter: ^10.12.0
   cached_network_image: ^3.4.1
   responsive_sizer: ^3.3.1
   awesome_snackbar_content: ^0.1.8
-  google_fonts: ^6.3.1
+  google_fonts: ^6.3.3
   flutter_rating_bar: ^4.0.1
   readmore: ^3.0.0
   filling_slider: ^0.0.3
@@ -28,17 +28,17 @@ dependencies:
   #Logic
   azul_envato_checker: ^0.0.13+12
   flutter_bloc: ^9.1.1
-  get: ^4.7.2
+  get: ^4.7.3
   intl: ^0.20.2
   get_storage: ^2.1.1
   url_launcher: ^6.3.2
  # wakelock: ^0.6.2
   #perfect_volume_control: ^1.0.5
-  volume_controller: ^3.4.0
+  volume_controller: ^3.4.1
   screen_brightness: ^2.1.7
 
   #M3U
-  flutter_vlc_player: ^7.4.3
+  flutter_vlc_player: ^7.4.4
   pod_player: ^0.2.2
 
 

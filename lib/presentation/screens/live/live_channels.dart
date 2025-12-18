@@ -18,7 +18,7 @@ class _ListChannelsScreen extends State<LiveChannelsScreen> {
   String keySearch = "";
   final FocusNode _remoteFocus = FocusNode();
 
-  _initialVideo(String streamId) async {
+  Future<void> _initialVideo(String streamId) async {
     UserModel? user = await LocaleApi.getUser();
 
     if (_videoPlayerController != null &&
@@ -57,10 +57,12 @@ class _ListChannelsScreen extends State<LiveChannelsScreen> {
 
   @override
   void initState() {
-    context.read<ChannelsBloc>().add(GetLiveChannelsEvent(
-          catyId: widget.catyId,
-          typeCategory: TypeCategory.live,
-        ));
+    context.read<ChannelsBloc>().add(
+      GetLiveChannelsEvent(
+        catyId: widget.catyId,
+        typeCategory: TypeCategory.live,
+      ),
+    );
     super.initState();
   }
 
@@ -86,24 +88,34 @@ class _ListChannelsScreen extends State<LiveChannelsScreen> {
   Widget build(BuildContext context) {
     return BlocBuilder<VideoCubit, VideoState>(
       builder: (context, stateVideo) {
-        return WillPopScope(
-          onWillPop: () async {
+        return PopScope(
+          canPop: !stateVideo.isFull,
+          onPopInvokedWithResult: (didPop, v) {
+            if (didPop) return;
+
             debugPrint("Back pressed");
+
             if (stateVideo.isFull) {
               context.read<VideoCubit>().changeUrlVideo(false);
-
-              return Future.value(false);
-            } else {
-              return Future.value(true);
             }
           },
+          // onWillPop: () async {
+          //   debugPrint("Back pressed");
+          //   if (stateVideo.isFull) {
+          //     context.read<VideoCubit>().changeUrlVideo(false);
+          //
+          //     return Future.value(false);
+          //   } else {
+          //     return Future.value(true);
+          //   }
+          // },
           child: BlocBuilder<AuthBloc, AuthState>(
             builder: (context, stateAuth) {
               final userAuth = stateAuth is AuthSuccess ? stateAuth.user : null;
 
               return BlocBuilder<SettingsCubit, SettingsState>(
                 builder: (context, stateSetting) {
-                  final isDemo = stateSetting.isDemo;
+                  // final isDemo = stateSetting.isDemo;
                   return Scaffold(
                     body: Stack(
                       alignment: Alignment.bottomCenter,
@@ -120,33 +132,48 @@ class _ListChannelsScreen extends State<LiveChannelsScreen> {
                                   if (stateVideo.isFull) {
                                     return const SizedBox();
                                   }
-                                  return WillPopScope(
-                                    onWillPop: () async {
+                                  return PopScope(
+                                    canPop: !stateVideo.isFull,
+                                    onPopInvokedWithResult: (didPop, v) {
+                                      if (didPop) return;
+
                                       debugPrint("Back pressed");
-                                      if (stateVideo.isFull) {
-                                        context
-                                            .read<VideoCubit>()
-                                            .changeUrlVideo(false);
-                                        return Future.value(false);
-                                      } else {
-                                        return Future.value(true);
-                                      }
+
+                                      context.read<VideoCubit>().changeUrlVideo(
+                                        false,
+                                      );
                                     },
+                                    // onWillPop: () async {
+                                    //   debugPrint("Back pressed");
+                                    //   if (stateVideo.isFull) {
+                                    //     context
+                                    //         .read<VideoCubit>()
+                                    //         .changeUrlVideo(false);
+                                    //     return Future.value(false);
+                                    //   } else {
+                                    //     return Future.value(true);
+                                    //   }
+                                    // },
                                     child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
                                         SizedBox(height: 3.h),
-                                        BlocBuilder<FavoritesCubit,
-                                            FavoritesState>(
+                                        BlocBuilder<
+                                          FavoritesCubit,
+                                          FavoritesState
+                                        >(
                                           builder: (context, state) {
                                             final isLiked = channelLive == null
                                                 ? false
                                                 : state.lives
-                                                    .where((live) =>
-                                                        live.streamId ==
-                                                        channelLive!.streamId)
-                                                    .isNotEmpty;
+                                                      .where(
+                                                        (live) =>
+                                                            live.streamId ==
+                                                            channelLive!
+                                                                .streamId,
+                                                      )
+                                                      .isNotEmpty;
                                             return AppBarLive(
                                               isLiked: isLiked,
                                               onLike: channelLive == null
@@ -154,9 +181,12 @@ class _ListChannelsScreen extends State<LiveChannelsScreen> {
                                                   : () {
                                                       context
                                                           .read<
-                                                              FavoritesCubit>()
-                                                          .addLive(channelLive,
-                                                              isAdd: !isLiked);
+                                                            FavoritesCubit
+                                                          >()
+                                                          .addLive(
+                                                            channelLive,
+                                                            isAdd: !isLiked,
+                                                          );
                                                     },
                                               onSearch: (String value) {
                                                 setState(() {
@@ -182,13 +212,13 @@ class _ListChannelsScreen extends State<LiveChannelsScreen> {
                                           return const SizedBox();
                                         }
                                         return Expanded(
-                                          child: BlocBuilder<ChannelsBloc,
-                                              ChannelsState>(
+                                          child: BlocBuilder<ChannelsBloc, ChannelsState>(
                                             builder: (context, state) {
                                               if (state is ChannelsLoading) {
                                                 return const Center(
-                                                    child:
-                                                        CircularProgressIndicator());
+                                                  child:
+                                                      CircularProgressIndicator(),
+                                                );
                                               } else if (state
                                                   is ChannelsLiveSuccess) {
                                                 final categories =
@@ -196,41 +226,46 @@ class _ListChannelsScreen extends State<LiveChannelsScreen> {
 
                                                 List<ChannelLive> searchList =
                                                     categories
-                                                        .where((element) =>
-                                                            element.name!
-                                                                .toLowerCase()
-                                                                .contains(
-                                                                    keySearch))
+                                                        .where(
+                                                          (element) => element
+                                                              .name!
+                                                              .toLowerCase()
+                                                              .contains(
+                                                                keySearch,
+                                                              ),
+                                                        )
                                                         .toList();
 
                                                 return GridView.builder(
                                                   padding:
                                                       const EdgeInsets.only(
-                                                    left: 10,
-                                                    right: 10,
-                                                    bottom: 80,
-                                                  ),
+                                                        left: 10,
+                                                        right: 10,
+                                                        bottom: 80,
+                                                      ),
                                                   itemCount: keySearch.isEmpty
                                                       ? categories.length
                                                       : searchList.length,
                                                   gridDelegate:
                                                       SliverGridDelegateWithFixedCrossAxisCount(
-                                                    crossAxisCount:
-                                                        selectedVideo == null
+                                                        crossAxisCount:
+                                                            selectedVideo ==
+                                                                null
                                                             ? 2
                                                             : 1,
-                                                    mainAxisSpacing: 10,
-                                                    crossAxisSpacing:
-                                                        selectedVideo == null
+                                                        mainAxisSpacing: 10,
+                                                        crossAxisSpacing:
+                                                            selectedVideo ==
+                                                                null
                                                             ? 10
                                                             : 0,
-                                                    childAspectRatio: 7,
-                                                  ),
+                                                        childAspectRatio: 7,
+                                                      ),
                                                   itemBuilder: (_, i) {
                                                     final model =
                                                         keySearch.isEmpty
-                                                            ? categories[i]
-                                                            : searchList[i];
+                                                        ? categories[i]
+                                                        : searchList[i];
 
                                                     final link =
                                                         "${userAuth?.serverInfo!.serverUrl}/${userAuth?.userInfo!.username}/${userAuth?.userInfo!.password}/${model.streamId}";
@@ -241,9 +276,8 @@ class _ListChannelsScreen extends State<LiveChannelsScreen> {
                                                       link: link,
                                                       isSelected:
                                                           selectedVideo == null
-                                                              ? false
-                                                              : selectedVideo ==
-                                                                  i,
+                                                          ? false
+                                                          : selectedVideo == i,
                                                       onTap: () async {
                                                         try {
                                                           if (selectedVideo ==
@@ -252,20 +286,25 @@ class _ListChannelsScreen extends State<LiveChannelsScreen> {
                                                                   null) {
                                                             // OPEN FULL SCREEN
                                                             debugPrint(
-                                                                "///////////// OPEN FULL STREAM /////////////");
+                                                              "///////////// OPEN FULL STREAM /////////////",
+                                                            );
                                                             context
                                                                 .read<
-                                                                    VideoCubit>()
+                                                                  VideoCubit
+                                                                >()
                                                                 .changeUrlVideo(
-                                                                    true);
+                                                                  true,
+                                                                );
                                                           } else {
                                                             ///Play new Stream
                                                             debugPrint(
-                                                                "Play new Stream");
+                                                              "Play new Stream",
+                                                            );
 
-                                                            _initialVideo(model
-                                                                .streamId
-                                                                .toString());
+                                                            _initialVideo(
+                                                              model.streamId
+                                                                  .toString(),
+                                                            );
 
                                                             if (mounted) {
                                                               setState(() {
@@ -281,7 +320,8 @@ class _ListChannelsScreen extends State<LiveChannelsScreen> {
                                                           }
                                                         } catch (e) {
                                                           debugPrint(
-                                                              "error: $e");
+                                                            "error: $e",
+                                                          );
                                                           //  context.read<VideoCubit>().changeUrlVideo(false);
 
                                                           // selectedVideo = null;
@@ -301,7 +341,8 @@ class _ListChannelsScreen extends State<LiveChannelsScreen> {
 
                                               return const Center(
                                                 child: Text(
-                                                    "Failed to load data..."),
+                                                  "Failed to load data...",
+                                                ),
                                               );
                                             },
                                           ),
@@ -327,7 +368,8 @@ class _ListChannelsScreen extends State<LiveChannelsScreen> {
 
                                                 ///Get EPG
                                                 return CardEpgStream(
-                                                    streamId: selectedStreamId);
+                                                  streamId: selectedStreamId,
+                                                );
                                               },
                                             ),
                                           ],
@@ -380,10 +422,11 @@ class CardEpgStream extends StatelessWidget {
 
                 return Container(
                   decoration: const BoxDecoration(
-                      color: kColorCardLight,
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(10),
-                      )),
+                    color: kColorCardLight,
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(10),
+                    ),
+                  ),
                   margin: const EdgeInsets.only(top: 10),
                   child: ListView.separated(
                     itemCount: list!.length,
@@ -393,37 +436,41 @@ class CardEpgStream extends StatelessWidget {
                     ),
                     itemBuilder: (_, i) {
                       final model = list[i];
-                      String description =
-                          utf8.decode(base64.decode(model.description ?? ""));
+                      String description = utf8.decode(
+                        base64.decode(model.description ?? ""),
+                      );
 
-                      String title =
-                          utf8.decode(base64.decode(model.title ?? ""));
+                      String title = utf8.decode(
+                        base64.decode(model.title ?? ""),
+                      );
                       return CardEpg(
                         title:
                             "${getTimeFromDate(model.start ?? "")} - ${getTimeFromDate(model.end ?? "")} - $title",
                         description: description,
                         isSameTime: checkEpgTimeIsNow(
-                            model.start ?? "", model.end ?? ""),
+                          model.start ?? "",
+                          model.end ?? "",
+                        ),
                       );
                     },
                     separatorBuilder: (_, i) {
-                      return const SizedBox(
-                        height: 10,
-                      );
+                      return const SizedBox(height: 10);
                     },
                   ),
                 );
-              }),
+              },
+            ),
     );
   }
 }
 
 class CardEpg extends StatelessWidget {
-  const CardEpg(
-      {super.key,
-      required this.title,
-      required this.description,
-      required this.isSameTime});
+  const CardEpg({
+    super.key,
+    required this.title,
+    required this.description,
+    required this.isSameTime,
+  });
   final String title;
   final String description;
   final bool isSameTime;
@@ -443,9 +490,7 @@ class CardEpg extends StatelessWidget {
         ),
         Text(
           description,
-          style: Get.textTheme.bodyMedium!.copyWith(
-            color: Colors.white70,
-          ),
+          style: Get.textTheme.bodyMedium!.copyWith(color: Colors.white70),
         ),
       ],
     );

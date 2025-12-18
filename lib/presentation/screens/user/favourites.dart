@@ -98,7 +98,7 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
 }
 
 class _FavLivePage extends StatelessWidget {
-  const _FavLivePage({super.key});
+  const _FavLivePage();
 
   @override
   Widget build(BuildContext context) {
@@ -110,8 +110,10 @@ class _FavLivePage extends StatelessWidget {
             builder: (context, state) {
               final lives = state.lives;
               return GridView.builder(
-                padding:
-                    const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 10,
+                  horizontal: 10,
+                ),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3,
                   mainAxisSpacing: 10,
@@ -125,11 +127,13 @@ class _FavLivePage extends StatelessWidget {
                     onTap: () {
                       final link =
                           "${userAuth.serverInfo!.serverUrl}/${userAuth.userInfo!.username}/${userAuth.userInfo!.password}/${lives[i].streamId}";
-                      Get.to(() => FullVideoScreen(
-                            isLive: true,
-                            link: link,
-                            title: lives[i].name ?? "",
-                          ));
+                      Get.to(
+                        () => FullVideoScreen(
+                          isLive: true,
+                          link: link,
+                          title: lives[i].name ?? "",
+                        ),
+                      );
                     },
                   );
                 },
@@ -144,7 +148,7 @@ class _FavLivePage extends StatelessWidget {
 }
 
 class _FavMoviesPage extends StatelessWidget {
-  const _FavMoviesPage({super.key});
+  const _FavMoviesPage();
 
   @override
   Widget build(BuildContext context) {
@@ -156,8 +160,10 @@ class _FavMoviesPage extends StatelessWidget {
             builder: (context, state) {
               final movies = state.movies;
               return GridView.builder(
-                padding:
-                    const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 10,
+                  horizontal: 10,
+                ),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 5,
                   crossAxisSpacing: 10,
@@ -170,10 +176,12 @@ class _FavMoviesPage extends StatelessWidget {
                     title: movies[i].name ?? "",
                     image: movies[i].streamIcon,
                     onTap: () {
-                      Get.to(() => MovieContent(
-                              channelMovie: movies[i],
-                              videoId: movies[i].streamId ?? ''))!
-                          .then((value) async {
+                      Get.to(
+                        () => MovieContent(
+                          channelMovie: movies[i],
+                          videoId: movies[i].streamId ?? '',
+                        ),
+                      )!.then((value) async {
                         //  _interstitialAd.show();
                         // _loadIntel();
                       });
@@ -191,7 +199,7 @@ class _FavMoviesPage extends StatelessWidget {
 }
 
 class _FavSeriesPage extends StatelessWidget {
-  const _FavSeriesPage({super.key});
+  const _FavSeriesPage();
 
   @override
   Widget build(BuildContext context) {
@@ -203,8 +211,10 @@ class _FavSeriesPage extends StatelessWidget {
             builder: (context, state) {
               final series = state.series;
               return GridView.builder(
-                padding:
-                    const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 10,
+                  horizontal: 10,
+                ),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 5,
                   crossAxisSpacing: 10,
@@ -217,10 +227,12 @@ class _FavSeriesPage extends StatelessWidget {
                     title: series[i].name ?? "",
                     image: series[i].cover,
                     onTap: () {
-                      Get.to(() => SerieContent(
-                              channelSerie: series[i],
-                              videoId: series[i].seriesId ?? ''))!
-                          .then((value) async {
+                      Get.to(
+                        () => SerieContent(
+                          channelSerie: series[i],
+                          videoId: series[i].seriesId ?? '',
+                        ),
+                      )!.then((value) async {
                         //  _interstitialAd.show();
                         // _loadIntel();
                       });

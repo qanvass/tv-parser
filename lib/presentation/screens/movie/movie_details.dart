@@ -1,8 +1,11 @@
 part of '../screens.dart';
 
 class MovieContent extends StatefulWidget {
-  const MovieContent(
-      {super.key, required this.videoId, required this.channelMovie});
+  const MovieContent({
+    super.key,
+    required this.videoId,
+    required this.channelMovie,
+  });
   final String videoId;
   final ChannelMovie channelMovie;
 
@@ -34,13 +37,9 @@ class _MovieContentState extends State<MovieContent> {
                     future: future,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(
-                          child: CircularProgressIndicator(),
-                        );
+                        return const Center(child: CircularProgressIndicator());
                       } else if (!snapshot.hasData) {
-                        return const Center(
-                          child: Text("Could not load data"),
-                        );
+                        return const Center(child: Text("Could not load data"));
                       }
 
                       final movie = snapshot.data;
@@ -48,14 +47,16 @@ class _MovieContentState extends State<MovieContent> {
                       return Stack(
                         children: [
                           CardMovieImagesBackground(
-                            listImages: movie!.info!.backdropPath ??
-                                [
-                                  movie.info!.movieImage ?? "",
-                                ],
+                            listImages:
+                                movie!.info!.backdropPath ??
+                                [movie.info!.movieImage ?? ""],
                           ),
                           Padding(
                             padding: const EdgeInsets.only(
-                                top: 70, left: 10, right: 10),
+                              top: 70,
+                              left: 10,
+                              right: 10,
+                            ),
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -92,7 +93,8 @@ class _MovieContentState extends State<MovieContent> {
                                                   FontAwesomeIcons.calendarDay,
                                               hint: 'Release Date',
                                               title: expirationDate(
-                                                  movie.info!.releasedate),
+                                                movie.info!.releasedate,
+                                              ),
                                             ),
                                             CardInfoMovie(
                                               icon: FontAwesomeIcons.clock,
@@ -126,28 +128,34 @@ class _MovieContentState extends State<MovieContent> {
                                           children: [
                                             if (movie.info!.youtubeTrailer !=
                                                     null &&
-                                                movie.info!.youtubeTrailer!
+                                                movie
+                                                    .info!
+                                                    .youtubeTrailer!
                                                     .isNotEmpty)
                                               CardButtonWatchMovie(
                                                 title: "watch trailer",
                                                 onTap: () {
                                                   showDialog(
-                                                      context: context,
-                                                      builder: (builder) =>
-                                                          DialogTrailerYoutube(
-                                                              thumb: movie
-                                                                      .info!
-                                                                      .backdropPath!
-                                                                      .isNotEmpty
-                                                                  ? movie
-                                                                      .info!
-                                                                      .backdropPath!
-                                                                      .first
-                                                                  : null,
-                                                              trailer: movie
-                                                                      .info!
-                                                                      .youtubeTrailer ??
-                                                                  ""));
+                                                    context: context,
+                                                    builder: (builder) =>
+                                                        DialogTrailerYoutube(
+                                                          thumb:
+                                                              movie
+                                                                  .info!
+                                                                  .backdropPath!
+                                                                  .isNotEmpty
+                                                              ? movie
+                                                                    .info!
+                                                                    .backdropPath!
+                                                                    .first
+                                                              : null,
+                                                          trailer:
+                                                              movie
+                                                                  .info!
+                                                                  .youtubeTrailer ??
+                                                              "",
+                                                        ),
+                                                  );
                                                 },
                                               ),
                                             SizedBox(width: 3.w),
@@ -155,37 +163,46 @@ class _MovieContentState extends State<MovieContent> {
                                               title: "watch Now",
                                               isFocused: true,
                                               onTap: () {
+                                                final watchingCubit = context
+                                                    .read<WatchingCubit>();
+
                                                 final link =
                                                     "${userAuth.serverInfo!.serverUrl}/movie/${userAuth.userInfo!.username}/${userAuth.userInfo!.password}/${movie.movieData!.streamId}.${movie.movieData!.containerExtension}";
 
                                                 debugPrint("URL: $link");
-                                                Get.to(() => FullVideoScreen(
-                                                          link: link,
-                                                          title: movie
-                                                                  .movieData!
-                                                                  .name ??
-                                                              "",
-                                                        ))!
-                                                    .then((slider) {
+                                                Get.to(
+                                                  () => FullVideoScreen(
+                                                    link: link,
+                                                    title:
+                                                        movie.movieData!.name ??
+                                                        "",
+                                                  ),
+                                                )!.then((slider) {
                                                   debugPrint("DATA: $slider");
                                                   if (slider != null) {
                                                     var model = WatchingModel(
                                                       sliderValue: slider[0],
                                                       durationStrm: slider[1],
                                                       stream: link,
-                                                      title: widget.channelMovie
+                                                      title:
+                                                          widget
+                                                              .channelMovie
                                                               .name ??
                                                           "",
-                                                      image: widget.channelMovie
+                                                      image:
+                                                          widget
+                                                              .channelMovie
                                                               .streamIcon ??
                                                           "",
                                                       streamId: widget
-                                                          .channelMovie.streamId
+                                                          .channelMovie
+                                                          .streamId
                                                           .toString(),
                                                     );
-                                                    context
-                                                        .read<WatchingCubit>()
-                                                        .addMovie(model);
+
+                                                    watchingCubit.addMovie(
+                                                      model,
+                                                    );
                                                   }
                                                 });
                                               },
@@ -206,16 +223,19 @@ class _MovieContentState extends State<MovieContent> {
                   BlocBuilder<FavoritesCubit, FavoritesState>(
                     builder: (context, state) {
                       final isLiked = state.movies
-                          .where((movie) =>
-                              movie.streamId == widget.channelMovie.streamId)
+                          .where(
+                            (movie) =>
+                                movie.streamId == widget.channelMovie.streamId,
+                          )
                           .isNotEmpty;
                       return AppBarMovie(
                         isLiked: isLiked,
                         top: 15,
                         onFavorite: () {
-                          context
-                              .read<FavoritesCubit>()
-                              .addMovie(widget.channelMovie, isAdd: !isLiked);
+                          context.read<FavoritesCubit>().addMovie(
+                            widget.channelMovie,
+                            isAdd: !isLiked,
+                          );
                         },
                       );
                     },

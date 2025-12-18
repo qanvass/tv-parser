@@ -9,22 +9,23 @@ class WelcomeScreen extends StatefulWidget {
 
 class _WelcomeScreenState extends State<WelcomeScreen> {
   late InterstitialAd _interstitialAd;
-  _loadIntel() async {
+  void _loadIntel() async {
     if (!showAds) {
-      return false;
+      return;
     }
     InterstitialAd.load(
-        adUnitId: kInterstitial,
-        request: const AdRequest(),
-        adLoadCallback: InterstitialAdLoadCallback(
-          onAdLoaded: (InterstitialAd ad) {
-            debugPrint("Ads is Loaded");
-            _interstitialAd = ad;
-          },
-          onAdFailedToLoad: (LoadAdError error) {
-            debugPrint('InterstitialAd failed to load: $error');
-          },
-        ));
+      adUnitId: kInterstitial,
+      request: const AdRequest(),
+      adLoadCallback: InterstitialAdLoadCallback(
+        onAdLoaded: (InterstitialAd ad) {
+          debugPrint("Ads is Loaded");
+          _interstitialAd = ad;
+        },
+        onAdFailedToLoad: (LoadAdError error) {
+          debugPrint('InterstitialAd failed to load: $error');
+        },
+      ),
+    );
   }
 
   @override
@@ -65,11 +66,12 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                             subTitle: "$size Channels",
                             icon: kIconLive,
                             onTap: () {
-                              Get.toNamed(screenLiveCategories)!
-                                  .then((value) async {
+                              Get.toNamed(screenLiveCategories)!.then((
+                                value,
+                              ) async {
                                 debugPrint("show interstitial");
                                 _interstitialAd.show();
-                                await _loadIntel();
+                                _loadIntel();
                               });
                             },
                           );
@@ -89,10 +91,11 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                             subTitle: "$size Channels",
                             icon: kIconMovies,
                             onTap: () {
-                              Get.toNamed(screenMovieCategories)!
-                                  .then((value) async {
+                              Get.toNamed(screenMovieCategories)!.then((
+                                value,
+                              ) async {
                                 await _interstitialAd.show();
-                                await _loadIntel();
+                                _loadIntel();
                               });
                             },
                           );
@@ -112,10 +115,11 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                             subTitle: "$size Channels",
                             icon: kIconSeries,
                             onTap: () {
-                              Get.toNamed(screenSeriesCategories)!
-                                  .then((value) async {
+                              Get.toNamed(screenSeriesCategories)!.then((
+                                value,
+                              ) async {
                                 await _interstitialAd.show();
-                                await _loadIntel();
+                                _loadIntel();
                               });
                             },
                           );

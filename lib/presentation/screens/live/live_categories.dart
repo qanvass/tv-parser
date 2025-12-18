@@ -14,22 +14,23 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
 
   late InterstitialAd _interstitialAd;
 
-  _loadIntel() async {
+  void _loadIntel() async {
     if (!showAds) {
-      return false;
+      return;
     }
     InterstitialAd.load(
-        adUnitId: kInterstitial,
-        request: const AdRequest(),
-        adLoadCallback: InterstitialAdLoadCallback(
-          onAdLoaded: (InterstitialAd ad) {
-            debugPrint("Ads is Loaded");
-            _interstitialAd = ad;
-          },
-          onAdFailedToLoad: (LoadAdError error) {
-            debugPrint('InterstitialAd failed to load: $error');
-          },
-        ));
+      adUnitId: kInterstitial,
+      request: const AdRequest(),
+      adLoadCallback: InterstitialAdLoadCallback(
+        onAdLoaded: (InterstitialAd ad) {
+          debugPrint("Ads is Loaded");
+          _interstitialAd = ad;
+        },
+        onAdFailedToLoad: (LoadAdError error) {
+          debugPrint('InterstitialAd failed to load: $error');
+        },
+      ),
+    );
   }
 
   @override
@@ -66,17 +67,16 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
         child: FloatingActionButton(
           onPressed: () {
             setState(() {
-              _hideButtonController.animateTo(0,
-                  duration: const Duration(milliseconds: 400),
-                  curve: Curves.ease);
+              _hideButtonController.animateTo(
+                0,
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.ease,
+              );
               _hideButton = true;
             });
           },
           backgroundColor: kColorPrimaryDark,
-          child: const Icon(
-            FontAwesomeIcons.chevronUp,
-            color: Colors.white,
-          ),
+          child: const Icon(FontAwesomeIcons.chevronUp, color: Colors.white),
         ),
       ),
       body: Stack(
@@ -115,25 +115,29 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
                     builder: (context, state) {
                       final List<CategoryModel> categories =
                           state is LiveCatySuccess
-                              ? state.categories
-                              : isDemo
-                                  ? [
-                                      CategoryModel(
-                                          categoryName: "Channel 1",
-                                          categoryId: "1"),
-                                      CategoryModel(
-                                          categoryName: "Channel 2",
-                                          categoryId: "2")
-                                    ]
-                                  : [];
+                          ? state.categories
+                          : isDemo
+                          ? [
+                              CategoryModel(
+                                categoryName: "Channel 1",
+                                categoryId: "1",
+                              ),
+                              CategoryModel(
+                                categoryName: "Channel 2",
+                                categoryId: "2",
+                              ),
+                            ]
+                          : [];
                       if (state is LiveCatyLoading) {
                         return const Center(child: CircularProgressIndicator());
                       }
 
                       List<CategoryModel> searchCaty = categories
-                          .where((element) => element.categoryName!
-                              .toLowerCase()
-                              .contains(keySearch))
+                          .where(
+                            (element) => element.categoryName!
+                                .toLowerCase()
+                                .contains(keySearch),
+                          )
                           .toList();
 
                       return GridView.builder(
@@ -148,11 +152,11 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
                             : categories.length,
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          crossAxisSpacing: 10,
-                          mainAxisSpacing: 10,
-                          childAspectRatio: 4.8,
-                        ),
+                              crossAxisCount: 3,
+                              crossAxisSpacing: 10,
+                              mainAxisSpacing: 10,
+                              childAspectRatio: 4.8,
+                            ),
                         itemBuilder: (_, i) {
                           final model = keySearch.isNotEmpty
                               ? searchCaty[i]
@@ -163,21 +167,25 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
                             onTap: () {
                               if (isDemo) {
                                 //TODO:
-                                Get.to(() => const FullVideoScreen(
-                                      title: "Channel",
-                                      link: kDemoUrl,
-                                      isLive: true,
-                                    ));
+                                Get.to(
+                                  () => const FullVideoScreen(
+                                    title: "Channel",
+                                    link: kDemoUrl,
+                                    isLive: true,
+                                  ),
+                                );
                               } else {
                                 /// OPEN Channels
-                                Get.to(() => LiveChannelsScreen(
-                                        catyId: model.categoryId ?? ''))!
-                                    .then((value) async {
+                                Get.to(
+                                  () => LiveChannelsScreen(
+                                    catyId: model.categoryId ?? '',
+                                  ),
+                                )!.then((value) async {
                                   if (!showAds) {
                                     return false;
                                   }
                                   await _interstitialAd.show();
-                                  await _loadIntel();
+                                  _loadIntel();
                                 });
                               }
                             },

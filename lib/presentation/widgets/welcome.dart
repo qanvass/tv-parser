@@ -11,16 +11,9 @@ class AppBarWelcome extends StatelessWidget {
       // margin: EdgeInsets.symmetric(vertical: 7.h, horizontal: 15),
       child: Row(
         children: [
-          const Image(
-            width: 40,
-            height: 40,
-            image: AssetImage(kIconSplash),
-          ),
+          const Image(width: 40, height: 40, image: AssetImage(kIconSplash)),
           const SizedBox(width: 5),
-          Text(
-            kAppName,
-            style: Get.textTheme.headlineMedium,
-          ),
+          Text(kAppName, style: Get.textTheme.headlineMedium),
           Container(
             width: 1,
             height: 40,
@@ -36,10 +29,7 @@ class AppBarWelcome extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      dateNowWelcome(),
-                      style: Get.textTheme.titleSmall,
-                    ),
+                    Text(dateNowWelcome(), style: Get.textTheme.titleSmall),
                     Text(
                       "Expiration: ${expirationDate(userInfo!.expDate)}",
                       style: Get.textTheme.titleSmall!.copyWith(
@@ -58,11 +48,7 @@ class AppBarWelcome extends StatelessWidget {
             onPressed: () {
               Get.toNamed(screenSettings);
             },
-            icon: Icon(
-              FontAwesomeIcons.gear,
-              color: Colors.white,
-              size: 19.sp,
-            ),
+            icon: Icon(FontAwesomeIcons.gear, color: Colors.white, size: 19.sp),
           ),
         ],
       ),
@@ -71,11 +57,12 @@ class AppBarWelcome extends StatelessWidget {
 }
 
 class CardWelcomeSetting extends StatelessWidget {
-  const CardWelcomeSetting(
-      {super.key,
-      required this.title,
-      required this.icon,
-      required this.onTap});
+  const CardWelcomeSetting({
+    super.key,
+    required this.title,
+    required this.icon,
+    required this.onTap,
+  });
   final String title;
   final IconData icon;
   final Function() onTap;
@@ -93,20 +80,14 @@ class CardWelcomeSetting extends StatelessWidget {
             height: 7.w,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
-              gradient: const RadialGradient(colors: [
-                kColorCardDark,
-                kColorCardLight,
-              ]),
+              gradient: const RadialGradient(
+                colors: [kColorCardDark, kColorCardLight],
+              ),
             ),
-            child: Center(
-              child: Icon(icon),
-            ),
+            child: Center(child: Icon(icon)),
           ),
           const SizedBox(width: 10),
-          Text(
-            title,
-            style: Get.textTheme.headlineSmall,
-          ),
+          Text(title, style: Get.textTheme.headlineSmall),
         ],
       ),
     );
@@ -146,15 +127,9 @@ class CardWelcomeTv extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Image(
-              width: 8.w,
-              image: AssetImage(icon),
-            ),
+            Image(width: 8.w, image: AssetImage(icon)),
             SizedBox(height: 3.h),
-            Text(
-              title,
-              style: Get.textTheme.displaySmall,
-            ),
+            Text(title, style: Get.textTheme.displaySmall),
             SizedBox(height: 1.h),
             Text(
               "◍ $subTitle",
@@ -168,12 +143,13 @@ class CardWelcomeTv extends StatelessWidget {
 }
 
 class CardTallButton extends StatelessWidget {
-  const CardTallButton(
-      {super.key,
-      required this.label,
-      required this.onTap,
-      this.radius = 5,
-      this.isLoading = false});
+  const CardTallButton({
+    super.key,
+    required this.label,
+    required this.onTap,
+    this.radius = 5,
+    this.isLoading = false,
+  });
   final String label;
   final Function() onTap;
   final double radius;
@@ -189,11 +165,13 @@ class CardTallButton extends StatelessWidget {
         child: ElevatedButton(
           onPressed: onTap,
           style: ButtonStyle(
-              backgroundColor: MaterialStateProperty.all(kColorPrimary),
-              shape: MaterialStateProperty.all<RoundedRectangleBorder>(
-                  RoundedRectangleBorder(
+            backgroundColor: .all(kColorPrimary),
+            shape: .all<RoundedRectangleBorder>(
+              RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(radius),
-              ))),
+              ),
+            ),
+          ),
           child: isLoading
               ? LoadingAnimationWidget.staggeredDotsWave(
                   color: Colors.white,

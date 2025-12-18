@@ -19,9 +19,9 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
   final FocusNode focusNode2 = FocusNode();
   final FocusNode _remoteFocus = FocusNode();
 
-  _onKey(RawKeyEvent event) {
+  void _onKey(KeyEvent event) {
     debugPrint("EVENT");
-    if (event.isKeyPressed(LogicalKeyboardKey.arrowDown)) {
+    if (event.physicalKey == (LogicalKeyboardKey.arrowDown)) {
       debugPrint('downd');
 
       if (indexTab == 0) {
@@ -31,7 +31,7 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
       } else if (indexTab == 2) {
         indexTab = 3;
       }
-    } else if (event.isKeyPressed(LogicalKeyboardKey.arrowUp)) {
+    } else if (event.physicalKey == (LogicalKeyboardKey.arrowUp)) {
       debugPrint('up');
       if (indexTab == 0) {
       } else if (indexTab == 1) {
@@ -41,7 +41,7 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
       } else if (indexTab == 3) {
         indexTab = 2;
       }
-    } else if (event.isKeyPressed(LogicalKeyboardKey.select)) {
+    } else if (event.physicalKey == (LogicalKeyboardKey.select)) {
       debugPrint("enter");
 
       if (indexTab == 0) {
@@ -77,7 +77,7 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
     super.dispose();
   }
 
-  _login() {
+  void _login() {
     if (_username.text == "azul-demo" && _password.text == "azul-demo") {
       context.read<SettingsCubit>().updateStatusAccount(true);
       Get.offAndToNamed(screenWelcome);
@@ -92,9 +92,10 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
 
   @override
   Widget build(BuildContext context) {
-    return RawKeyboardListener(
+    return KeyboardListener(
       focusNode: _remoteFocus,
-      onKey: _onKey,
+
+      onKeyEvent: _onKey,
       child: Scaffold(
         resizeToAvoidBottomInset: false,
         body: BlocBuilder<SettingsCubit, SettingsState>(

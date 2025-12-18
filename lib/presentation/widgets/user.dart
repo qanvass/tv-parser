@@ -1,16 +1,17 @@
 part of 'widgets.dart';
 
 class CardInputTv extends StatelessWidget {
-  const CardInputTv(
-      {super.key,
-      this.controller,
-      required this.label,
-      required this.icon,
-      required this.focusNode,
-      required this.onTap,
-      this.onEditingComplete,
-      required this.isFocused,
-      required this.isEnabled});
+  const CardInputTv({
+    super.key,
+    this.controller,
+    required this.label,
+    required this.icon,
+    required this.focusNode,
+    required this.onTap,
+    this.onEditingComplete,
+    required this.isFocused,
+    required this.isEnabled,
+  });
   final TextEditingController? controller;
   final FocusNode focusNode;
   final String label;
@@ -53,11 +54,7 @@ class CardInputTv extends StatelessWidget {
             decoration: InputDecoration(
               hintText: label,
               hintStyle: Get.textTheme.bodyMedium!.copyWith(color: Colors.grey),
-              suffixIcon: Icon(
-                icon,
-                size: 18,
-                color: kColorPrimary,
-              ),
+              suffixIcon: Icon(icon, size: 18, color: kColorPrimary),
               border: InputBorder.none,
             ),
             cursorColor: kColorPrimary,
@@ -82,7 +79,7 @@ class _IntroImageAnimatedState extends State<IntroImageAnimated> {
   bool isImage = true;
   ScrollController controller = ScrollController();
 
-  _startAnimation() async {
+  Future<void> _startAnimation() async {
     const int second = 27;
 
     await Future.delayed(const Duration(milliseconds: 400));
@@ -150,11 +147,7 @@ class _IntroImageAnimatedState extends State<IntroImageAnimated> {
         if (!widget.isTv)
           Column(
             children: [
-              Image.asset(
-                kIconSplash,
-                width: 40.w,
-                height: 40.w,
-              ),
+              Image.asset(kIconSplash, width: 40.w, height: 40.w),
               Text(
                 kAppName.toUpperCase(),
                 textAlign: TextAlign.center,

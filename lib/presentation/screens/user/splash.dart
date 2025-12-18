@@ -8,7 +8,7 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  goScreen(String screen) {
+  void goScreen(String screen) {
     Future.delayed(const Duration(seconds: 3)).then((value) {
       Get.offAndToNamed(screen);
     });
@@ -17,51 +17,51 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) {
-        if (isTv(context)) {
-          SystemChrome.setPreferredOrientations([
-            DeviceOrientation.landscapeLeft,
-            DeviceOrientation.landscapeRight,
-          ]);
-        } else {
-          SystemChrome.setPreferredOrientations([
-            DeviceOrientation.portraitDown,
-            DeviceOrientation.portraitUp,
-          ]);
-        }
-        context.read<SettingsCubit>().getSettingsCode();
-        context.read<AuthBloc>().add(AuthGetUser());
-      },
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (isTv(context)) {
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ]);
+      } else {
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.portraitDown,
+          DeviceOrientation.portraitUp,
+        ]);
+      }
+      context.read<SettingsCubit>().getSettingsCode();
+      context.read<AuthBloc>().add(AuthGetUser());
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     debugPrint("width: ${MediaQuery.of(context).size.width}");
     return Scaffold(
-      body: OrientationBuilder(builder: (context, orientation) {
-        //bool isPortrait = orientation == Orientation.portrait;
+      body: OrientationBuilder(
+        builder: (context, orientation) {
+          //bool isPortrait = orientation == Orientation.portrait;
 
-        return BlocListener<AuthBloc, AuthState>(
-          listener: (context, state) {
-            if (state is AuthSuccess) {
-              context.read<LiveCatyBloc>().add(GetLiveCategories());
-              context.read<MovieCatyBloc>().add(GetMovieCategories());
-              context.read<SeriesCatyBloc>().add(GetSeriesCategories());
-              goScreen(screenWelcome);
-            } else if (state is AuthFailed) {
-              if (isTv(context)) {
-                goScreen(screenRegisterTv);
-              } else {
-                //goScreen(screenRegisterTv);
-                goScreen(screenIntro);
+          return BlocListener<AuthBloc, AuthState>(
+            listener: (context, state) {
+              if (state is AuthSuccess) {
+                context.read<LiveCatyBloc>().add(GetLiveCategories());
+                context.read<MovieCatyBloc>().add(GetMovieCategories());
+                context.read<SeriesCatyBloc>().add(GetSeriesCategories());
+                goScreen(screenWelcome);
+              } else if (state is AuthFailed) {
+                if (isTv(context)) {
+                  goScreen(screenRegisterTv);
+                } else {
+                  //goScreen(screenRegisterTv);
+                  goScreen(screenIntro);
+                }
               }
-            }
-          },
-          child: const LoadingWidget(),
-        );
-      }),
+            },
+            child: const LoadingWidget(),
+          );
+        },
+      ),
     );
   }
 }
@@ -84,10 +84,7 @@ class LoadingWidget extends StatelessWidget {
             image: const AssetImage(kIconSplash),
           ),
           const SizedBox(height: 10),
-          Text(
-            kAppName,
-            style: Get.textTheme.displaySmall,
-          ),
+          Text(kAppName, style: Get.textTheme.displaySmall),
           BlocBuilder<AuthBloc, AuthState>(
             builder: (context, state) {
               if (state is AuthLoading) {

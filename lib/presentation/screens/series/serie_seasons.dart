@@ -65,7 +65,8 @@ class _SerieSeasonsState extends State<SerieSeasons> {
                               physics: const ScrollPhysics(),
                               itemBuilder: (_, i) {
                                 return CardSeasonItem(
-                                  isSelected: int.tryParse(seasons[i]) ==
+                                  isSelected:
+                                      int.tryParse(seasons[i]) ==
                                       selectedSeason,
                                   number: seasons[i],
                                   onTap: () {
@@ -82,10 +83,11 @@ class _SerieSeasonsState extends State<SerieSeasons> {
                         Expanded(
                           child: ListView.builder(
                             itemCount: serieDetails
-                                .episodes!["${selectedSeason}"]!.length,
+                                .episodes!["$selectedSeason"]!
+                                .length,
                             itemBuilder: (_, i) {
-                              final model = serieDetails
-                                  .episodes!["${selectedSeason}"]![i];
+                              final model =
+                                  serieDetails.episodes!["$selectedSeason"]![i];
 
                               return CardEpisodeItem(
                                 isSelected: selectedEpisode == i,
@@ -95,15 +97,19 @@ class _SerieSeasonsState extends State<SerieSeasons> {
                                   setState(() {
                                     selectedEpisode = i;
                                   });
+
+                                  final watching = context
+                                      .read<WatchingCubit>();
                                   final link =
                                       "${userAuth.serverInfo!.serverUrl}/series/${userAuth.userInfo!.username}/${userAuth.userInfo!.password}/${model!.id}.${model.containerExtension}";
 
                                   debugPrint("Link: $link");
-                                  Get.to(() => FullVideoScreen(
-                                            link: link,
-                                            title: model.title ?? "",
-                                          ))!
-                                      .then((slider) {
+                                  Get.to(
+                                    () => FullVideoScreen(
+                                      link: link,
+                                      title: model.title ?? "",
+                                    ),
+                                  )!.then((slider) {
                                     debugPrint("DATA: $slider");
                                     if (slider != null) {
                                       var modell = WatchingModel(
@@ -111,14 +117,13 @@ class _SerieSeasonsState extends State<SerieSeasons> {
                                         durationStrm: slider[1],
                                         stream: link,
                                         title: model.title ?? "",
-                                        image: model.info!.movieImage ??
+                                        image:
+                                            model.info!.movieImage ??
                                             widget.serieDetails.info!.cover ??
                                             "",
                                         streamId: model.id.toString(),
                                       );
-                                      context
-                                          .read<WatchingCubit>()
-                                          .addSerie(modell);
+                                      watching.addSerie(modell);
                                     }
                                   });
                                 },
@@ -134,9 +139,7 @@ class _SerieSeasonsState extends State<SerieSeasons> {
                       ],
                     ),
                   ),
-                  AppBarSeries(
-                    top: 3.h,
-                  ),
+                  AppBarSeries(top: 3.h),
                 ],
               );
             }

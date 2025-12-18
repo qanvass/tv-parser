@@ -28,7 +28,7 @@ class _FullVideoScreenState extends State<FullVideoScreen> {
   double _currentBright = 0.0;
   late Timer timer;
 
-  _settingPage() async {
+  void _settingPage() async {
     try {
       double brightness = await ScreenBrightness.instance.application;
       if (brightness == -1) {
@@ -165,9 +165,8 @@ class _FullVideoScreenState extends State<FullVideoScreen> {
 
           if (progress)
             const Center(
-                child: CircularProgressIndicator(
-              color: kColorPrimary,
-            )),
+              child: CircularProgressIndicator(color: kColorPrimary),
+            ),
 
           ///Controllers
           GestureDetector(
@@ -197,17 +196,20 @@ class _FullVideoScreenState extends State<FullVideoScreen> {
                                   focusColor: kColorFocus,
                                   onPressed: () async {
                                     await Future.delayed(
-                                            const Duration(milliseconds: 1000))
-                                        .then((value) {
+                                      const Duration(milliseconds: 1000),
+                                    ).then((value) {
                                       Get.back(
-                                          result: progress
-                                              ? null
-                                              : [
-                                                  sliderValue,
-                                                  _videoPlayerController!
-                                                      .value.duration.inSeconds
-                                                      .toDouble()
-                                                ]);
+                                        result: progress
+                                            ? null
+                                            : [
+                                                sliderValue,
+                                                _videoPlayerController!
+                                                    .value
+                                                    .duration
+                                                    .inSeconds
+                                                    .toDouble(),
+                                              ],
+                                      );
                                     });
                                   },
                                   icon: Icon(
@@ -245,8 +247,10 @@ class _FullVideoScreenState extends State<FullVideoScreen> {
                                         max: (!validPosition)
                                             ? 1.0
                                             : _videoPlayerController!
-                                                .value.duration.inSeconds
-                                                .toDouble(),
+                                                  .value
+                                                  .duration
+                                                  .inSeconds
+                                                  .toDouble(),
                                         onChanged: validPosition
                                             ? _onSliderPositionChanged
                                             : null,
@@ -269,7 +273,6 @@ class _FullVideoScreenState extends State<FullVideoScreen> {
           ),
 
           if (!progress && showControllersVideo)
-
             ///Controllers Light, Lock...
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -291,8 +294,8 @@ class _FullVideoScreenState extends State<FullVideoScreen> {
                       _currentVolume < .1
                           ? FontAwesomeIcons.volumeXmark
                           : _currentVolume < .7
-                              ? FontAwesomeIcons.volumeLow
-                              : FontAwesomeIcons.volumeHigh,
+                          ? FontAwesomeIcons.volumeLow
+                          : FontAwesomeIcons.volumeHigh,
                       color: Colors.black,
                       size: 13,
                     ),
@@ -335,8 +338,8 @@ class _FullVideoScreenState extends State<FullVideoScreen> {
                       _currentBright < .1
                           ? FontAwesomeIcons.moon
                           : _currentVolume < .7
-                              ? FontAwesomeIcons.sun
-                              : FontAwesomeIcons.solidSun,
+                          ? FontAwesomeIcons.sun
+                          : FontAwesomeIcons.solidSun,
                       color: Colors.black,
                       size: 13,
                     ),

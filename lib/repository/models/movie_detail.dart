@@ -2,23 +2,22 @@ class MovieDetail {
   final Info? info;
   final MovieData? movieData;
 
-  MovieDetail({
-    this.info,
-    this.movieData,
-  });
+  MovieDetail({this.info, this.movieData});
 
   MovieDetail.fromJson(Map<String, dynamic> json)
-      : info = json['info'] == null
-            ? null
-            : (json['info'] as Map<String, dynamic>?) != null
-                ? Info.fromJson(json['info'] as Map<String, dynamic>)
-                : null,
-        movieData = (json['movie_data'] as Map<String, dynamic>?) != null
-            ? MovieData.fromJson(json['movie_data'] as Map<String, dynamic>)
-            : null;
+    : info = json['info'] == null
+          ? null
+          : (json['info'] as Map<String, dynamic>?) != null
+          ? Info.fromJson(json['info'] as Map<String, dynamic>)
+          : null,
+      movieData = (json['movie_data'] as Map<String, dynamic>?) != null
+          ? MovieData.fromJson(json['movie_data'] as Map<String, dynamic>)
+          : null;
 
-  Map<String, dynamic> toJson() =>
-      {'info': info?.toJson(), 'movie_data': movieData?.toJson()};
+  Map<String, dynamic> toJson() => {
+    'info': info?.toJson(),
+    'movie_data': movieData?.toJson(),
+  };
 }
 
 class Info {
@@ -58,58 +57,47 @@ class Info {
   });
 
   Info.fromJson(Map<String, dynamic> json)
-      : movieImage =
-            json['movie_image'] == null ? null : json['movie_image'].toString(),
-        tmdbId = json['tmdb_id'] == null ? null : json['tmdb_id'].toString(),
-        backdrop =
-            json['backdrop'] == null ? null : json['backdrop'].toString(),
-        youtubeTrailer = json['youtube_trailer'] == null
-            ? null
-            : json['youtube_trailer'].toString(),
-        genre = json['genre'] == null ? null : json['genre'].toString(),
-        plot = json['plot'] == null ? null : json['plot'].toString(),
-        cast = json['cast'] == null ? null : json['cast'].toString(),
-        rating = json['rating'] == null ? null : json['rating'].toString(),
-        director =
-            json['director'] == null ? null : json['director'].toString(),
-        releasedate =
-            json['releasedate'] == null ? null : json['releasedate'].toString(),
-        backdropPath = json['backdrop_path'] == null
-            ? []
-            : (json['backdrop_path'] as List?)
-                ?.map((e) => e.toString())
-                .toList(),
-        durationSecs = json['duration_secs'] == null
-            ? null
-            : json['duration_secs'].toString(),
-        duration =
-            json['duration'] == null ? null : json['duration'].toString(),
-        video = json['video'] == null
-            ? null
-            : json['video'].runtimeType == List
-                ? null
-                : (json['video'] as Map<String, dynamic>?) != null
-                    ? Video.fromJson(json['video'] as Map<String, dynamic>)
-                    : null,
-        bitrate = json['bitrate'] == null ? null : json['bitrate'].toString();
+    : movieImage = json['movie_image']?.toString(),
+      tmdbId = json['tmdb_id']?.toString(),
+      backdrop = json['backdrop']?.toString(),
+      youtubeTrailer = json['youtube_trailer']?.toString(),
+      genre = json['genre']?.toString(),
+      plot = json['plot']?.toString(),
+      cast = json['cast']?.toString(),
+      rating = json['rating']?.toString(),
+      director = json['director']?.toString(),
+      releasedate = json['releasedate']?.toString(),
+      backdropPath = json['backdrop_path'] == null
+          ? []
+          : (json['backdrop_path'] as List?)?.map((e) => e.toString()).toList(),
+      durationSecs = json['duration_secs']?.toString(),
+      duration = json['duration']?.toString(),
+      video = json['video'] == null
+          ? null
+          : json['video'].runtimeType == List
+          ? null
+          : (json['video'] as Map<String, dynamic>?) != null
+          ? Video.fromJson(json['video'] as Map<String, dynamic>)
+          : null,
+      bitrate = json['bitrate']?.toString();
 
   Map<String, dynamic> toJson() => {
-        'movie_image': movieImage,
-        'tmdb_id': tmdbId,
-        'backdrop': backdrop,
-        'youtube_trailer': youtubeTrailer,
-        'genre': genre,
-        'plot': plot,
-        'cast': cast,
-        'rating': rating,
-        'director': director,
-        'releasedate': releasedate,
-        'backdrop_path': backdropPath,
-        'duration_secs': durationSecs,
-        'duration': duration,
-        'video': video?.toJson(),
-        'bitrate': bitrate
-      };
+    'movie_image': movieImage,
+    'tmdb_id': tmdbId,
+    'backdrop': backdrop,
+    'youtube_trailer': youtubeTrailer,
+    'genre': genre,
+    'plot': plot,
+    'cast': cast,
+    'rating': rating,
+    'director': director,
+    'releasedate': releasedate,
+    'backdrop_path': backdropPath,
+    'duration_secs': durationSecs,
+    'duration': duration,
+    'video': video?.toJson(),
+    'bitrate': bitrate,
+  };
 }
 
 class Video {
@@ -191,145 +179,101 @@ class Video {
   });
 
   Video.fromJson(Map<String, dynamic> json)
-      : index = json['index'] == null ? null : json['index'].toString(),
-        codecName =
-            json['codec_name'] == null ? null : json['codec_name'].toString(),
-        codecLongName = json['codec_long_name'] == null
-            ? null
-            : json['codec_long_name'].toString(),
-        profile = json['profile'] == null ? null : json['profile'].toString(),
-        codecType =
-            json['codec_type'] == null ? null : json['codec_type'].toString(),
-        codecTimeBase = json['codec_time_base'] == null
-            ? null
-            : json['codec_time_base'].toString(),
-        codecTagString = json['codec_tag_string'] == null
-            ? null
-            : json['codec_tag_string'].toString(),
-        codecTag =
-            json['codec_tag'] == null ? null : json['codec_tag'].toString(),
-        width = json['width'] == null ? null : json['width'].toString(),
-        height = json['height'] == null ? null : json['height'].toString(),
-        codedWidth =
-            json['coded_width'] == null ? null : json['coded_width'].toString(),
-        codedHeight = json['coded_height'] == null
-            ? null
-            : json['coded_height'].toString(),
-        hasBFrames = json['has_b_frames'] == null
-            ? null
-            : json['has_b_frames'].toString(),
-        sampleAspectRatio = json['sample_aspect_ratio'] == null
-            ? null
-            : json['sample_aspect_ratio'].toString(),
-        displayAspectRatio = json['display_aspect_ratio'] == null
-            ? null
-            : json['display_aspect_ratio'].toString(),
-        pixFmt = json['pix_fmt'] == null ? null : json['pix_fmt'].toString(),
-        level = json['level'] == null ? null : json['level'].toString(),
-        colorRange =
-            json['color_range'] == null ? null : json['color_range'].toString(),
-        colorSpace =
-            json['color_space'] == null ? null : json['color_space'].toString(),
-        colorTransfer = json['color_transfer'] == null
-            ? null
-            : json['color_transfer'].toString(),
-        colorPrimaries = json['color_primaries'] == null
-            ? null
-            : json['color_primaries'].toString(),
-        chromaLocation = json['chroma_location'] == null
-            ? null
-            : json['chroma_location'].toString(),
-        refs = json['refs'] == null ? null : json['refs'].toString(),
-        isAvc = json['is_avc'] == null ? null : json['is_avc'].toString(),
-        nalLengthSize = json['nal_length_size'] == null
-            ? null
-            : json['nal_length_size'].toString(),
-        rFrameRate = json['r_frame_rate'] == null
-            ? null
-            : json['r_frame_rate'].toString(),
-        avgFrameRate = json['avg_frame_rate'] == null
-            ? null
-            : json['avg_frame_rate'].toString(),
-        timeBase =
-            json['time_base'] == null ? null : json['time_base'].toString(),
-        startPts =
-            json['start_pts'] == null ? null : json['start_pts'].toString(),
-        startTime =
-            json['start_time'] == null ? null : json['start_time'].toString(),
-        durationTs =
-            json['duration_ts'] == null ? null : json['duration_ts'].toString(),
-        duration =
-            json['duration'] == null ? null : json['duration'].toString(),
-        bitRate = json['bit_rate'] == null ? null : json['bit_rate'].toString(),
-        bitsPerRawSample = json['bits_per_raw_sample'] == null
-            ? null
-            : json['bits_per_raw_sample'].toString(),
-        nbFrames =
-            json['nb_frames'] == null ? null : json['nb_frames'].toString(),
-        tags = json['tags'] == null
-            ? null
-            : (json['tags'] as Map<String, dynamic>?) != null
-                ? Tags.fromJson(json['tags'] as Map<String, dynamic>)
-                : null;
+    : index = json['index']?.toString(),
+      codecName = json['codec_name']?.toString(),
+      codecLongName = json['codec_long_name']?.toString(),
+      profile = json['profile']?.toString(),
+      codecType = json['codec_type']?.toString(),
+      codecTimeBase = json['codec_time_base']?.toString(),
+      codecTagString = json['codec_tag_string']?.toString(),
+      codecTag = json['codec_tag']?.toString(),
+      width = json['width']?.toString(),
+      height = json['height']?.toString(),
+      codedWidth = json['coded_width']?.toString(),
+      codedHeight = json['coded_height']?.toString(),
+      hasBFrames = json['has_b_frames']?.toString(),
+      sampleAspectRatio = json['sample_aspect_ratio']?.toString(),
+      displayAspectRatio = json['display_aspect_ratio']?.toString(),
+      pixFmt = json['pix_fmt']?.toString(),
+      level = json['level']?.toString(),
+      colorRange = json['color_range']?.toString(),
+      colorSpace = json['color_space']?.toString(),
+      colorTransfer = json['color_transfer']?.toString(),
+      colorPrimaries = json['color_primaries']?.toString(),
+      chromaLocation = json['chroma_location']?.toString(),
+      refs = json['refs']?.toString(),
+      isAvc = json['is_avc']?.toString(),
+      nalLengthSize = json['nal_length_size']?.toString(),
+      rFrameRate = json['r_frame_rate']?.toString(),
+      avgFrameRate = json['avg_frame_rate']?.toString(),
+      timeBase = json['time_base']?.toString(),
+      startPts = json['start_pts']?.toString(),
+      startTime = json['start_time']?.toString(),
+      durationTs = json['duration_ts']?.toString(),
+      duration = json['duration']?.toString(),
+      bitRate = json['bit_rate']?.toString(),
+      bitsPerRawSample = json['bits_per_raw_sample']?.toString(),
+      nbFrames = json['nb_frames']?.toString(),
+      tags = json['tags'] == null
+          ? null
+          : (json['tags'] as Map<String, dynamic>?) != null
+          ? Tags.fromJson(json['tags'] as Map<String, dynamic>)
+          : null;
 
   Map<String, dynamic> toJson() => {
-        'index': index,
-        'codec_name': codecName,
-        'codec_long_name': codecLongName,
-        'profile': profile,
-        'codec_type': codecType,
-        'codec_time_base': codecTimeBase,
-        'codec_tag_string': codecTagString,
-        'codec_tag': codecTag,
-        'width': width,
-        'height': height,
-        'coded_width': codedWidth,
-        'coded_height': codedHeight,
-        'has_b_frames': hasBFrames,
-        'sample_aspect_ratio': sampleAspectRatio,
-        'display_aspect_ratio': displayAspectRatio,
-        'pix_fmt': pixFmt,
-        'level': level,
-        'color_range': colorRange,
-        'color_space': colorSpace,
-        'color_transfer': colorTransfer,
-        'color_primaries': colorPrimaries,
-        'chroma_location': chromaLocation,
-        'refs': refs,
-        'is_avc': isAvc,
-        'nal_length_size': nalLengthSize,
-        'r_frame_rate': rFrameRate,
-        'avg_frame_rate': avgFrameRate,
-        'time_base': timeBase,
-        'start_pts': startPts,
-        'start_time': startTime,
-        'duration_ts': durationTs,
-        'duration': duration,
-        'bit_rate': bitRate,
-        'bits_per_raw_sample': bitsPerRawSample,
-        'nb_frames': nbFrames,
-        'tags': tags?.toJson()
-      };
+    'index': index,
+    'codec_name': codecName,
+    'codec_long_name': codecLongName,
+    'profile': profile,
+    'codec_type': codecType,
+    'codec_time_base': codecTimeBase,
+    'codec_tag_string': codecTagString,
+    'codec_tag': codecTag,
+    'width': width,
+    'height': height,
+    'coded_width': codedWidth,
+    'coded_height': codedHeight,
+    'has_b_frames': hasBFrames,
+    'sample_aspect_ratio': sampleAspectRatio,
+    'display_aspect_ratio': displayAspectRatio,
+    'pix_fmt': pixFmt,
+    'level': level,
+    'color_range': colorRange,
+    'color_space': colorSpace,
+    'color_transfer': colorTransfer,
+    'color_primaries': colorPrimaries,
+    'chroma_location': chromaLocation,
+    'refs': refs,
+    'is_avc': isAvc,
+    'nal_length_size': nalLengthSize,
+    'r_frame_rate': rFrameRate,
+    'avg_frame_rate': avgFrameRate,
+    'time_base': timeBase,
+    'start_pts': startPts,
+    'start_time': startTime,
+    'duration_ts': durationTs,
+    'duration': duration,
+    'bit_rate': bitRate,
+    'bits_per_raw_sample': bitsPerRawSample,
+    'nb_frames': nbFrames,
+    'tags': tags?.toJson(),
+  };
 }
 
 class Tags {
   final String? language;
   final String? handlerName;
 
-  Tags({
-    this.language,
-    this.handlerName,
-  });
+  Tags({this.language, this.handlerName});
 
   Tags.fromJson(Map<String, dynamic> json)
-      : language =
-            json['language'] == null ? null : json['language'].toString(),
-        handlerName = json['handler_name'] == null
-            ? null
-            : json['handler_name'].toString();
+    : language = json['language']?.toString(),
+      handlerName = json['handler_name']?.toString();
 
-  Map<String, dynamic> toJson() =>
-      {'language': language, 'handler_name': handlerName};
+  Map<String, dynamic> toJson() => {
+    'language': language,
+    'handler_name': handlerName,
+  };
 }
 
 class MovieData {
@@ -352,28 +296,21 @@ class MovieData {
   });
 
   MovieData.fromJson(Map<String, dynamic> json)
-      : streamId =
-            json['stream_id'] == null ? null : json['stream_id'].toString(),
-        name = json['name'] == null ? null : json['name'].toString(),
-        added = json['added'] == null ? null : json['added'].toString(),
-        categoryId =
-            json['category_id'] == null ? null : json['category_id'].toString(),
-        containerExtension = json['container_extension'] == null
-            ? null
-            : json['container_extension'].toString(),
-        customSid =
-            json['custom_sid'] == null ? null : json['custom_sid'].toString(),
-        directSource = json['direct_source'] == null
-            ? null
-            : json['direct_source'].toString();
+    : streamId = json['stream_id']?.toString(),
+      name = json['name']?.toString(),
+      added = json['added']?.toString(),
+      categoryId = json['category_id']?.toString(),
+      containerExtension = json['container_extension']?.toString(),
+      customSid = json['custom_sid']?.toString(),
+      directSource = json['direct_source']?.toString();
 
   Map<String, dynamic> toJson() => {
-        'stream_id': streamId,
-        'name': name,
-        'added': added,
-        'category_id': categoryId,
-        'container_extension': containerExtension,
-        'custom_sid': customSid,
-        'direct_source': directSource
-      };
+    'stream_id': streamId,
+    'name': name,
+    'added': added,
+    'category_id': categoryId,
+    'container_extension': containerExtension,
+    'custom_sid': customSid,
+    'direct_source': directSource,
+  };
 }
