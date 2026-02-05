@@ -60,7 +60,7 @@ class IpTvApi {
           "password": user.userInfo!.password,
           "username": user.userInfo!.username,
           "action": "get_live_streams",
-          "category_id": catyId
+          "category_id": catyId,
         },
       );
       debugPrint("URL: ${response.realUri}");
@@ -101,7 +101,7 @@ class IpTvApi {
           "password": user.userInfo!.password,
           "username": user.userInfo!.username,
           "action": "get_vod_streams",
-          "category_id": catyId
+          "category_id": catyId,
         },
       );
 
@@ -139,7 +139,7 @@ class IpTvApi {
           "password": user.userInfo!.password,
           "username": user.userInfo!.username,
           "action": "get_series",
-          "category_id": catyId
+          "category_id": catyId,
         },
       );
 
@@ -220,6 +220,8 @@ class IpTvApi {
         },
       );
 
+      debugPrint("url: ${response.realUri.toString()}");
+
       if (response.statusCode == 200) {
         //log(response.data.toString());
         final json = jsonDecode(response.data ?? "");
@@ -257,8 +259,9 @@ class IpTvApi {
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> json =
-            jsonDecode(response.data ?? "")['epg_listings'];
+        final List<dynamic> json = jsonDecode(
+          response.data ?? "",
+        )['epg_listings'];
         debugPrint("EPG length: ${json.length}");
 
         final list = json.map((e) => EpgModel.fromJson(e)).toList();

@@ -93,6 +93,7 @@ class _SerieSeasonsState extends State<SerieSeasons> {
                                 isSelected: selectedEpisode == i,
                                 index: i + 1,
                                 episode: model,
+                                serieCover: serieDetails.info?.cover,
                                 onTap: () {
                                   setState(() {
                                     selectedEpisode = i;

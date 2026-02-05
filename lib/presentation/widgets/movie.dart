@@ -321,15 +321,18 @@ class CardEpisodeItem extends StatelessWidget {
     required this.onFocused,
     required this.onTap,
     required this.index,
+    this.serieCover,
   });
   final Episode? episode;
   final bool isSelected;
   final int index;
+  final String? serieCover;
   final Function(bool) onFocused;
   final Function() onTap;
 
   @override
   Widget build(BuildContext context) {
+    debugPrint("cover: $serieCover");
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       child: InkWell(
@@ -342,7 +345,7 @@ class CardEpisodeItem extends StatelessWidget {
               child: CachedNetworkImage(
                 width: isSelected ? 26.w : 25.w,
                 height: isSelected ? 35.h : 34.h,
-                imageUrl: episode!.info!.movieImage ?? "",
+                imageUrl: episode!.info?.movieImage ?? serieCover ?? "",
                 fit: BoxFit.cover,
                 placeholder: (_, i) {
                   return const Center(child: CircularProgressIndicator());
@@ -352,11 +355,17 @@ class CardEpisodeItem extends StatelessWidget {
                     opacity: .7,
                     child: Container(
                       decoration: kDecorBackground,
-                      child: const Center(
-                        child: Icon(
-                          FontAwesomeIcons.image,
-                          color: Colors.white24,
-                        ),
+                      child: CachedNetworkImage(
+                        imageUrl: serieCover ?? "",
+                        fit: BoxFit.cover,
+                        errorWidget: (_, i, e) {
+                          return const Center(
+                            child: Icon(
+                              FontAwesomeIcons.image,
+                              color: Colors.white24,
+                            ),
+                          );
+                        },
                       ),
                     ),
                   );
