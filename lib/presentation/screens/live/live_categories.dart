@@ -1,15 +1,18 @@
 part of '../screens.dart';
 
 // ─── LIVE TV — 3-PANEL SCREEN ─────────────────────────────────────────────────
-// Layout:  [Categories 200px]  |  [Channels 260px]  |  [Player + EPG flex]
+// Layout:  [Categories]  |  [Channels]  |  [Player + EPG]
 //
-// • First category auto-selected on load → channels fetch → first channel
-//   auto-focused, panel focus moves to channels.
-// • Tap/D-pad same channel again → fullscreen player.
-// • Search is in the appbar (icon opens field, dismiss returns focus to channels).
-// • TV D-pad: ◄ ► switch panel | ▲ ▼ navigate rows | OK select / play / fullscreen
+// FULLSCREEN STRATEGY: The VlcPlayer widget is ALWAYS kept at the same
+// position in the widget tree (Expanded at index 4 of the Row). When going
+// fullscreen, the side panels and appbar are collapsed with AnimatedAlign
+// (widthFactor/heightFactor → 0) + ClipRect. A controls-only overlay is then
+// placed on top. This prevents the "Already Initialized" crash caused by
+// VlcPlayer being disposed and recreated.
 
-const double _kItemH = 52.0; // shared item height for both panels
+const double _kItemH = 52.0;
+const Duration _kPanelAnim = Duration(milliseconds: 280);
+const Curve _kPanelCurve = Curves.easeInOut;
 
 class LiveCategoriesScreen extends StatefulWidget {
   const LiveCategoriesScreen({super.key});
@@ -116,10 +119,23 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
     }
   }
 
-  void _toggleFullscreen() => setState(() => _isFullscreen = !_isFullscreen);
+  // Toggle fullscreen WITHOUT recreating the VlcPlayer.
+  // Side panels are collapsed via AnimatedAlign, so VlcPlayer stays at the
+  // same tree position and is never disposed/recreated.
+  void _toggleFullscreen() {
+    final going = !_isFullscreen;
+    if (going) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    } else {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
+    setState(() => _isFullscreen = going);
+  }
 
   @override
   void deactivate() {
+    // Restore system UI when leaving screen
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     try {
       _player?.pause();
       _player?.stop();
@@ -145,8 +161,8 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
   // ── D-pad ─────────────────────────────────────────────────────────────────
 
   KeyEventResult _onKey(FocusNode _, KeyEvent e) {
-    // Let search field handle its own input
     if (_searchFocus.hasFocus) return KeyEventResult.ignored;
+    if (_isFullscreen) return KeyEventResult.ignored; // overlay handles it
     if (e is! KeyDownEvent) return KeyEventResult.ignored;
     final k = e.logicalKey;
 
@@ -205,24 +221,23 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
 
   void _dpadSelect() {
     if (_panel == 0 && _cats.isNotEmpty) {
-      // Select category: load channels (BlocListener will auto-switch panel)
       _fetchChannels(_cats[_catIdx].categoryId ?? '');
     } else if (_panel == 1 && _filteredChs.isNotEmpty) {
-      final idx = _chIdx;
-      final ch = _filteredChs[idx];
+      final ch = _filteredChs[_chIdx];
       if (_selCh != null && _selCh!.streamId == ch.streamId) {
-        // Same channel selected again → fullscreen
         _toggleFullscreen();
       } else {
-        _play(ch, idx);
+        _play(ch, _chIdx);
       }
     }
   }
 
   void _scrollTo(ScrollController sc, int idx) {
     if (!sc.hasClients) return;
-    // Each item is _kItemH tall + 4 margin
-    final target = (idx * (_kItemH + 4)).clamp(0.0, sc.position.maxScrollExtent);
+    final target = (idx * (_kItemH + 4)).clamp(
+      0.0,
+      sc.position.maxScrollExtent,
+    );
     sc.animateTo(
       target,
       duration: const Duration(milliseconds: 150),
@@ -244,7 +259,7 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
     return PopScope(
       canPop: !_isFullscreen,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) setState(() => _isFullscreen = false);
+        if (!didPop) _toggleFullscreen();
       },
       child: BlocListener<LiveCatyBloc, LiveCatyState>(
         listener: (_, s) {
@@ -256,13 +271,10 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
               setState(() {
                 _chs = s.channels;
                 _chLoading = false;
-                _chIdx = 0;   // auto-focus first channel
-                _panel = 1;   // move D-pad focus to channels panel
+                _chIdx = 0;
+                _panel = 1;
               });
-              // Scroll channels list to top
-              if (_chScroll.hasClients) {
-                _chScroll.jumpTo(0);
-              }
+              if (_chScroll.hasClients) _chScroll.jumpTo(0);
             }
           },
           child: Focus(
@@ -270,19 +282,139 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
             autofocus: true,
             onKeyEvent: _onKey,
             child: Scaffold(
-              body: _isFullscreen
-                  ? _buildFullscreen()
-                  : Ink(
-                      decoration: kDecorBackground,
-                      child: SafeArea(
-                        child: Column(
-                          children: [
-                            _buildBar(),
-                            Expanded(child: _buildPanels()),
-                          ],
+              backgroundColor: Colors.black,
+              body: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // ── Main layout (VlcPlayer always at fixed tree position) ──
+                  Ink(
+                    decoration: _isFullscreen
+                        ? const BoxDecoration(color: Colors.black)
+                        : kDecorBackground,
+                    child: Column(
+                      children: [
+                        // App bar — collapses to height 0 when fullscreen
+                        ClipRect(
+                          child: AnimatedAlign(
+                            alignment: Alignment.topCenter,
+                            heightFactor: _isFullscreen ? 0.0 : 1.0,
+                            duration: _kPanelAnim,
+                            curve: _kPanelCurve,
+                            child: SafeArea(
+                              bottom: false,
+                              child: SizedBox(height: 56, child: _buildBar()),
+                            ),
+                          ),
                         ),
-                      ),
+
+                        // Panels row
+                        Expanded(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // Categories panel — collapses to width 0
+                              _collapseH(
+                                width: 210,
+                                collapsed: _isFullscreen,
+                                child: _LivePanel(
+                                  label: 'CATEGORIES',
+                                  isLoading: _cats.isEmpty,
+                                  scroll: _catScroll,
+                                  itemCount: _cats.length,
+                                  itemBuilder: (i) => _LivePanelItem(
+                                    icon: FontAwesomeIcons.list,
+                                    label: _cats[i].categoryName ?? '',
+                                    isSelected: i == _catIdx,
+                                    isHighlighted: i == _catIdx && _panel == 0,
+                                    onTap: () {
+                                      setState(() => _catIdx = i);
+                                      _fetchChannels(_cats[i].categoryId ?? '');
+                                    },
+                                  ),
+                                ),
+                              ),
+                              _collapseDivider(_isFullscreen),
+
+                              // Channels panel — collapses to width 0
+                              _collapseH(
+                                width: 260,
+                                collapsed: _isFullscreen,
+                                child: _LivePanel(
+                                  label: _cats.isNotEmpty
+                                      ? (_cats[_catIdx].categoryName ?? '')
+                                            .toUpperCase()
+                                      : 'CHANNELS',
+                                  isLoading: _chLoading,
+                                  scroll: _chScroll,
+                                  itemCount: _filteredChs.length,
+                                  emptyLabel: 'No channels',
+                                  itemBuilder: (i) {
+                                    final ch = _filteredChs[i];
+                                    return _LivePanelItem(
+                                      iconWidget:
+                                          (ch.streamIcon != null &&
+                                              ch.streamIcon!.isNotEmpty)
+                                          ? CachedNetworkImage(
+                                              imageUrl: ch.streamIcon!,
+                                              width: 22,
+                                              height: 22,
+                                              fit: BoxFit.contain,
+                                              errorWidget: (_, __, ___) => Icon(
+                                                i == _chIdx
+                                                    ? FontAwesomeIcons.play
+                                                    : FontAwesomeIcons.tv,
+                                                size: 13,
+                                                color: i == _chIdx
+                                                    ? kColorPrimary
+                                                    : Colors.white38,
+                                              ),
+                                            )
+                                          : null,
+                                      icon: i == _chIdx
+                                          ? FontAwesomeIcons.play
+                                          : FontAwesomeIcons.tv,
+                                      label: ch.name ?? '',
+                                      isSelected: i == _chIdx,
+                                      isHighlighted: i == _chIdx && _panel == 1,
+                                      onTap: () {
+                                        if (_selCh != null &&
+                                            _selCh!.streamId == ch.streamId) {
+                                          _toggleFullscreen();
+                                        } else {
+                                          _play(ch, i);
+                                        }
+                                      },
+                                    );
+                                  },
+                                ),
+                              ),
+                              _collapseDivider(_isFullscreen),
+
+                              // ── Player — ALWAYS at tree position index 4.
+                              // Never removed → VlcPlayer never recreated.
+                              Expanded(
+                                child: _PlayerPanel(
+                                  channel: _selCh,
+                                  player: _player,
+                                  isFullscreen: _isFullscreen,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
+                  ),
+
+                  // ── Fullscreen controls overlay (controls only, no VlcPlayer)
+                  if (_isFullscreen && _player != null && _selCh != null)
+                    _LiveFullscreenControls(
+                      controller: _player!,
+                      channel: _selCh!,
+                      onClose: _toggleFullscreen,
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -290,24 +422,34 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
     );
   }
 
-  // ── Fullscreen ────────────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
-  Widget _buildFullscreen() {
-    if (_player == null || _selCh == null) {
-      return Material(
-        color: Colors.black,
-        child: Center(
-          child: IconButton(
-            onPressed: _toggleFullscreen,
-            icon: const Icon(FontAwesomeIcons.chevronDown, color: Colors.white),
-          ),
-        ),
-      );
-    }
-    return _LiveFullscreenPlayer(
-      controller: _player!,
-      channel: _selCh!,
-      onClose: _toggleFullscreen,
+  /// Collapses a fixed-width panel to 0 using AnimatedAlign + ClipRect.
+  Widget _collapseH({
+    required double width,
+    required bool collapsed,
+    required Widget child,
+  }) {
+    return ClipRect(
+      child: AnimatedAlign(
+        alignment: Alignment.centerLeft,
+        widthFactor: collapsed ? 0.0 : 1.0,
+        duration: _kPanelAnim,
+        curve: _kPanelCurve,
+        child: SizedBox(width: width, child: child),
+      ),
+    );
+  }
+
+  Widget _collapseDivider(bool collapsed) {
+    return ClipRect(
+      child: AnimatedAlign(
+        widthFactor: collapsed ? 0.0 : 1.0,
+        duration: _kPanelAnim,
+        curve: _kPanelCurve,
+        alignment: Alignment.center,
+        child: Container(width: 1, color: kColorCardLight),
+      ),
     );
   }
 
@@ -315,7 +457,6 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
 
   Widget _buildBar() {
     return Container(
-      height: 56,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Row(
         children: [
@@ -338,14 +479,13 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
                 controller: _searchCtrl,
                 focusNode: _searchFocus,
                 autofocus: true,
-                onChanged: (v) =>
-                    setState(() => _chSearch = v.toLowerCase()),
-                style: Get.textTheme.bodyMedium!
-                    .copyWith(color: Colors.white),
+                onChanged: (v) => setState(() => _chSearch = v.toLowerCase()),
+                style: Get.textTheme.bodyMedium!.copyWith(color: Colors.white),
                 decoration: InputDecoration(
                   hintText: 'Search channels...',
-                  hintStyle: Get.textTheme.bodyMedium!
-                      .copyWith(color: kColorHint),
+                  hintStyle: Get.textTheme.bodyMedium!.copyWith(
+                    color: kColorHint,
+                  ),
                   border: InputBorder.none,
                   isDense: true,
                 ),
@@ -367,9 +507,7 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
               ),
             ),
           ],
-
-          // Search toggle (hidden when search is open)
-          if (!_showSearch)
+          if (!_showSearch) ...[
             IconButton(
               focusColor: kColorFocus,
               onPressed: () => setState(() => _showSearch = true),
@@ -379,31 +517,28 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
                 size: 16,
               ),
             ),
-
-          // Favorite (when a channel is playing)
-          if (!_showSearch && _selCh != null)
-            BlocBuilder<FavoritesCubit, FavoritesState>(
-              builder: (context, state) {
-                final liked =
-                    state.lives.any((l) => l.streamId == _selCh!.streamId);
-                return IconButton(
-                  focusColor: kColorFocus,
-                  onPressed: () => context
-                      .read<FavoritesCubit>()
-                      .addLive(_selCh, isAdd: !liked),
-                  icon: Icon(
-                    liked
-                        ? FontAwesomeIcons.solidHeart
-                        : FontAwesomeIcons.heart,
-                    color: Colors.white,
-                    size: 16,
-                  ),
-                );
-              },
-            ),
-
-          // Back
-          if (!_showSearch)
+            if (_selCh != null)
+              BlocBuilder<FavoritesCubit, FavoritesState>(
+                builder: (context, state) {
+                  final liked = state.lives.any(
+                    (l) => l.streamId == _selCh!.streamId,
+                  );
+                  return IconButton(
+                    focusColor: kColorFocus,
+                    onPressed: () => context.read<FavoritesCubit>().addLive(
+                      _selCh,
+                      isAdd: !liked,
+                    ),
+                    icon: Icon(
+                      liked
+                          ? FontAwesomeIcons.solidHeart
+                          : FontAwesomeIcons.heart,
+                      color: liked ? kColorPrimary : Colors.white,
+                      size: 16,
+                    ),
+                  );
+                },
+              ),
             IconButton(
               focusColor: kColorFocus,
               onPressed: () => Get.back(),
@@ -413,101 +548,14 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
                 size: 16,
               ),
             ),
+          ],
         ],
       ),
     );
   }
-
-  // ── 3-panel row ───────────────────────────────────────────────────────────
-
-  Widget _buildPanels() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Panel 1 — Categories
-        SizedBox(
-          width: 210,
-          child: _LivePanel(
-            label: 'CATEGORIES',
-            isLoading: _cats.isEmpty,
-            scroll: _catScroll,
-            itemCount: _cats.length,
-            itemBuilder: (i) {
-              final isSelected = i == _catIdx;
-              final highlighted = isSelected && _panel == 0;
-              return _LivePanelItem(
-                icon: FontAwesomeIcons.list,
-                label: _cats[i].categoryName ?? '',
-                isSelected: isSelected,
-                isHighlighted: highlighted,
-                onTap: () {
-                  setState(() => _catIdx = i);
-                  _fetchChannels(_cats[i].categoryId ?? '');
-                },
-              );
-            },
-          ),
-        ),
-        Container(width: 1, color: kColorCardLight),
-
-        // Panel 2 — Channels
-        SizedBox(
-          width: 260,
-          child: _LivePanel(
-            label: _cats.isNotEmpty
-                ? (_cats[_catIdx].categoryName ?? 'CHANNELS').toUpperCase()
-                : 'CHANNELS',
-            isLoading: _chLoading,
-            scroll: _chScroll,
-            itemCount: _filteredChs.length,
-            emptyLabel: 'No channels',
-            itemBuilder: (i) {
-              final ch = _filteredChs[i];
-              final isSelected = i == _chIdx;
-              final highlighted = isSelected && _panel == 1;
-              return _LivePanelItem(
-                iconWidget: (ch.streamIcon != null && ch.streamIcon!.isNotEmpty)
-                    ? CachedNetworkImage(
-                        imageUrl: ch.streamIcon!,
-                        width: 22,
-                        height: 22,
-                        fit: BoxFit.contain,
-                        errorWidget: (_, __, ___) => Icon(
-                          isSelected
-                              ? FontAwesomeIcons.play
-                              : FontAwesomeIcons.tv,
-                          size: 13,
-                          color: isSelected ? kColorPrimary : Colors.white38,
-                        ),
-                      )
-                    : null,
-                icon: isSelected ? FontAwesomeIcons.play : FontAwesomeIcons.tv,
-                label: ch.name ?? '',
-                isSelected: isSelected,
-                isHighlighted: highlighted,
-                onTap: () {
-                  if (_selCh != null && _selCh!.streamId == ch.streamId) {
-                    _toggleFullscreen();
-                  } else {
-                    _play(ch, i);
-                  }
-                },
-              );
-            },
-          ),
-        ),
-        Container(width: 1, color: kColorCardLight),
-
-        // Panel 3 — Player + EPG
-        Expanded(
-          child: _PlayerPanel(channel: _selCh, player: _player),
-        ),
-      ],
-    );
-  }
 }
 
-// ─── Shared Panel Container ───────────────────────────────────────────────────
+// ─── Collapsing Panel Container ───────────────────────────────────────────────
 
 class _LivePanel extends StatelessWidget {
   const _LivePanel({
@@ -531,7 +579,6 @@ class _LivePanel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Panel header label
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
           child: Text(
@@ -546,8 +593,6 @@ class _LivePanel extends StatelessWidget {
             ),
           ),
         ),
-
-        // List
         Expanded(
           child: isLoading
               ? const Center(
@@ -557,8 +602,7 @@ class _LivePanel extends StatelessWidget {
               ? Center(
                   child: Text(
                     emptyLabel,
-                    style: Get.textTheme.bodySmall!
-                        .copyWith(color: kColorHint),
+                    style: Get.textTheme.bodySmall!.copyWith(color: kColorHint),
                   ),
                 )
               : ListView.builder(
@@ -628,7 +672,8 @@ class _LivePanelItem extends StatelessWidget {
             SizedBox(
               width: 22,
               height: 22,
-              child: iconWidget ??
+              child:
+                  iconWidget ??
                   Icon(
                     icon,
                     size: 13,
@@ -643,8 +688,7 @@ class _LivePanelItem extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: Get.textTheme.bodySmall!.copyWith(
                   color: isSelected ? Colors.white : Colors.white60,
-                  fontWeight:
-                      isSelected ? FontWeight.w600 : FontWeight.normal,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                 ),
               ),
             ),
@@ -665,91 +709,127 @@ class _LivePanelItem extends StatelessWidget {
 }
 
 // ─── Player + EPG Panel ───────────────────────────────────────────────────────
+// IMPORTANT: StreamPlayerPage (which contains VlcPlayer) is ALWAYS at index 0
+// of the Stack so Flutter never disposes/recreates it — avoiding "Already
+// Initialized". The EPG panel and placeholder are overlays on top.
 
 class _PlayerPanel extends StatelessWidget {
-  const _PlayerPanel({required this.channel, required this.player});
+  const _PlayerPanel({
+    required this.channel,
+    required this.player,
+    required this.isFullscreen,
+  });
 
   final ChannelLive? channel;
   final VlcPlayerController? player;
+  final bool isFullscreen;
 
   @override
   Widget build(BuildContext context) {
-    if (channel == null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Stack(
+          fit: StackFit.expand,
           children: [
-            const Icon(FontAwesomeIcons.tv, size: 48, color: kColorHint),
-            const SizedBox(height: 14),
-            Text(
-              'Select a channel to play',
-              style: Get.textTheme.bodyMedium!.copyWith(color: kColorHint),
+            // ─ VlcPlayer — ALWAYS at tree-position index 0 ─────────────
+            ColoredBox(
+              color: Colors.black,
+              child: StreamPlayerPage(controller: player),
             ),
-            const SizedBox(height: 6),
-            Text(
-              'Press OK on a channel',
-              style: Get.textTheme.bodySmall!.copyWith(color: kColorHint),
-            ),
-          ],
-        ),
-      );
-    }
 
-    return Column(
-      children: [
-        // Video player
-        Expanded(
-          flex: 5,
-          child: StreamPlayerPage(controller: player),
-        ),
-
-        // Channel name bar
-        Container(
-          color: kColorCardDark,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
-            children: [
-              if (channel!.streamIcon != null &&
-                  channel!.streamIcon!.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: CachedNetworkImage(
-                    imageUrl: channel!.streamIcon!,
-                    width: 22,
-                    height: 22,
-                    errorWidget: (_, __, ___) => const SizedBox(),
+            // ─ No-channel placeholder ───────────────────────────────────
+            if (channel == null && !isFullscreen)
+              ColoredBox(
+                color: kColorBackDark,
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        FontAwesomeIcons.tv,
+                        size: 48,
+                        color: kColorHint,
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        'Select a channel to play',
+                        style: Get.textTheme.bodyMedium!.copyWith(
+                          color: kColorHint,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Press OK on a channel',
+                        style: Get.textTheme.bodySmall!.copyWith(
+                          color: kColorHint,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              Expanded(
-                child: Text(
-                  channel!.name ?? '',
-                  style: Get.textTheme.bodyMedium!
-                      .copyWith(fontWeight: FontWeight.bold),
-                  overflow: TextOverflow.ellipsis,
+              ),
+
+            // ─ Channel info bar + EPG (bottom ~45%) ────────────────────
+            if (channel != null && !isFullscreen)
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                height: constraints.maxHeight * 0.45,
+                child: Column(
+                  children: [
+                    Container(
+                      color: kColorCardDark,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        children: [
+                          if (channel!.streamIcon != null &&
+                              channel!.streamIcon!.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: CachedNetworkImage(
+                                imageUrl: channel!.streamIcon!,
+                                width: 22,
+                                height: 22,
+                                errorWidget: (_, __, ___) => const SizedBox(),
+                              ),
+                            ),
+                          Expanded(
+                            child: Text(
+                              channel!.name ?? '',
+                              style: Get.textTheme.bodyMedium!.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(
+                            FontAwesomeIcons.expand,
+                            size: 11,
+                            color: kColorHint,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'tap again',
+                            style: Get.textTheme.bodySmall!.copyWith(
+                              color: kColorHint,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(child: _EpgPanel(streamId: channel!.streamId)),
+                  ],
                 ),
               ),
-              const SizedBox(width: 8),
-              const Icon(
-                FontAwesomeIcons.expand,
-                size: 13,
-                color: kColorHint,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                'tap again to fullscreen',
-                style:
-                    Get.textTheme.bodySmall!.copyWith(color: kColorHint, fontSize: 10),
-              ),
-            ],
-          ),
-        ),
-
-        // EPG
-        Expanded(
-          flex: 4,
-          child: _EpgPanel(streamId: channel!.streamId),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 }
@@ -763,15 +843,14 @@ class _EpgPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (streamId == null) return const SizedBox();
-
     return FutureBuilder<List<EpgModel>>(
       future: IpTvApi.getEPGbyStreamId(streamId!),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(
             child: SizedBox(
-              width: 24,
-              height: 24,
+              width: 22,
+              height: 22,
               child: CircularProgressIndicator(
                 color: kColorPrimary,
                 strokeWidth: 2,
@@ -788,7 +867,6 @@ class _EpgPanel extends StatelessWidget {
             ),
           );
         }
-
         return Container(
           color: kColorCardLight,
           child: ListView.separated(
@@ -801,15 +879,12 @@ class _EpgPanel extends StatelessWidget {
             ),
             itemBuilder: (_, i) {
               final epg = list[i];
-              final isNow =
-                  checkEpgTimeIsNow(epg.start ?? '', epg.end ?? '');
-              String title = '';
-              String desc = '';
+              final isNow = checkEpgTimeIsNow(epg.start ?? '', epg.end ?? '');
+              String title = '', desc = '';
               try {
                 title = utf8.decode(base64.decode(epg.title ?? ''));
                 desc = utf8.decode(base64.decode(epg.description ?? ''));
               } catch (_) {}
-
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -837,8 +912,9 @@ class _EpgPanel extends StatelessWidget {
                         ),
                       Text(
                         '${getTimeFromDate(epg.start ?? '')} – ${getTimeFromDate(epg.end ?? '')}',
-                        style: Get.textTheme.bodySmall!
-                            .copyWith(color: kColorHint),
+                        style: Get.textTheme.bodySmall!.copyWith(
+                          color: kColorHint,
+                        ),
                       ),
                     ],
                   ),
@@ -853,8 +929,9 @@ class _EpgPanel extends StatelessWidget {
                   if (desc.isNotEmpty)
                     Text(
                       desc,
-                      style: Get.textTheme.bodySmall!
-                          .copyWith(color: Colors.white54),
+                      style: Get.textTheme.bodySmall!.copyWith(
+                        color: Colors.white54,
+                      ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -868,13 +945,12 @@ class _EpgPanel extends StatelessWidget {
   }
 }
 
-// ─── Live Fullscreen Player ───────────────────────────────────────────────────
-// Controls auto-hide after 4 s. Tap anywhere to toggle.
-// Shows buffering spinner during initializing / buffering.
-// Play/pause button in center, back + channel info + fav in top bar.
+// ─── Fullscreen Controls Overlay (NO VlcPlayer — video stays in _PlayerPanel) ─
+// Listens to controller via addListener for isBuffering / isPlaying state.
+// Controls auto-hide after 4 s; tap anywhere to toggle.
 
-class _LiveFullscreenPlayer extends StatefulWidget {
-  const _LiveFullscreenPlayer({
+class _LiveFullscreenControls extends StatefulWidget {
+  const _LiveFullscreenControls({
     required this.controller,
     required this.channel,
     required this.onClose,
@@ -885,10 +961,11 @@ class _LiveFullscreenPlayer extends StatefulWidget {
   final VoidCallback onClose;
 
   @override
-  State<_LiveFullscreenPlayer> createState() => _LiveFullscreenPlayerState();
+  State<_LiveFullscreenControls> createState() =>
+      _LiveFullscreenControlsState();
 }
 
-class _LiveFullscreenPlayerState extends State<_LiveFullscreenPlayer> {
+class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
   bool _showControls = true;
   bool _isPlaying = false;
   bool _isBuffering = true;
@@ -898,17 +975,17 @@ class _LiveFullscreenPlayerState extends State<_LiveFullscreenPlayer> {
   void initState() {
     super.initState();
     widget.controller.addListener(_onVlc);
-    _syncFromController();
+    _syncState();
     _scheduleHide();
   }
 
   @override
-  void didUpdateWidget(_LiveFullscreenPlayer old) {
+  void didUpdateWidget(_LiveFullscreenControls old) {
     super.didUpdateWidget(old);
     if (old.controller != widget.controller) {
       old.controller.removeListener(_onVlc);
       widget.controller.addListener(_onVlc);
-      _syncFromController();
+      _syncState();
     }
   }
 
@@ -919,7 +996,7 @@ class _LiveFullscreenPlayerState extends State<_LiveFullscreenPlayer> {
     super.dispose();
   }
 
-  void _syncFromController() {
+  void _syncState() {
     final v = widget.controller.value;
     _isPlaying = v.isPlaying;
     _isBuffering = !v.isInitialized || v.isBuffering;
@@ -957,42 +1034,30 @@ class _LiveFullscreenPlayerState extends State<_LiveFullscreenPlayer> {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.black,
-      child: GestureDetector(
-        onTap: _onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Stack(
-          children: [
-            // ── Video ─────────────────────────────────────────────────
-            Positioned.fill(
-              child: VlcPlayer(
-                controller: widget.controller,
-                aspectRatio: 16 / 9,
-                placeholder: const SizedBox(),
+    return GestureDetector(
+      onTap: _onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Stack(
+        children: [
+          // Buffering spinner (always visible when buffering)
+          if (_isBuffering)
+            const Center(
+              child: CircularProgressIndicator(
+                color: Colors.white,
+                strokeWidth: 2.5,
               ),
             ),
 
-            // ── Buffering spinner ──────────────────────────────────────
-            if (_isBuffering)
-              const Center(
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2.5,
-                ),
-              ),
-
-            // ── Controls overlay ───────────────────────────────────────
-            AnimatedOpacity(
-              opacity: _showControls ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 250),
-              child: IgnorePointer(
-                ignoring: !_showControls,
-                child: _buildControls(context),
-              ),
+          // Controls (auto-hide)
+          AnimatedOpacity(
+            opacity: _showControls ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 250),
+            child: IgnorePointer(
+              ignoring: !_showControls,
+              child: _buildControls(context),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -1009,19 +1074,19 @@ class _LiveFullscreenPlayerState extends State<_LiveFullscreenPlayer> {
             Colors.transparent,
             Color(0xAA000000),
           ],
-          stops: [0.0, 0.25, 0.75, 1.0],
+          stops: [0.0, 0.3, 0.7, 1.0],
         ),
       ),
       child: Column(
         children: [
-          // ── Top bar ─────────────────────────────────────────────────
+          // ── Top bar ───────────────────────────────────────────────
           SafeArea(
             bottom: false,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: Row(
                 children: [
-                  // Back / exit fullscreen
+                  // Back (exit fullscreen)
                   IconButton(
                     onPressed: widget.onClose,
                     icon: const Icon(
@@ -1088,9 +1153,10 @@ class _LiveFullscreenPlayerState extends State<_LiveFullscreenPlayer> {
                         (l) => l.streamId == widget.channel.streamId,
                       );
                       return IconButton(
-                        onPressed: () => context
-                            .read<FavoritesCubit>()
-                            .addLive(widget.channel, isAdd: !liked),
+                        onPressed: () => context.read<FavoritesCubit>().addLive(
+                          widget.channel,
+                          isAdd: !liked,
+                        ),
                         icon: Icon(
                           liked
                               ? FontAwesomeIcons.solidHeart
@@ -1106,16 +1172,16 @@ class _LiveFullscreenPlayerState extends State<_LiveFullscreenPlayer> {
             ),
           ),
 
-          // ── Center play / pause ──────────────────────────────────────
+          // ── Center play / pause ───────────────────────────────────
           const Spacer(),
           GestureDetector(
             onTap: _togglePlay,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
-              width: 68,
-              height: 68,
+              width: 72,
+              height: 72,
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: .45),
+                color: Colors.black.withValues(alpha: .5),
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.white54, width: 1.5),
               ),
@@ -1123,17 +1189,14 @@ class _LiveFullscreenPlayerState extends State<_LiveFullscreenPlayer> {
               child: Icon(
                 _isPlaying ? FontAwesomeIcons.pause : FontAwesomeIcons.play,
                 color: Colors.white,
-                size: 24,
+                size: 26,
               ),
             ),
           ),
           const Spacer(),
 
-          // ── Bottom padding (live = no seek bar) ──────────────────────
-          SafeArea(
-            top: false,
-            child: const SizedBox(height: 20),
-          ),
+          // ── Bottom padding ────────────────────────────────────────
+          SafeArea(top: false, child: const SizedBox(height: 12)),
         ],
       ),
     );
