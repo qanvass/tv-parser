@@ -533,11 +533,7 @@ class _LiveCategoriesTab extends StatelessWidget {
                       ),
                     );
                   } else {
-                    Get.to(
-                      () => LiveChannelsScreen(
-                        catyId: items[i].categoryId ?? '',
-                      ),
-                    );
+                    Get.toNamed(screenLiveCategories);
                   }
                 },
               ),

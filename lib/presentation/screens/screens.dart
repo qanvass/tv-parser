@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:azul_envato_checker/azul_envato_checker.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:filling_slider/filling_slider.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
