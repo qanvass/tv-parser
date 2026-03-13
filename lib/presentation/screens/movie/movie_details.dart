@@ -133,129 +133,191 @@ class _MovieContentState extends State<MovieContent> {
                               ),
                             ),
                           ),
-                          SafeArea(
-                            child: Column(
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              top: 25,
+                              left: 10,
+                              right: 10,
+                            ),
+                            child: Row(
+                              //mainAxisAlignment: MainAxisAlignment.start,
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _buildHeader(),
+                                IconButton(
+                                  focusColor: kColorFocus,
+                                  onPressed: () => Get.back(),
+                                  icon: const Icon(
+                                    FontAwesomeIcons.chevronLeft,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                ),
                                 Expanded(
-                                  child: SingleChildScrollView(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 20,
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        const SizedBox(height: 10),
-                                        Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                              child: CachedNetworkImage(
-                                                imageUrl:
-                                                    movie.info!.movieImage ??
-                                                    "",
-                                                width: 140,
-                                                height: 200,
-                                                fit: BoxFit.cover,
-                                                errorWidget: (_, __, ___) =>
-                                                    Container(
-                                                      width: 140,
-                                                      height: 200,
-                                                      color: kColorCardLight,
-                                                      child: const Icon(
-                                                        FontAwesomeIcons.film,
-                                                        color: kColorHint,
-                                                        size: 40,
-                                                      ),
-                                                    ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 20),
-                                            Expanded(
-                                              child: Column(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      // _buildHeader(),
+                                      Expanded(
+                                        child: SingleChildScrollView(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 20,
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              const SizedBox(height: 10),
+                                              Row(
                                                 crossAxisAlignment:
                                                     CrossAxisAlignment.start,
                                                 children: [
-                                                  Text(
-                                                    movie.movieData!.name ?? "",
-                                                    style: const TextStyle(
-                                                      color: Colors.white,
-                                                      fontSize: 22,
-                                                      fontWeight:
-                                                          FontWeight.bold,
+                                                  ClipRRect(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          12,
+                                                        ),
+                                                    child: CachedNetworkImage(
+                                                      imageUrl:
+                                                          movie
+                                                              .info!
+                                                              .movieImage ??
+                                                          "",
+                                                      width: 140,
+                                                      height: 200,
+                                                      fit: BoxFit.cover,
+                                                      errorWidget:
+                                                          (
+                                                            _,
+                                                            __,
+                                                            ___,
+                                                          ) => Container(
+                                                            width: 140,
+                                                            height: 200,
+                                                            color:
+                                                                kColorCardLight,
+                                                            child: const Icon(
+                                                              FontAwesomeIcons
+                                                                  .film,
+                                                              color: kColorHint,
+                                                              size: 40,
+                                                            ),
+                                                          ),
                                                     ),
                                                   ),
-                                                  const SizedBox(height: 12),
-                                                  _buildButtons(
-                                                    movie,
-                                                    userAuth,
-                                                  ),
-                                                  const SizedBox(height: 16),
-                                                  _buildInfoRow(
-                                                    icon: FontAwesomeIcons
-                                                        .clapperboard,
-                                                    label: 'Director',
-                                                    value:
-                                                        movie.info!.director ??
-                                                        "",
-                                                  ),
-                                                  const SizedBox(height: 10),
-                                                  _buildInfoRow(
-                                                    icon: FontAwesomeIcons
-                                                        .calendarDay,
-                                                    label: 'Release',
-                                                    value: expirationDate(
-                                                      movie.info!.releasedate,
+                                                  const SizedBox(width: 20),
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      children: [
+                                                        Text(
+                                                          movie
+                                                                  .movieData!
+                                                                  .name ??
+                                                              "",
+                                                          style:
+                                                              const TextStyle(
+                                                                color: Colors
+                                                                    .white,
+                                                                fontSize: 22,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                              ),
+                                                        ),
+
+                                                        const SizedBox(
+                                                          height: 16,
+                                                        ),
+                                                        _buildInfoRow(
+                                                          icon: FontAwesomeIcons
+                                                              .clapperboard,
+                                                          label: 'Director',
+                                                          value:
+                                                              movie
+                                                                  .info!
+                                                                  .director ??
+                                                              "",
+                                                        ),
+                                                        const SizedBox(
+                                                          height: 10,
+                                                        ),
+                                                        _buildInfoRow(
+                                                          icon: FontAwesomeIcons
+                                                              .calendarDay,
+                                                          label: 'Release',
+                                                          value: expirationDate(
+                                                            movie
+                                                                .info!
+                                                                .releasedate,
+                                                          ),
+                                                        ),
+                                                        const SizedBox(
+                                                          height: 10,
+                                                        ),
+                                                        _buildInfoRow(
+                                                          icon: FontAwesomeIcons
+                                                              .clock,
+                                                          label: 'Duration',
+                                                          value:
+                                                              movie
+                                                                  .info!
+                                                                  .duration ??
+                                                              "",
+                                                        ),
+                                                        const SizedBox(
+                                                          height: 10,
+                                                        ),
+                                                        _buildInfoRow(
+                                                          icon: FontAwesomeIcons
+                                                              .film,
+                                                          label: 'Genre',
+                                                          value:
+                                                              movie
+                                                                  .info!
+                                                                  .genre ??
+                                                              "",
+                                                        ),
+
+                                                        const SizedBox(
+                                                          height: 12,
+                                                        ),
+                                                        _buildButtons(
+                                                          movie,
+                                                          userAuth,
+                                                        ),
+                                                      ],
                                                     ),
-                                                  ),
-                                                  const SizedBox(height: 10),
-                                                  _buildInfoRow(
-                                                    icon:
-                                                        FontAwesomeIcons.clock,
-                                                    label: 'Duration',
-                                                    value:
-                                                        movie.info!.duration ??
-                                                        "",
-                                                  ),
-                                                  const SizedBox(height: 10),
-                                                  _buildInfoRow(
-                                                    icon: FontAwesomeIcons.film,
-                                                    label: 'Genre',
-                                                    value:
-                                                        movie.info!.genre ?? "",
                                                   ),
                                                 ],
                                               ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 24),
-                                        Text(
-                                          'Plot',
-                                          style: TextStyle(
-                                            color: kColorHint,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                            letterSpacing: 1.1,
+                                              const SizedBox(height: 24),
+                                              Text(
+                                                'Plot',
+                                                style: TextStyle(
+                                                  color: kColorHint,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.bold,
+                                                  letterSpacing: 1.1,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                movie.info!.plot ?? "",
+                                                style: const TextStyle(
+                                                  color: Colors.white70,
+                                                  fontSize: 14,
+                                                  height: 1.5,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 40),
+                                            ],
                                           ),
                                         ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          movie.info!.plot ?? "",
-                                          style: const TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 14,
-                                            height: 1.5,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 40),
-                                      ],
-                                    ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
@@ -290,29 +352,6 @@ class _MovieContentState extends State<MovieContent> {
             ),
           ),
           const Spacer(),
-          BlocBuilder<FavoritesCubit, FavoritesState>(
-            builder: (context, state) {
-              final isLiked = state.movies
-                  .where((m) => m.streamId == widget.channelMovie.streamId)
-                  .isNotEmpty;
-              return IconButton(
-                focusColor: kColorFocus,
-                onPressed: () {
-                  context.read<FavoritesCubit>().addMovie(
-                    widget.channelMovie,
-                    isAdd: !isLiked,
-                  );
-                },
-                icon: Icon(
-                  isLiked
-                      ? FontAwesomeIcons.solidHeart
-                      : FontAwesomeIcons.heart,
-                  color: isLiked ? kColorPrimary : Colors.white,
-                  size: 20,
-                ),
-              );
-            },
-          ),
         ],
       ),
     );
