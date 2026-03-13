@@ -1,9 +1,5 @@
 part of 'screens.dart';
 
-// ─── HOME SCREEN (post-login) ─────────────────────────────────────────────────
-// Mobile  → BottomNavigationBar + IndexedStack (Live | Movies | Series | Favorites)
-// TV      → Left sidebar + content grid with full D-pad remote support
-
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
 
@@ -12,22 +8,355 @@ class WelcomeScreen extends StatefulWidget {
 }
 
 class _WelcomeScreenState extends State<WelcomeScreen> {
-  int _tabIndex = 0;
-
-  // Per-tab search
-  final _liveSearch = TextEditingController();
-  final _moviesSearch = TextEditingController();
-  final _seriesSearch = TextEditingController();
-  String _liveKey = '';
-  String _moviesKey = '';
-  String _seriesKey = '';
-
   @override
   void initState() {
     super.initState();
     context.read<FavoritesCubit>().initialData();
     context.read<WatchingCubit>().initialData();
   }
+
+  @override
+  Widget build(BuildContext context) {
+    return isTv(context) ? const _HomeTvLayout() : const _HomeMobileLayout();
+  }
+}
+
+// ─── TV LAYOUT ────────────────────────────────────────────────────────────────
+// Simple card grid — same look as original but with working D-pad focus.
+//
+// Layout:
+//   Row 0 → [Live TV]  [Movies]  [Series]      (items 0,1,2)
+//   Row 1 → [Favorites] [Catch Up] [Settings]  (items 3,4,5)
+//
+// Remote:  ◄ ► move within row  |  ▼▲ switch rows  |  OK/Enter activates
+
+class _HomeTvLayout extends StatefulWidget {
+  const _HomeTvLayout({super.key});
+
+  @override
+  State<_HomeTvLayout> createState() => _HomeTvLayoutState();
+}
+
+class _HomeTvLayoutState extends State<_HomeTvLayout> {
+  // 0-2 = top row cards, 3-5 = bottom row buttons
+  int _focused = 0;
+  final FocusNode _navFocus = FocusNode();
+
+  @override
+  void dispose() {
+    _navFocus.dispose();
+    super.dispose();
+  }
+
+  KeyEventResult _onKey(FocusNode _, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+
+    if (key == LogicalKeyboardKey.arrowRight) {
+      final max = _focused < 3 ? 2 : 5;
+      if (_focused < max) setState(() => _focused++);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowLeft) {
+      final min = _focused < 3 ? 0 : 3;
+      if (_focused > min) setState(() => _focused--);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowDown && _focused < 3) {
+      setState(() => _focused = 3);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowUp && _focused >= 3) {
+      setState(() => _focused = 0);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.select ||
+        key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.gameButtonA) {
+      _activate();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  void _activate() {
+    switch (_focused) {
+      case 0:
+        Get.toNamed(screenLiveCategories);
+      case 1:
+        Get.toNamed(screenMovieCategories);
+      case 2:
+        Get.toNamed(screenSeriesCategories);
+      case 3:
+        Get.toNamed(screenFavourite);
+      case 4:
+        Get.toNamed(screenCatchUp);
+      case 5:
+        Get.toNamed(screenSettings);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      focusNode: _navFocus,
+      autofocus: true,
+      onKeyEvent: _onKey,
+      child: Scaffold(
+        body: Ink(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: kDecorBackground,
+          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+          child: Column(
+            children: [
+              // ── App bar ──────────────────────────────────────────────
+              const WelcomeAppBar(),
+              const SizedBox(height: 32),
+
+              // ── Main category cards ──────────────────────────────────
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: BlocBuilder<LiveCatyBloc, LiveCatyState>(
+                        builder: (context, state) {
+                          final count = state is LiveCatySuccess
+                              ? state.categories.length
+                              : 0;
+                          return _TvCard(
+                            title: 'Live TV',
+                            subtitle: '$count Channels',
+                            icon: kIconLive,
+                            isFocused: _focused == 0,
+                            onTap: () => Get.toNamed(screenLiveCategories),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: BlocBuilder<MovieCatyBloc, MovieCatyState>(
+                        builder: (context, state) {
+                          final count = state is MovieCatySuccess
+                              ? state.categories.length
+                              : 0;
+                          return _TvCard(
+                            title: 'Movies',
+                            subtitle: '$count Movies',
+                            icon: kIconMovies,
+                            isFocused: _focused == 1,
+                            onTap: () => Get.toNamed(screenMovieCategories),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: BlocBuilder<SeriesCatyBloc, SeriesCatyState>(
+                        builder: (context, state) {
+                          final count = state is SeriesCatySuccess
+                              ? state.categories.length
+                              : 0;
+                          return _TvCard(
+                            title: 'Series',
+                            subtitle: '$count Series',
+                            icon: kIconSeries,
+                            isFocused: _focused == 2,
+                            onTap: () => Get.toNamed(screenSeriesCategories),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 28),
+
+              // ── Secondary action buttons ──────────────────────────────
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _TvActionBtn(
+                    title: 'Favourites',
+                    icon: FontAwesomeIcons.heart,
+                    isFocused: _focused == 3,
+                    onTap: () => Get.toNamed(screenFavourite),
+                  ),
+                  const SizedBox(width: 20),
+                  _TvActionBtn(
+                    title: 'Catch Up',
+                    icon: FontAwesomeIcons.rotate,
+                    isFocused: _focused == 4,
+                    onTap: () => Get.toNamed(screenCatchUp),
+                  ),
+                  const SizedBox(width: 20),
+                  _TvActionBtn(
+                    title: 'Settings',
+                    icon: FontAwesomeIcons.gear,
+                    isFocused: _focused == 5,
+                    onTap: () => Get.toNamed(screenSettings),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── TV Card ──────────────────────────────────────────────────────────────────
+
+class _TvCard extends StatelessWidget {
+  const _TvCard({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.isFocused,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final String icon;
+  final bool isFocused;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        decoration: BoxDecoration(
+          color: isFocused
+              ? kColorPrimary.withValues(alpha: .18)
+              : kColorCardLight,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: isFocused ? kColorFocus : Colors.transparent,
+            width: 3,
+          ),
+          boxShadow: isFocused
+              ? [
+                  BoxShadow(
+                    color: kColorFocus.withValues(alpha: .45),
+                    blurRadius: 24,
+                    spreadRadius: 2,
+                  ),
+                ]
+              : [],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedScale(
+              scale: isFocused ? 1.1 : 1.0,
+              duration: const Duration(milliseconds: 180),
+              child: Image.asset(icon, width: 8.w, height: 8.w),
+            ),
+            SizedBox(height: 3.h),
+            Text(
+              title,
+              style: Get.textTheme.displaySmall!.copyWith(
+                fontWeight: FontWeight.bold,
+                color: isFocused ? kColorFocus : Colors.white,
+              ),
+            ),
+            SizedBox(height: 1.h),
+            Text(
+              '◍ $subtitle',
+              style: Get.textTheme.titleSmall!.copyWith(color: Colors.white70),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── TV Action Button ─────────────────────────────────────────────────────────
+
+class _TvActionBtn extends StatelessWidget {
+  const _TvActionBtn({
+    required this.title,
+    required this.icon,
+    required this.isFocused,
+    required this.onTap,
+  });
+
+  final String title;
+  final IconData icon;
+  final bool isFocused;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+        decoration: BoxDecoration(
+          color: isFocused ? kColorPrimary : kColorCardLight,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isFocused ? kColorFocus : kColorCardDark,
+          ),
+          boxShadow: isFocused
+              ? [
+                  BoxShadow(
+                    color: kColorFocus.withValues(alpha: .4),
+                    blurRadius: 14,
+                  ),
+                ]
+              : [],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: isFocused ? Colors.white : kColorPrimary,
+            ),
+            const SizedBox(width: 10),
+            Text(
+              title,
+              style: Get.textTheme.titleSmall!.copyWith(
+                color: isFocused ? Colors.white : Colors.white70,
+                fontWeight: isFocused ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── MOBILE LAYOUT ────────────────────────────────────────────────────────────
+
+class _HomeMobileLayout extends StatefulWidget {
+  const _HomeMobileLayout({super.key});
+
+  @override
+  State<_HomeMobileLayout> createState() => _HomeMobileLayoutState();
+}
+
+class _HomeMobileLayoutState extends State<_HomeMobileLayout> {
+  int _tabIndex = 0;
+  final _liveSearch = TextEditingController();
+  final _moviesSearch = TextEditingController();
+  final _seriesSearch = TextEditingController();
+  String _liveKey = '';
+  String _moviesKey = '';
+  String _seriesKey = '';
 
   @override
   void dispose() {
@@ -39,65 +368,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return isTv(context)
-        ? _HomeTvLayout(
-            tabIndex: _tabIndex,
-            onTabChange: (i) => setState(() => _tabIndex = i),
-            liveKey: _liveKey,
-            moviesKey: _moviesKey,
-            seriesKey: _seriesKey,
-            liveSearch: _liveSearch,
-            moviesSearch: _moviesSearch,
-            seriesSearch: _seriesSearch,
-            onLiveSearch: (v) => setState(() => _liveKey = v.toLowerCase()),
-            onMoviesSearch: (v) =>
-                setState(() => _moviesKey = v.toLowerCase()),
-            onSeriesSearch: (v) =>
-                setState(() => _seriesKey = v.toLowerCase()),
-          )
-        : _HomeMobileLayout(
-            tabIndex: _tabIndex,
-            onTabChange: (i) => setState(() => _tabIndex = i),
-            liveKey: _liveKey,
-            moviesKey: _moviesKey,
-            seriesKey: _seriesKey,
-            liveSearch: _liveSearch,
-            moviesSearch: _moviesSearch,
-            seriesSearch: _seriesSearch,
-            onLiveSearch: (v) => setState(() => _liveKey = v.toLowerCase()),
-            onMoviesSearch: (v) =>
-                setState(() => _moviesKey = v.toLowerCase()),
-            onSeriesSearch: (v) =>
-                setState(() => _seriesKey = v.toLowerCase()),
-          );
-  }
-}
-
-// ─── MOBILE LAYOUT ────────────────────────────────────────────────────────────
-
-class _HomeMobileLayout extends StatelessWidget {
-  const _HomeMobileLayout({
-    required this.tabIndex,
-    required this.onTabChange,
-    required this.liveKey,
-    required this.moviesKey,
-    required this.seriesKey,
-    required this.liveSearch,
-    required this.moviesSearch,
-    required this.seriesSearch,
-    required this.onLiveSearch,
-    required this.onMoviesSearch,
-    required this.onSeriesSearch,
-  });
-
-  final int tabIndex;
-  final ValueChanged<int> onTabChange;
-  final String liveKey, moviesKey, seriesKey;
-  final TextEditingController liveSearch, moviesSearch, seriesSearch;
-  final ValueChanged<String> onLiveSearch, onMoviesSearch, onSeriesSearch;
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kColorBackDark,
       body: Ink(
@@ -105,7 +375,6 @@ class _HomeMobileLayout extends StatelessWidget {
         child: SafeArea(
           child: Column(
             children: [
-              // ── App Bar ──
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -113,19 +382,14 @@ class _HomeMobileLayout extends StatelessWidget {
                 ),
                 child: const WelcomeAppBar(),
               ),
-
-              // ── Search bar (hidden on Favorites tab) ──
-              if (tabIndex != 3)
-                _buildSearchBar(context),
-
-              // ── Tab content ──
+              if (_tabIndex != 3) _buildSearchBar(),
               Expanded(
                 child: IndexedStack(
-                  index: tabIndex,
+                  index: _tabIndex,
                   children: [
-                    _LiveCategoriesTab(searchKey: liveKey),
-                    _MovieCategoriesTab(searchKey: moviesKey),
-                    _SeriesCategoriesTab(searchKey: seriesKey),
+                    _LiveCategoriesTab(searchKey: _liveKey),
+                    _MovieCategoriesTab(searchKey: _moviesKey),
+                    _SeriesCategoriesTab(searchKey: _seriesKey),
                     const _FavoritesTab(),
                   ],
                 ),
@@ -134,222 +398,37 @@ class _HomeMobileLayout extends StatelessWidget {
           ),
         ),
       ),
-
-      // ── Bottom Navigation ──
       bottomNavigationBar: _HomeBottomNav(
-        currentIndex: tabIndex,
-        onTap: onTabChange,
+        currentIndex: _tabIndex,
+        onTap: (i) => setState(() => _tabIndex = i),
       ),
     );
   }
 
-  Widget _buildSearchBar(BuildContext context) {
-    final controllers = [liveSearch, moviesSearch, seriesSearch];
-    final callbacks = [onLiveSearch, onMoviesSearch, onSeriesSearch];
-    final hints = ['Search live channels...', 'Search movies...', 'Search series...'];
-
+  Widget _buildSearchBar() {
+    final controllers = [_liveSearch, _moviesSearch, _seriesSearch];
+    final callbacks = [
+      (String v) => setState(() => _liveKey = v.toLowerCase()),
+      (String v) => setState(() => _moviesKey = v.toLowerCase()),
+      (String v) => setState(() => _seriesKey = v.toLowerCase()),
+    ];
+    final hints = [
+      'Search live channels...',
+      'Search movies...',
+      'Search series...',
+    ];
     return HomeSearchBar(
-      controller: controllers[tabIndex],
-      onChanged: callbacks[tabIndex],
-      hint: hints[tabIndex],
+      controller: controllers[_tabIndex],
+      onChanged: callbacks[_tabIndex],
+      hint: hints[_tabIndex],
     );
   }
 }
 
-// ─── TV LAYOUT ────────────────────────────────────────────────────────────────
-
-class _HomeTvLayout extends StatelessWidget {
-  const _HomeTvLayout({
-    required this.tabIndex,
-    required this.onTabChange,
-    required this.liveKey,
-    required this.moviesKey,
-    required this.seriesKey,
-    required this.liveSearch,
-    required this.moviesSearch,
-    required this.seriesSearch,
-    required this.onLiveSearch,
-    required this.onMoviesSearch,
-    required this.onSeriesSearch,
-  });
-
-  final int tabIndex;
-  final ValueChanged<int> onTabChange;
-  final String liveKey, moviesKey, seriesKey;
-  final TextEditingController liveSearch, moviesSearch, seriesSearch;
-  final ValueChanged<String> onLiveSearch, onMoviesSearch, onSeriesSearch;
-
-  static const _navItems = [
-    (icon: FontAwesomeIcons.tv, label: 'Live TV'),
-    (icon: FontAwesomeIcons.film, label: 'Movies'),
-    (icon: FontAwesomeIcons.clapperboard, label: 'Series'),
-    (icon: FontAwesomeIcons.heart, label: 'Favorites'),
-    (icon: FontAwesomeIcons.rotate, label: 'Catch Up'),
-    (icon: FontAwesomeIcons.gear, label: 'Settings'),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: kColorBackDark,
-      body: Ink(
-        decoration: kDecorBackground,
-        child: Row(
-          children: [
-            // ── Sidebar ──────────────────────────────────────────────
-            FocusTraversalGroup(
-              policy: OrderedTraversalPolicy(),
-              child: Container(
-                width: 220,
-                decoration: BoxDecoration(
-                  color: kColorBackDark.withValues(alpha: .95),
-                  border: Border(
-                    right: BorderSide(
-                      color: kColorHint.withValues(alpha: .3),
-                    ),
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 24),
-
-                    // Logo
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        children: [
-                          Image.asset(
-                            kIconSplash,
-                            width: 36,
-                            height: 36,
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            kAppName,
-                            style: Get.textTheme.titleMedium!.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-                    Divider(
-                      color: kColorHint.withValues(alpha: .3),
-                      indent: 16,
-                      endIndent: 16,
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Nav items
-                    ...List.generate(_navItems.length, (i) {
-                      final item = _navItems[i];
-                      if (i >= 4) {
-                        // Settings/CatchUp → navigate out
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: HomeNavItem(
-                            title: item.label,
-                            icon: item.icon,
-                            isSelected: false,
-                            autofocus: i == 0,
-                            onTap: () {
-                              if (i == 4) Get.toNamed(screenCatchUp);
-                              if (i == 5) Get.toNamed(screenSettings);
-                            },
-                          ),
-                        );
-                      }
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: HomeNavItem(
-                          title: item.label,
-                          icon: item.icon,
-                          isSelected: tabIndex == i,
-                          autofocus: i == 0,
-                          onTap: () => onTabChange(i),
-                        ),
-                      );
-                    }),
-
-                    const Spacer(),
-
-                    // User info at bottom
-                    BlocBuilder<AuthBloc, AuthState>(
-                      builder: (context, state) {
-                        if (state is AuthSuccess) {
-                          final user = state.user.userInfo;
-                          return Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Divider(
-                                  color: kColorHint.withValues(alpha: .3),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  user?.username ?? '',
-                                  style: Get.textTheme.bodyMedium!.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                Text(
-                                  'Expires: ${expirationDate(user?.expDate)}',
-                                  style: Get.textTheme.bodySmall!.copyWith(
-                                    color: kColorHint,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-                        return const SizedBox();
-                      },
-                    ),
-
-                    const SizedBox(height: 12),
-                  ],
-                ),
-              ),
-            ),
-
-            // ── Content area ─────────────────────────────────────────
-            Expanded(
-              child: FocusTraversalGroup(
-                policy: OrderedTraversalPolicy(),
-                child: IndexedStack(
-                  index: tabIndex,
-                  children: [
-                    _LiveCategoriesTab(searchKey: liveKey, isTvLayout: true),
-                    _MovieCategoriesTab(
-                      searchKey: moviesKey,
-                      isTvLayout: true,
-                    ),
-                    _SeriesCategoriesTab(
-                      searchKey: seriesKey,
-                      isTvLayout: true,
-                    ),
-                    const _FavoritesTab(isTvLayout: true),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─── BOTTOM NAVIGATION BAR ───────────────────────────────────────────────────
+// ─── BOTTOM NAVIGATION BAR ────────────────────────────────────────────────────
 
 class _HomeBottomNav extends StatelessWidget {
-  const _HomeBottomNav({
-    required this.currentIndex,
-    required this.onTap,
-  });
+  const _HomeBottomNav({required this.currentIndex, required this.onTap});
 
   final int currentIndex;
   final ValueChanged<int> onTap;
@@ -395,12 +474,8 @@ class _HomeBottomNav extends StatelessWidget {
 // ─── LIVE CATEGORIES TAB ──────────────────────────────────────────────────────
 
 class _LiveCategoriesTab extends StatelessWidget {
-  const _LiveCategoriesTab({this.searchKey = '', this.isTvLayout = false});
-
+  const _LiveCategoriesTab({this.searchKey = ''});
   final String searchKey;
-  final bool isTvLayout;
-
-  int get _crossAxisCount => isTvLayout ? 3 : 2;
 
   @override
   Widget build(BuildContext context) {
@@ -409,9 +484,7 @@ class _LiveCategoriesTab extends StatelessWidget {
         final isDemo = settingState.isDemo;
         return BlocBuilder<LiveCatyBloc, LiveCatyState>(
           builder: (context, state) {
-            if (state is LiveCatyLoading) {
-              return const _LoadingState();
-            }
+            if (state is LiveCatyLoading) return const _LoadingState();
 
             final List<CategoryModel> all = state is LiveCatySuccess
                 ? state.categories
@@ -442,35 +515,32 @@ class _LiveCategoriesTab extends StatelessWidget {
             return GridView.builder(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 80),
               itemCount: items.length,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: _crossAxisCount,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
                 crossAxisSpacing: 8,
                 mainAxisSpacing: 8,
-                childAspectRatio: isTvLayout ? 4.5 : 4,
+                childAspectRatio: 4,
               ),
-              itemBuilder: (_, i) {
-                final model = items[i];
-                return CardLiveItem(
-                  title: model.categoryName ?? '',
-                  onTap: () {
-                    if (isDemo) {
-                      Get.to(
-                        () => const FullVideoScreen(
-                          title: 'Channel',
-                          link: kDemoUrl,
-                          isLive: true,
-                        ),
-                      );
-                    } else {
-                      Get.to(
-                        () => LiveChannelsScreen(
-                          catyId: model.categoryId ?? '',
-                        ),
-                      );
-                    }
-                  },
-                );
-              },
+              itemBuilder: (_, i) => CardLiveItem(
+                title: items[i].categoryName ?? '',
+                onTap: () {
+                  if (isDemo) {
+                    Get.to(
+                      () => const FullVideoScreen(
+                        title: 'Channel',
+                        link: kDemoUrl,
+                        isLive: true,
+                      ),
+                    );
+                  } else {
+                    Get.to(
+                      () => LiveChannelsScreen(
+                        catyId: items[i].categoryId ?? '',
+                      ),
+                    );
+                  }
+                },
+              ),
             );
           },
         );
@@ -482,15 +552,8 @@ class _LiveCategoriesTab extends StatelessWidget {
 // ─── MOVIES CATEGORIES TAB ────────────────────────────────────────────────────
 
 class _MovieCategoriesTab extends StatelessWidget {
-  const _MovieCategoriesTab({
-    this.searchKey = '',
-    this.isTvLayout = false,
-  });
-
+  const _MovieCategoriesTab({this.searchKey = ''});
   final String searchKey;
-  final bool isTvLayout;
-
-  int get _crossAxisCount => isTvLayout ? 4 : 2;
 
   @override
   Widget build(BuildContext context) {
@@ -499,9 +562,7 @@ class _MovieCategoriesTab extends StatelessWidget {
         final isDemo = settingState.isDemo;
         return BlocBuilder<MovieCatyBloc, MovieCatyState>(
           builder: (context, state) {
-            if (state is MovieCatyLoading) {
-              return const _LoadingState();
-            }
+            if (state is MovieCatyLoading) return const _LoadingState();
 
             final List<CategoryModel> all = state is MovieCatySuccess
                 ? state.categories
@@ -523,33 +584,30 @@ class _MovieCategoriesTab extends StatelessWidget {
             return GridView.builder(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 80),
               itemCount: items.length,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: _crossAxisCount,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
                 crossAxisSpacing: 8,
                 mainAxisSpacing: 8,
-                childAspectRatio: isTvLayout ? 4.5 : 4,
+                childAspectRatio: 4,
               ),
-              itemBuilder: (_, i) {
-                final model = items[i];
-                return CardLiveItem(
-                  title: model.categoryName ?? '',
-                  onTap: () {
-                    if (isDemo) {
-                      Get.to(
-                        () => const FullVideoScreen(
-                          title: 'Movie',
-                          link: kDemoUrl,
-                          isLive: true,
-                        ),
-                      );
-                    } else {
-                      Get.to(
-                        () => MovieChannels(catyId: model.categoryId ?? ''),
-                      );
-                    }
-                  },
-                );
-              },
+              itemBuilder: (_, i) => CardLiveItem(
+                title: items[i].categoryName ?? '',
+                onTap: () {
+                  if (isDemo) {
+                    Get.to(
+                      () => const FullVideoScreen(
+                        title: 'Movie',
+                        link: kDemoUrl,
+                        isLive: true,
+                      ),
+                    );
+                  } else {
+                    Get.to(
+                      () => MovieChannels(catyId: items[i].categoryId ?? ''),
+                    );
+                  }
+                },
+              ),
             );
           },
         );
@@ -558,18 +616,11 @@ class _MovieCategoriesTab extends StatelessWidget {
   }
 }
 
-// ─── SERIES CATEGORIES TAB ───────────────────────────────────────────────────
+// ─── SERIES CATEGORIES TAB ────────────────────────────────────────────────────
 
 class _SeriesCategoriesTab extends StatelessWidget {
-  const _SeriesCategoriesTab({
-    this.searchKey = '',
-    this.isTvLayout = false,
-  });
-
+  const _SeriesCategoriesTab({this.searchKey = ''});
   final String searchKey;
-  final bool isTvLayout;
-
-  int get _crossAxisCount => isTvLayout ? 4 : 2;
 
   @override
   Widget build(BuildContext context) {
@@ -578,9 +629,7 @@ class _SeriesCategoriesTab extends StatelessWidget {
         final isDemo = settingState.isDemo;
         return BlocBuilder<SeriesCatyBloc, SeriesCatyState>(
           builder: (context, state) {
-            if (state is SeriesCatyLoading) {
-              return const _LoadingState();
-            }
+            if (state is SeriesCatyLoading) return const _LoadingState();
 
             final List<CategoryModel> all = state is SeriesCatySuccess
                 ? state.categories
@@ -607,35 +656,32 @@ class _SeriesCategoriesTab extends StatelessWidget {
             return GridView.builder(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 80),
               itemCount: items.length,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: _crossAxisCount,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
                 crossAxisSpacing: 8,
                 mainAxisSpacing: 8,
-                childAspectRatio: isTvLayout ? 4.5 : 4,
+                childAspectRatio: 4,
               ),
-              itemBuilder: (_, i) {
-                final model = items[i];
-                return CardLiveItem(
-                  title: model.categoryName ?? '',
-                  onTap: () {
-                    if (isDemo) {
-                      Get.to(
-                        () => const FullVideoScreen(
-                          title: 'Series',
-                          link: kDemoUrl,
-                          isLive: true,
-                        ),
-                      );
-                    } else {
-                      Get.to(
-                        () => SeriesChannels(
-                          catyId: model.categoryId ?? '',
-                        ),
-                      );
-                    }
-                  },
-                );
-              },
+              itemBuilder: (_, i) => CardLiveItem(
+                title: items[i].categoryName ?? '',
+                onTap: () {
+                  if (isDemo) {
+                    Get.to(
+                      () => const FullVideoScreen(
+                        title: 'Series',
+                        link: kDemoUrl,
+                        isLive: true,
+                      ),
+                    );
+                  } else {
+                    Get.to(
+                      () => SeriesChannels(
+                        catyId: items[i].categoryId ?? '',
+                      ),
+                    );
+                  }
+                },
+              ),
             );
           },
         );
@@ -647,23 +693,19 @@ class _SeriesCategoriesTab extends StatelessWidget {
 // ─── FAVORITES TAB ────────────────────────────────────────────────────────────
 
 class _FavoritesTab extends StatefulWidget {
-  const _FavoritesTab({this.isTvLayout = false});
-  final bool isTvLayout;
+  const _FavoritesTab({super.key});
 
   @override
   State<_FavoritesTab> createState() => _FavoritesTabState();
 }
 
 class _FavoritesTabState extends State<_FavoritesTab> {
-  int _subTab = 0; // 0=Live, 1=Movies, 2=Series
-
-  int get _movieCols => widget.isTvLayout ? 6 : 3;
+  int _subTab = 0;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Sub-tab selector
         Container(
           height: 44,
           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -691,15 +733,13 @@ class _FavoritesTabState extends State<_FavoritesTab> {
             ],
           ),
         ),
-
-        // Content
         Expanded(
           child: IndexedStack(
             index: _subTab,
             children: [
               _FavLiveList(),
-              _FavMoviesList(cols: _movieCols),
-              _FavSeriesList(cols: _movieCols),
+              const _FavMoviesList(cols: 3),
+              const _FavSeriesList(cols: 3),
             ],
           ),
         ),
@@ -722,10 +762,8 @@ class _FavSubTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: InkWell(
+      child: GestureDetector(
         onTap: onTap,
-        focusColor: kColorFocus.withValues(alpha: .2),
-        borderRadius: BorderRadius.circular(10),
         child: Container(
           decoration: BoxDecoration(
             color: isSelected ? kColorPrimary : Colors.transparent,
@@ -736,8 +774,7 @@ class _FavSubTab extends StatelessWidget {
             label,
             style: Get.textTheme.titleSmall!.copyWith(
               color: isSelected ? Colors.white : Colors.white54,
-              fontWeight:
-                  isSelected ? FontWeight.bold : FontWeight.normal,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             ),
           ),
         ),
@@ -868,15 +905,14 @@ class _FavSeriesList extends StatelessWidget {
   }
 }
 
-// ─── SHARED UTILS ─────────────────────────────────────────────────────────────
+// ─── SHARED ───────────────────────────────────────────────────────────────────
 
 class _LoadingState extends StatelessWidget {
   const _LoadingState();
 
   @override
-  Widget build(BuildContext context) => const Center(
-        child: CircularProgressIndicator(color: kColorPrimary),
-      );
+  Widget build(BuildContext context) =>
+      const Center(child: CircularProgressIndicator(color: kColorPrimary));
 }
 
 class _EmptyState extends StatelessWidget {
@@ -888,11 +924,7 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              FontAwesomeIcons.boxOpen,
-              size: 40,
-              color: kColorHint,
-            ),
+            const Icon(FontAwesomeIcons.boxOpen, size: 40, color: kColorHint),
             const SizedBox(height: 12),
             Text(
               label,
