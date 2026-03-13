@@ -237,11 +237,9 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
       _fetchMovies(_cats[_catIdx].categoryId ?? '');
     } else if (_panel == 1 && _filteredMovies.isNotEmpty) {
       final movie = _filteredMovies[_movieIdx];
-      if (_selMovie != null && _selMovie!.streamId == movie.streamId) {
-        _toggleFullscreen();
-      } else {
-        _play(movie, _movieIdx);
-      }
+      Get.to(
+        () => MovieContent(channelMovie: movie, videoId: movie.streamId ?? ''),
+      );
     }
   }
 
@@ -347,12 +345,12 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
                                   isFullscreen: _isFullscreen,
                                   scrollController: _gridScroll,
                                   onMovieTap: (movie, idx) {
-                                    if (_selMovie != null &&
-                                        _selMovie!.streamId == movie.streamId) {
-                                      _toggleFullscreen();
-                                    } else {
-                                      _play(movie, idx);
-                                    }
+                                    Get.to(
+                                      () => MovieContent(
+                                        channelMovie: movie,
+                                        videoId: movie.streamId ?? '',
+                                      ),
+                                    );
                                   },
                                 ),
                               ),
