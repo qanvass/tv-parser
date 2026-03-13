@@ -5,6 +5,9 @@ const String kAppName = "AZUL IPTV";
 //TODO: SHow Ads ( true / false )
 const bool showAds = false;
 
+//TODO: Force TV mode for testing on mobile ( true / false )
+const bool kForceTvMode = true;
+
 const String kIconLive = "assets/images/live-stream.png";
 const String kIconSeries = "assets/images/clapperboard.png";
 const String kIconMovies = "assets/images/film-reel.png";
@@ -19,15 +22,11 @@ const String kDemoUrl =
 
 const double sizeTablet = 950;
 
-enum TypeCategory {
-  all,
-  live,
-  movies,
-  series,
-}
+enum TypeCategory { all, live, movies, series }
 
 Size getSize(BuildContext context) => MediaQuery.of(context).size;
 
 bool isTv(BuildContext context) {
+  if (kForceTvMode) return true;
   return MediaQuery.of(context).size.width > sizeTablet;
 }

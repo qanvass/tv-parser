@@ -8,27 +8,44 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final _fullUrl = TextEditingController();
-
   final _username = TextEditingController();
   final _password = TextEditingController();
   final _url = TextEditingController();
+  final _fullUrl = TextEditingController();
 
-  void _convertM3utoXtreme(TextStyle style) {
+  @override
+  void dispose() {
+    _username.dispose();
+    _password.dispose();
+    _url.dispose();
+    _fullUrl.dispose();
+    super.dispose();
+  }
+
+  void _showM3uDialog() {
+    final style = Get.textTheme.bodyMedium!.copyWith(
+      color: Colors.white,
+      fontWeight: FontWeight.bold,
+    );
     showDialog(
       context: context,
       builder: (_) => CupertinoAlertDialog(
-        title: const Text('Past your M3U API Link'),
+        title: const Text('Import M3U API Link'),
         content: Material(
           color: Colors.transparent,
-          child: TextField(
-            controller: _fullUrl,
-            decoration: InputDecoration(
-              hintText:
-                  "http://domain.tr:8080/get.php?username=azul-iptv&password=azul-iptv",
-              hintStyle: Get.textTheme.bodyMedium!.copyWith(color: Colors.grey),
+          child: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: TextField(
+              controller: _fullUrl,
+              decoration: InputDecoration(
+                hintText:
+                    'http://domain.tr:8080/get.php?username=user&password=pass',
+                hintStyle: Get.textTheme.bodySmall!.copyWith(
+                  color: Colors.grey,
+                ),
+              ),
+              style: style,
             ),
-            style: style,
           ),
         ),
         actions: [
@@ -46,28 +63,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
           TextButton(
             onPressed: () {
-              var txt = _fullUrl.text;
-              if (txt.isEmpty) {
-                return;
-              }
-
+              final txt = _fullUrl.text.trim();
+              if (txt.isEmpty) return;
               if (Uri.tryParse(txt)?.hasAbsolutePath ?? false) {
-                Uri url = Uri.parse(txt);
-                var parameters = url.queryParameters;
-                debugPrint("${url.scheme}://${url.host}:${url.port}");
-
-                _username.text = parameters['username'].toString();
-                _password.text = parameters['password'].toString();
+                final uri = Uri.parse(txt);
+                final params = uri.queryParameters;
+                _username.text = params['username'] ?? '';
+                _password.text = params['password'] ?? '';
                 _url.text =
-                    "${url.scheme}://${url.host}${url.hasPort ? ":${url.port}" : ""}";
+                    '${uri.scheme}://${uri.host}${uri.hasPort ? ":${uri.port}" : ""}';
                 Get.back();
               } else {
-                debugPrint("this text is not url!!");
-                Get.snackbar("Error", "This data is not correct??");
+                Get.snackbar('Error', 'Invalid URL format');
               }
             },
             child: Text(
-              'Save',
+              'Import',
               style: Get.textTheme.bodyMedium!.copyWith(color: kColorPrimary),
             ),
           ),
@@ -76,235 +87,256 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  @override
-  void dispose() {
-    _url.dispose();
-    _username.dispose();
-    _password.dispose();
-    super.dispose();
+  void _login(BuildContext ctx) {
+    if (_username.text == 'azul-iptv' && _password.text == 'azul-iptv') {
+      ctx.read<SettingsCubit>().updateStatusAccount(true);
+      changeDeviceOrient();
+      Get.offAndToNamed(screenWelcome);
+      return;
+    }
+    if (_username.text.isNotEmpty &&
+        _password.text.isNotEmpty &&
+        _url.text.isNotEmpty) {
+      ctx.read<AuthBloc>().add(
+        AuthRegister(_username.text, _password.text, _url.text),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final style = Get.textTheme.bodyMedium!.copyWith(
+    final fieldStyle = Get.textTheme.bodyMedium!.copyWith(
       color: Colors.white,
-      fontSize: 16.sp,
-      fontWeight: FontWeight.bold,
+      fontSize: 15.sp,
+      fontWeight: FontWeight.w600,
     );
 
     return Scaffold(
       body: Ink(
-        width: getSize(context).width,
-        height: getSize(context).height,
+        width: double.infinity,
+        height: double.infinity,
         decoration: kDecorBackground,
         child: BlocBuilder<SettingsCubit, SettingsState>(
-          builder: (context, stateSetting) {
+          builder: (context, settingState) {
             return AzulEnvatoChecker(
-              uniqueKey: stateSetting.setting,
-              successPage: SafeArea(
-                child: BlocConsumer<AuthBloc, AuthState>(
-                  listener: (context, state) {
-                    if (state is AuthFailed) {
-                      showWarningToast(
-                        context,
-                        'Login failed.',
-                        'Please check your IPTV credentials and try again.',
-                      );
-                    } else if (state is AuthSuccess) {
-                      context.read<LiveCatyBloc>().add(GetLiveCategories());
-                      context.read<MovieCatyBloc>().add(GetMovieCategories());
-                      context.read<SeriesCatyBloc>().add(GetSeriesCategories());
-                      Get.offAndToNamed(screenWelcome);
-                    }
-                  },
-                  builder: (context, state) {
-                    final isLoading = state is AuthLoading;
-
-                    return IgnorePointer(
-                      ignoring: isLoading,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              uniqueKey: settingState.setting,
+              successPage: BlocConsumer<AuthBloc, AuthState>(
+                listener: (context, state) {
+                  if (state is AuthFailed) {
+                    showWarningToast(
+                      context,
+                      'Login failed.',
+                      'Please check your IPTV credentials and try again.',
+                    );
+                  } else if (state is AuthSuccess) {
+                    context.read<LiveCatyBloc>().add(GetLiveCategories());
+                    context.read<MovieCatyBloc>().add(GetMovieCategories());
+                    context.read<SeriesCatyBloc>().add(GetSeriesCategories());
+                    changeDeviceOrient();
+                    Get.offAndToNamed(screenWelcome);
+                  }
+                },
+                builder: (context, state) {
+                  final isLoading = state is AuthLoading;
+                  return IgnorePointer(
+                    ignoring: isLoading,
+                    child: Column(
+                      children: [
+                        // ── Hero section ──────────────────────────────
+                        SizedBox(
+                          height: getSize(context).height * .38,
+                          child: Stack(
+                            fit: StackFit.expand,
                             children: [
-                              IconButton(
-                                onPressed: () => Get.back(),
-                                icon: const Icon(
-                                  FontAwesomeIcons.chevronLeft,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              TextButton.icon(
-                                icon: const Icon(
-                                  FontAwesomeIcons.link,
-                                  color: Colors.white,
-                                  size: 18,
-                                ),
-                                onPressed: () {
-                                  _convertM3utoXtreme(style);
-                                },
-                                label: Text(
-                                  'ADD M3U API',
-                                  style: Get.theme.textTheme.bodyMedium!
-                                      .copyWith(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                              const IntroImageAnimated(),
+                              // Back button overlay
+                              Positioned(
+                                top: MediaQuery.of(context).padding.top + 4,
+                                left: 4,
+                                child: IconButton(
+                                  onPressed: () => Get.back(),
+                                  icon: const Icon(
+                                    FontAwesomeIcons.chevronLeft,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ),
                             ],
                           ),
-                          Expanded(
+                        ),
+
+                        // ── Form section ──────────────────────────────
+                        Expanded(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: kDecorBackground.gradient,
+                              borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(28),
+                              ),
+                            ),
                             child: SingleChildScrollView(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
+                              padding: const EdgeInsets.fromLTRB(
+                                20,
+                                24,
+                                20,
+                                20,
                               ),
                               child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  SizedBox(height: 1.h),
+                                  Text(
+                                    'Sign In',
+                                    style:
+                                        Get.textTheme.headlineMedium!.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Enter your IPTV credentials to continue',
+                                    style: Get.textTheme.bodyMedium!.copyWith(
+                                      color: kColorHint,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 22),
+
+                                  // Username
+                                  _LoginFieldMobile(
+                                    controller: _username,
+                                    hint: 'Username',
+                                    icon: FontAwesomeIcons.solidUser,
+                                    style: fieldStyle,
+                                  ),
+                                  const SizedBox(height: 12),
+
+                                  // Password
+                                  _LoginFieldMobile(
+                                    controller: _password,
+                                    hint: 'Password',
+                                    icon: FontAwesomeIcons.lock,
+                                    obscure: true,
+                                    style: fieldStyle,
+                                  ),
+                                  const SizedBox(height: 12),
+
+                                  // Server URL
+                                  _LoginFieldMobile(
+                                    controller: _url,
+                                    hint: 'http://server.domain.net:8080',
+                                    icon: FontAwesomeIcons.link,
+                                    style: fieldStyle,
+                                  ),
+
+                                  // M3U import
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton.icon(
+                                      onPressed: _showM3uDialog,
+                                      icon: const Icon(
+                                        FontAwesomeIcons.link,
+                                        size: 13,
+                                        color: kColorPrimary,
+                                      ),
+                                      label: Text(
+                                        'Import M3U Link',
+                                        style:
+                                            Get.textTheme.bodySmall!.copyWith(
+                                          color: kColorPrimary,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 8),
+                                  CardTallButton(
+                                    label: 'Sign In',
+                                    isLoading: isLoading,
+                                    onTap: () => _login(context),
+                                  ),
+                                  const SizedBox(height: 16),
+
+                                  // Privacy
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Image.asset(
-                                        kIconSplash,
-                                        width: .7.dp,
-                                        height: .7.dp,
-                                        //  color: Colors.white,
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 15),
-                                  Text(
-                                    'SignIn to discover all movies & tv shows & lives tv,\nand enjoy our features.',
-                                    textAlign: TextAlign.center,
-                                    style: Get.textTheme.bodyLarge!.copyWith(
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 15),
-                                  TextField(
-                                    controller: _username,
-                                    decoration: InputDecoration(
-                                      hintText: "Username",
-                                      hintStyle: Get.textTheme.bodyMedium!
-                                          .copyWith(color: Colors.grey),
-                                      suffixIcon: const Icon(
-                                        FontAwesomeIcons.solidUser,
-                                        size: 18,
-                                        color: kColorPrimary,
-                                      ),
-                                    ),
-                                    style: style,
-                                  ),
-                                  const SizedBox(height: 15),
-                                  TextField(
-                                    controller: _password,
-                                    decoration: InputDecoration(
-                                      hintText: "Password",
-                                      hintStyle: Get.textTheme.bodyMedium!
-                                          .copyWith(color: Colors.grey),
-                                      suffixIcon: const Icon(
-                                        FontAwesomeIcons.lock,
-                                        size: 18,
-                                        color: kColorPrimary,
-                                      ),
-                                    ),
-                                    style: style,
-                                  ),
-                                  const SizedBox(height: 15),
-                                  TextField(
-                                    controller: _url,
-                                    decoration: InputDecoration(
-                                      hintText: "http://url.domain.net:8080",
-                                      hintStyle: Get.textTheme.bodyMedium!
-                                          .copyWith(color: Colors.grey),
-                                      suffixIcon: const Icon(
-                                        FontAwesomeIcons.link,
-                                        size: 18,
-                                        color: kColorPrimary,
-                                      ),
-                                    ),
-                                    style: style,
-                                  ),
-                                  const SizedBox(height: 15),
-                                  Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.start,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          'By registering, you are agreeing to our ',
-                                          style: Get.textTheme.bodyMedium!
-                                              .copyWith(color: Colors.white70),
+                                      Text(
+                                        'By signing in, you agree to our ',
+                                        style:
+                                            Get.textTheme.bodySmall!.copyWith(
+                                          color: Colors.white54,
                                         ),
-                                        InkWell(
-                                          onTap: () async {
-                                            var url = Uri.parse(kPrivacy);
-                                            await launchUrl(
-                                              url,
-                                              mode: LaunchMode
-                                                  .externalApplication,
-                                            );
-                                          },
-                                          child: Text(
-                                            'privacy policy.',
-                                            style: Get.textTheme.bodyMedium!
-                                                .copyWith(
-                                                  color: kColorPrimary
-                                                      .withValues(alpha: .70),
-                                                  fontWeight: FontWeight.bold,
-                                                ),
+                                      ),
+                                      InkWell(
+                                        onTap: () async => await launchUrl(
+                                          Uri.parse(kPrivacy),
+                                          mode: LaunchMode.externalApplication,
+                                        ),
+                                        child: Text(
+                                          'privacy policy.',
+                                          style:
+                                              Get.textTheme.bodySmall!.copyWith(
+                                            color: kColorPrimary.withValues(
+                                              alpha: .85,
+                                            ),
+                                            fontWeight: FontWeight.bold,
                                           ),
                                         ),
-                                      ],
-                                    ),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
                             ),
                           ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            child: CardTallButton(
-                              label: "Add User",
-                              isLoading: isLoading,
-                              onTap: () {
-                                //Get.toNamed(screenDownload)
-
-                                if (_username.text == "azul-iptv" &&
-                                    _password.text == "azul-iptv") {
-                                  context
-                                      .read<SettingsCubit>()
-                                      .updateStatusAccount(true);
-                                  Get.offAndToNamed(screenWelcome);
-                                } else {
-                                  if (_username.text.isNotEmpty &&
-                                      _password.text.isNotEmpty &&
-                                      _url.text.isNotEmpty) {
-                                    context.read<AuthBloc>().add(
-                                      AuthRegister(
-                                        _username.text,
-                                        _password.text,
-                                        _url.text,
-                                      ),
-                                    );
-                                  }
-                                }
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Mobile form field ────────────────────────────────────────────────────────
+
+class _LoginFieldMobile extends StatelessWidget {
+  const _LoginFieldMobile({
+    required this.controller,
+    required this.hint,
+    required this.icon,
+    required this.style,
+    this.obscure = false,
+  });
+
+  final TextEditingController controller;
+  final String hint;
+  final IconData icon;
+  final TextStyle style;
+  final bool obscure;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: kColorCardLight,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      child: TextField(
+        controller: controller,
+        obscureText: obscure,
+        style: style,
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: Get.textTheme.bodyMedium!.copyWith(color: kColorHint),
+          suffixIcon: Icon(icon, size: 16, color: kColorPrimary),
+          border: InputBorder.none,
         ),
       ),
     );
