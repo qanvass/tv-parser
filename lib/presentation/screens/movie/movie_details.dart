@@ -21,6 +21,8 @@ class _MovieContentState extends State<MovieContent> {
   bool _isFullscreen = false;
 
   int _selectedButton = 0;
+  bool _isBackFocused = false;
+  bool _hasTrailer = false;
 
   @override
   void initState() {
@@ -38,25 +40,48 @@ class _MovieContentState extends State<MovieContent> {
     if (e is! KeyDownEvent) return KeyEventResult.ignored;
     final k = e.logicalKey;
 
+    if (k == LogicalKeyboardKey.arrowUp) {
+      if (!_isBackFocused) {
+        setState(() => _isBackFocused = true);
+      }
+      return KeyEventResult.handled;
+    }
+    if (k == LogicalKeyboardKey.arrowDown) {
+      if (_isBackFocused) {
+        setState(() {
+          _isBackFocused = false;
+          _selectedButton = 0;
+        });
+      }
+      return KeyEventResult.handled;
+    }
     if (k == LogicalKeyboardKey.arrowLeft) {
+      if (_isBackFocused) {
+        return KeyEventResult.handled;
+      }
       if (_selectedButton > 0) {
         setState(() => _selectedButton--);
       }
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.arrowRight) {
-      if (_selectedButton < 2) {
+      if (_isBackFocused) {
+        return KeyEventResult.handled;
+      }
+      final maxButton = _hasTrailer ? 2 : 1;
+      if (_selectedButton < maxButton) {
         setState(() => _selectedButton++);
       }
-      return KeyEventResult.handled;
-    }
-    if (k == LogicalKeyboardKey.arrowUp || k == LogicalKeyboardKey.arrowDown) {
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.select ||
         k == LogicalKeyboardKey.enter ||
         k == LogicalKeyboardKey.gameButtonA) {
-      _onButtonPressed();
+      if (_isBackFocused) {
+        Get.back();
+      } else {
+        _onButtonPressed();
+      }
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.escape) {
@@ -67,9 +92,8 @@ class _MovieContentState extends State<MovieContent> {
   }
 
   void _onButtonPressed() {
-    if (_selectedButton == 0) {
-      Get.back();
-    }
+    // _selectedButton: 0 = Play, 1 = Trailer (if available), 2 = Fav
+    // Back is handled separately via _isBackFocused
   }
 
   @override
@@ -110,6 +134,12 @@ class _MovieContentState extends State<MovieContent> {
                       }
 
                       final movie = snapshot.data!;
+
+                      if (!_hasTrailer) {
+                        _hasTrailer =
+                            movie.info!.youtubeTrailer != null &&
+                            movie.info!.youtubeTrailer!.isNotEmpty;
+                      }
 
                       return Stack(
                         children: [
@@ -342,13 +372,26 @@ class _MovieContentState extends State<MovieContent> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
         children: [
-          IconButton(
-            focusColor: kColorFocus,
-            onPressed: () => Get.back(),
-            icon: const Icon(
-              FontAwesomeIcons.chevronLeft,
-              color: Colors.white,
-              size: 20,
+          GestureDetector(
+            onTap: () => Get.back(),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: _isBackFocused
+                    ? kColorPrimary
+                    : Colors.black.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: _isBackFocused ? kColorFocus : Colors.transparent,
+                  width: 2,
+                ),
+              ),
+              child: const Icon(
+                FontAwesomeIcons.chevronLeft,
+                color: Colors.white,
+                size: 18,
+              ),
             ),
           ),
           const Spacer(),
@@ -457,7 +500,7 @@ class _MovieContentState extends State<MovieContent> {
               icon: isLiked
                   ? FontAwesomeIcons.solidHeart
                   : FontAwesomeIcons.heart,
-              isSelected: _selectedButton == 2,
+              isSelected: _selectedButton == (_hasTrailer ? 2 : 1),
               isFavorite: true,
               onTap: () {
                 context.read<FavoritesCubit>().addMovie(
