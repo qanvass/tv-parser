@@ -15,12 +15,8 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
 
   List<ChannelMovie> _movies = [];
   int _movieIdx = 0;
-  ChannelMovie? _selMovie;
   String _movieSearch = '';
   bool _movieLoading = false;
-
-  VlcPlayerController? _player;
-  bool _isFullscreen = false;
 
   int _panel = 0;
 
@@ -44,7 +40,11 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
 
   void _onSearchFocusChange() {
     if (!_searchFocus.hasFocus && mounted) {
-      setState(() => _showSearch = false);
+      _searchCtrl.clear();
+      setState(() {
+        _showSearch = false;
+        _movieSearch = '';
+      });
       _navFocus.requestFocus();
     }
   }
@@ -66,59 +66,6 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
     );
   }
 
-  Future<void> _play(ChannelMovie movie, int idx) async {
-    final user = await LocaleApi.getUser();
-    final url =
-        '${user!.serverInfo!.serverUrl}/${user.userInfo!.username}/${user.userInfo!.password}/${movie.streamId}';
-
-    try {
-      _player?.pause();
-      _player?.stop();
-    } catch (_) {}
-
-    await Future.delayed(const Duration(milliseconds: 200));
-
-    final ctrl = VlcPlayerController.network(
-      url,
-      hwAcc: HwAcc.full,
-      autoPlay: true,
-      options: VlcPlayerOptions(
-        advanced: VlcAdvancedOptions([
-          VlcAdvancedOptions.networkCaching(2000),
-          VlcAdvancedOptions.liveCaching(2000),
-        ]),
-      ),
-    );
-
-    if (mounted) {
-      setState(() {
-        _player = ctrl;
-        _selMovie = movie;
-        _movieIdx = idx;
-      });
-    }
-  }
-
-  void _toggleFullscreen() {
-    final going = !_isFullscreen;
-    if (going) {
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    } else {
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    }
-    setState(() => _isFullscreen = going);
-  }
-
-  @override
-  void deactivate() {
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    try {
-      _player?.pause();
-      _player?.stop();
-    } catch (_) {}
-    super.deactivate();
-  }
-
   @override
   void dispose() {
     _searchFocus.removeListener(_onSearchFocusChange);
@@ -127,25 +74,16 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
     _navFocus.dispose();
     _searchFocus.dispose();
     _searchCtrl.dispose();
-    if (_player != null) {
-      _player!.stopRendererScanning().catchError((_) {});
-      _player!.dispose();
-    }
     super.dispose();
   }
 
   KeyEventResult _onKey(FocusNode _, KeyEvent e) {
     if (_searchFocus.hasFocus) return KeyEventResult.ignored;
-    if (_isFullscreen) return KeyEventResult.ignored;
     if (e is! KeyDownEvent) return KeyEventResult.ignored;
     final k = e.logicalKey;
 
     if (k == LogicalKeyboardKey.arrowLeft) {
-      if (_panel == 0) {
-        setState(() => _panel = 1);
-      } else {
-        _dpadLeft();
-      }
+      if (_panel == 1) _dpadLeft();
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.arrowRight) {
@@ -206,7 +144,7 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
   void _scrollGridTo(int idx) {
     if (!_gridScroll.hasClients) return;
     final row = idx ~/ _gridColumns;
-    final itemHeight = 180.0;
+    const itemHeight = 180.0;
     final target = (row * itemHeight).clamp(
       0.0,
       _gridScroll.position.maxScrollExtent,
@@ -235,6 +173,7 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
   void _dpadSelect() {
     if (_panel == 0 && _cats.isNotEmpty) {
       _fetchMovies(_cats[_catIdx].categoryId ?? '');
+      setState(() => _panel = 1);
     } else if (_panel == 1 && _filteredMovies.isNotEmpty) {
       final movie = _filteredMovies[_movieIdx];
       Get.to(
@@ -265,140 +204,87 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: !_isFullscreen,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _toggleFullscreen();
+    return BlocListener<MovieCatyBloc, MovieCatyState>(
+      listener: (_, s) {
+        if (s is MovieCatySuccess) _initCats(s.categories);
       },
-      child: BlocListener<MovieCatyBloc, MovieCatyState>(
+      child: BlocListener<ChannelsBloc, ChannelsState>(
         listener: (_, s) {
-          if (s is MovieCatySuccess) _initCats(s.categories);
+          if (s is ChannelsMovieSuccess && mounted) {
+            setState(() {
+              _movies = s.channels;
+              _movieLoading = false;
+              _movieIdx = 0;
+            });
+            if (_gridScroll.hasClients) _gridScroll.jumpTo(0);
+          }
         },
-        child: BlocListener<ChannelsBloc, ChannelsState>(
-          listener: (_, s) {
-            if (s is ChannelsMovieSuccess && mounted) {
-              setState(() {
-                _movies = s.channels;
-                _movieLoading = false;
-                _movieIdx = 0;
-              });
-              if (_gridScroll.hasClients) _gridScroll.jumpTo(0);
-            }
-          },
-          child: Focus(
-            focusNode: _navFocus,
-            autofocus: true,
-            onKeyEvent: _onKey,
-            child: Scaffold(
-              backgroundColor: Colors.black,
-              body: Stack(
-                fit: StackFit.expand,
+        child: Focus(
+          focusNode: _navFocus,
+          autofocus: true,
+          onKeyEvent: _onKey,
+          child: Scaffold(
+            backgroundColor: Colors.black,
+            body: Ink(
+              decoration: kDecorBackground,
+              child: Column(
                 children: [
-                  Ink(
-                    decoration: _isFullscreen
-                        ? const BoxDecoration(color: Colors.black)
-                        : kDecorBackground,
-                    child: Column(
+                  SafeArea(
+                    bottom: false,
+                    child: SizedBox(height: 56, child: _buildBar()),
+                  ),
+                  Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        ClipRect(
-                          child: AnimatedAlign(
-                            alignment: Alignment.topCenter,
-                            heightFactor: _isFullscreen ? 0.0 : 1.0,
-                            duration: const Duration(milliseconds: 280),
-                            curve: Curves.easeInOut,
-                            child: SafeArea(
-                              bottom: false,
-                              child: SizedBox(height: 56, child: _buildBar()),
+                        SizedBox(
+                          width: 210,
+                          child: _MoviePanel(
+                            label: 'CATEGORIES',
+                            isLoading: _cats.isEmpty,
+                            scroll: _catScroll,
+                            itemCount: _cats.length,
+                            itemBuilder: (i) => _MoviePanelItem(
+                              icon: FontAwesomeIcons.list,
+                              label: _cats[i].categoryName ?? '',
+                              isSelected: i == _catIdx,
+                              isHighlighted: i == _catIdx && _panel == 0,
+                              onTap: () {
+                                setState(() {
+                                  _catIdx = i;
+                                  _panel = 1;
+                                });
+                                _fetchMovies(_cats[i].categoryId ?? '');
+                              },
                             ),
                           ),
                         ),
+                        Container(width: 1, color: kColorCardLight),
                         Expanded(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _collapseH(
-                                width: 210,
-                                collapsed: _isFullscreen,
-                                child: _MoviePanel(
-                                  label: 'CATEGORIES',
-                                  isLoading: _cats.isEmpty,
-                                  scroll: _catScroll,
-                                  itemCount: _cats.length,
-                                  itemBuilder: (i) => _MoviePanelItem(
-                                    icon: FontAwesomeIcons.list,
-                                    label: _cats[i].categoryName ?? '',
-                                    isSelected: i == _catIdx,
-                                    isHighlighted: i == _catIdx && _panel == 0,
-                                    onTap: () {
-                                      setState(() => _catIdx = i);
-                                      _fetchMovies(_cats[i].categoryId ?? '');
-                                    },
-                                  ),
+                          child: _MovieGridPanel(
+                            movies: _filteredMovies,
+                            selectedIdx: _movieIdx,
+                            isGridFocused: _panel == 1,
+                            isLoading: _movieLoading,
+                            scrollController: _gridScroll,
+                            onMovieTap: (movie, idx) {
+                              Get.to(
+                                () => MovieContent(
+                                  channelMovie: movie,
+                                  videoId: movie.streamId ?? '',
                                 ),
-                              ),
-                              _collapseDivider(_isFullscreen),
-                              Expanded(
-                                child: _MovieGridPanel(
-                                  movies: _filteredMovies,
-                                  selectedIdx: _movieIdx,
-                                  isGridFocused: _panel == 1,
-                                  isFullscreen: _isFullscreen,
-                                  scrollController: _gridScroll,
-                                  onMovieTap: (movie, idx) {
-                                    Get.to(
-                                      () => MovieContent(
-                                        channelMovie: movie,
-                                        videoId: movie.streamId ?? '',
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ],
+                              );
+                            },
                           ),
                         ),
                       ],
                     ),
                   ),
-                  if (_isFullscreen && _player != null && _selMovie != null)
-                    _MovieFullscreenControls(
-                      controller: _player!,
-                      movie: _selMovie!,
-                      onClose: _toggleFullscreen,
-                    ),
                 ],
               ),
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _collapseH({
-    required double width,
-    required bool collapsed,
-    required Widget child,
-  }) {
-    return ClipRect(
-      child: AnimatedAlign(
-        alignment: Alignment.centerLeft,
-        widthFactor: collapsed ? 0.0 : 1.0,
-        duration: const Duration(milliseconds: 280),
-        curve: Curves.easeInOut,
-        child: SizedBox(width: width, child: child),
-      ),
-    );
-  }
-
-  Widget _collapseDivider(bool collapsed) {
-    return ClipRect(
-      child: AnimatedAlign(
-        widthFactor: collapsed ? 0.0 : 1.0,
-        duration: const Duration(milliseconds: 280),
-        curve: Curves.easeInOut,
-        alignment: Alignment.center,
-        child: Container(width: 1, color: kColorCardLight),
       ),
     );
   }
@@ -636,7 +522,7 @@ class _MovieGridPanel extends StatelessWidget {
     required this.movies,
     required this.selectedIdx,
     required this.isGridFocused,
-    required this.isFullscreen,
+    required this.isLoading,
     required this.onMovieTap,
     required this.scrollController,
   });
@@ -644,7 +530,7 @@ class _MovieGridPanel extends StatelessWidget {
   final List<ChannelMovie> movies;
   final int selectedIdx;
   final bool isGridFocused;
-  final bool isFullscreen;
+  final bool isLoading;
   final Function(ChannelMovie, int) onMovieTap;
   final ScrollController scrollController;
 
@@ -654,6 +540,15 @@ class _MovieGridPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return Container(
+        color: kColorBackDark,
+        child: const Center(
+          child: CircularProgressIndicator(color: kColorPrimary),
+        ),
+      );
+    }
+
     if (movies.isEmpty) {
       return Container(
         color: kColorBackDark,
@@ -664,13 +559,8 @@ class _MovieGridPanel extends StatelessWidget {
               const Icon(FontAwesomeIcons.film, size: 48, color: kColorHint),
               const SizedBox(height: 14),
               Text(
-                'Select a movie to play',
+                'No movies found',
                 style: Get.textTheme.bodyMedium!.copyWith(color: kColorHint),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Press OK on a movie',
-                style: Get.textTheme.bodySmall!.copyWith(color: kColorHint),
               ),
             ],
           ),
@@ -801,9 +691,8 @@ class _MovieGridItem extends StatelessWidget {
                     style: TextStyle(
                       color: isSelected ? Colors.white : Colors.white70,
                       fontSize: 11,
-                      fontWeight: isSelected
-                          ? FontWeight.bold
-                          : FontWeight.normal,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
                 ),
@@ -828,223 +717,6 @@ class _MovieGridItem extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _MovieFullscreenControls extends StatefulWidget {
-  const _MovieFullscreenControls({
-    required this.controller,
-    required this.movie,
-    required this.onClose,
-  });
-
-  final VlcPlayerController controller;
-  final ChannelMovie movie;
-  final VoidCallback onClose;
-
-  @override
-  State<_MovieFullscreenControls> createState() =>
-      _MovieFullscreenControlsState();
-}
-
-class _MovieFullscreenControlsState extends State<_MovieFullscreenControls> {
-  bool _showControls = true;
-  bool _isPlaying = false;
-  bool _isBuffering = true;
-  Timer? _hideTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    widget.controller.addListener(_onVlc);
-    _syncState();
-    _scheduleHide();
-  }
-
-  @override
-  void didUpdateWidget(_MovieFullscreenControls old) {
-    super.didUpdateWidget(old);
-    if (old.controller != widget.controller) {
-      old.controller.removeListener(_onVlc);
-      widget.controller.addListener(_onVlc);
-      _syncState();
-    }
-  }
-
-  @override
-  void dispose() {
-    widget.controller.removeListener(_onVlc);
-    _hideTimer?.cancel();
-    super.dispose();
-  }
-
-  void _syncState() {
-    final v = widget.controller.value;
-    _isPlaying = v.isPlaying;
-    _isBuffering = !v.isInitialized || v.isBuffering;
-  }
-
-  void _onVlc() {
-    if (!mounted) return;
-    final v = widget.controller.value;
-    setState(() {
-      _isPlaying = v.isPlaying;
-      _isBuffering = !v.isInitialized || v.isBuffering;
-    });
-  }
-
-  void _scheduleHide() {
-    _hideTimer?.cancel();
-    _hideTimer = Timer(const Duration(seconds: 4), () {
-      if (mounted) setState(() => _showControls = false);
-    });
-  }
-
-  void _onTap() {
-    setState(() => _showControls = !_showControls);
-    if (_showControls) _scheduleHide();
-  }
-
-  void _togglePlay() {
-    if (_isPlaying) {
-      widget.controller.pause();
-    } else {
-      widget.controller.play();
-    }
-    _scheduleHide();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: _onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Stack(
-        children: [
-          if (_isBuffering)
-            const Center(
-              child: CircularProgressIndicator(
-                color: Colors.white,
-                strokeWidth: 2.5,
-              ),
-            ),
-          AnimatedOpacity(
-            opacity: _showControls ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 250),
-            child: IgnorePointer(
-              ignoring: !_showControls,
-              child: _buildControls(context),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildControls(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color(0xCC000000),
-            Colors.transparent,
-            Colors.transparent,
-            Color(0xAA000000),
-          ],
-          stops: [0.0, 0.3, 0.7, 1.0],
-        ),
-      ),
-      child: Column(
-        children: [
-          SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: widget.onClose,
-                    icon: const Icon(
-                      FontAwesomeIcons.chevronDown,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  if (widget.movie.streamIcon != null &&
-                      widget.movie.streamIcon!.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: CachedNetworkImage(
-                        imageUrl: widget.movie.streamIcon!,
-                        width: 28,
-                        height: 28,
-                        fit: BoxFit.contain,
-                        errorWidget: (_, __, ___) => const SizedBox(),
-                      ),
-                    ),
-                  Expanded(
-                    child: Text(
-                      widget.movie.name ?? '',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Container(
-                    margin: const EdgeInsets.only(left: 10, right: 12),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: kColorPrimary,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Text(
-                      'MOVIE',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const Spacer(),
-          GestureDetector(
-            onTap: _togglePlay,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: .5),
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white54, width: 1.5),
-              ),
-              alignment: Alignment.center,
-              child: Icon(
-                _isPlaying ? FontAwesomeIcons.pause : FontAwesomeIcons.play,
-                color: Colors.white,
-                size: 26,
-              ),
-            ),
-          ),
-          const Spacer(),
-          SafeArea(top: false, child: const SizedBox(height: 12)),
-        ],
       ),
     );
   }

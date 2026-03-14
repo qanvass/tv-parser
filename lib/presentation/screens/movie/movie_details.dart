@@ -16,9 +16,8 @@ class MovieContent extends StatefulWidget {
 
 class _MovieContentState extends State<MovieContent> {
   late Future<MovieDetail?> _future;
+  MovieDetail? _movieDetail;
   final _navFocus = FocusNode();
-  bool _showControls = true;
-  bool _isFullscreen = false;
 
   int _selectedButton = 0;
   bool _isBackFocused = false;
@@ -28,6 +27,16 @@ class _MovieContentState extends State<MovieContent> {
   void initState() {
     super.initState();
     _future = IpTvApi.getMovieDetails(widget.videoId);
+    _future.then((detail) {
+      if (mounted && detail != null) {
+        setState(() {
+          _movieDetail = detail;
+          _hasTrailer =
+              detail.info?.youtubeTrailer != null &&
+              detail.info!.youtubeTrailer!.isNotEmpty;
+        });
+      }
+    });
   }
 
   @override
@@ -56,18 +65,14 @@ class _MovieContentState extends State<MovieContent> {
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.arrowLeft) {
-      if (_isBackFocused) {
-        return KeyEventResult.handled;
-      }
+      if (_isBackFocused) return KeyEventResult.handled;
       if (_selectedButton > 0) {
         setState(() => _selectedButton--);
       }
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.arrowRight) {
-      if (_isBackFocused) {
-        return KeyEventResult.handled;
-      }
+      if (_isBackFocused) return KeyEventResult.handled;
       final maxButton = _hasTrailer ? 2 : 1;
       if (_selectedButton < maxButton) {
         setState(() => _selectedButton++);
@@ -92,8 +97,57 @@ class _MovieContentState extends State<MovieContent> {
   }
 
   void _onButtonPressed() {
-    // _selectedButton: 0 = Play, 1 = Trailer (if available), 2 = Fav
-    // Back is handled separately via _isBackFocused
+    if (_movieDetail == null) return;
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! AuthSuccess) return;
+    final userAuth = authState.user;
+
+    if (_selectedButton == 0) {
+      // Play
+      final watchingCubit = context.read<WatchingCubit>();
+      final link =
+          "${userAuth.serverInfo!.serverUrl}/movie/${userAuth.userInfo!.username}/${userAuth.userInfo!.password}/${_movieDetail!.movieData!.streamId}.${_movieDetail!.movieData!.containerExtension}";
+      Get.to(
+        () => FullVideoScreen(
+          link: link,
+          title: _movieDetail!.movieData!.name ?? "",
+        ),
+      )?.then((slider) {
+        if (slider != null) {
+          final model = WatchingModel(
+            sliderValue: slider[0],
+            durationStrm: slider[1],
+            stream: link,
+            title: widget.channelMovie.name ?? "",
+            image: widget.channelMovie.streamIcon ?? "",
+            streamId: widget.channelMovie.streamId.toString(),
+          );
+          watchingCubit.addMovie(model);
+        }
+      });
+    } else if (_selectedButton == 1 && _hasTrailer) {
+      // Trailer
+      showDialog(
+        context: context,
+        builder: (_) => DialogTrailerYoutube(
+          thumb:
+              _movieDetail!.info!.backdropPath != null &&
+                  _movieDetail!.info!.backdropPath!.isNotEmpty
+              ? _movieDetail!.info!.backdropPath!.first
+              : null,
+          trailer: _movieDetail!.info!.youtubeTrailer ?? "",
+        ),
+      );
+    } else {
+      // Favorite
+      final favState = context.read<FavoritesCubit>().state;
+      final isLiked = favState.movies
+          .any((m) => m.streamId == widget.channelMovie.streamId);
+      context.read<FavoritesCubit>().addMovie(
+        widget.channelMovie,
+        isAdd: !isLiked,
+      );
+    }
   }
 
   @override
@@ -103,299 +157,210 @@ class _MovieContentState extends State<MovieContent> {
         focusNode: _navFocus,
         autofocus: true,
         onKeyEvent: _onKey,
-        child: BlocBuilder<AuthBloc, AuthState>(
-          builder: (context, state) {
-            if (state is AuthSuccess) {
-              final userAuth = state.user;
-              return Stack(
-                children: [
-                  FutureBuilder<MovieDetail?>(
-                    future: _future,
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return Container(
-                          decoration: kDecorBackground,
-                          child: const Center(
-                            child: CircularProgressIndicator(
-                              color: kColorPrimary,
-                            ),
-                          ),
-                        );
-                      } else if (!snapshot.hasData) {
-                        return Container(
-                          decoration: kDecorBackground,
-                          child: const Center(
-                            child: Text(
-                              "Could not load data",
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        );
-                      }
+        child: FutureBuilder<MovieDetail?>(
+          future: _future,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Container(
+                decoration: kDecorBackground,
+                child: const Center(
+                  child: CircularProgressIndicator(color: kColorPrimary),
+                ),
+              );
+            }
+            if (!snapshot.hasData) {
+              return Container(
+                decoration: kDecorBackground,
+                child: const Center(
+                  child: Text(
+                    "Could not load data",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              );
+            }
 
-                      final movie = snapshot.data!;
+            final movie = snapshot.data!;
 
-                      if (!_hasTrailer) {
-                        _hasTrailer =
-                            movie.info!.youtubeTrailer != null &&
-                            movie.info!.youtubeTrailer!.isNotEmpty;
-                      }
-
-                      return Stack(
-                        children: [
-                          CardMovieImagesBackground(
-                            listImages:
-                                movie.info!.backdropPath ??
-                                [movie.info!.movieImage ?? ""],
-                          ),
-                          Container(
-                            decoration: const BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Color(0xCC000000),
-                                  Colors.transparent,
-                                  Colors.transparent,
-                                  Color(0xEE000000),
-                                ],
-                                stops: [0.0, 0.3, 0.6, 1.0],
-                              ),
+            return Stack(
+              children: [
+                CardMovieImagesBackground(
+                  listImages:
+                      movie.info!.backdropPath ??
+                      [movie.info!.movieImage ?? ""],
+                ),
+                Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0xCC000000),
+                        Colors.transparent,
+                        Colors.transparent,
+                        Color(0xEE000000),
+                      ],
+                      stops: [0.0, 0.3, 0.6, 1.0],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(
+                    top: 25,
+                    left: 10,
+                    right: 10,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      GestureDetector(
+                        onTap: () => Get.back(),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: _isBackFocused
+                                ? kColorPrimary
+                                : Colors.black.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: _isBackFocused
+                                  ? kColorFocus
+                                  : Colors.transparent,
+                              width: 2,
                             ),
                           ),
-                          Padding(
-                            padding: const EdgeInsets.only(
-                              top: 25,
-                              left: 10,
-                              right: 10,
-                            ),
-                            child: Row(
-                              //mainAxisAlignment: MainAxisAlignment.start,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                IconButton(
-                                  focusColor: kColorFocus,
-                                  onPressed: () => Get.back(),
-                                  icon: const Icon(
-                                    FontAwesomeIcons.chevronLeft,
-                                    color: Colors.white,
-                                    size: 20,
-                                  ),
+                          child: const Icon(
+                            FontAwesomeIcons.chevronLeft,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: SingleChildScrollView(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
                                 ),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      // _buildHeader(),
-                                      Expanded(
-                                        child: SingleChildScrollView(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 20,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(height: 10),
+                                    Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          child: CachedNetworkImage(
+                                            imageUrl:
+                                                movie.info!.movieImage ?? "",
+                                            width: 140,
+                                            height: 200,
+                                            fit: BoxFit.cover,
+                                            errorWidget: (_, __, ___) =>
+                                                Container(
+                                                  width: 140,
+                                                  height: 200,
+                                                  color: kColorCardLight,
+                                                  child: const Icon(
+                                                    FontAwesomeIcons.film,
+                                                    color: kColorHint,
+                                                    size: 40,
+                                                  ),
+                                                ),
                                           ),
+                                        ),
+                                        const SizedBox(width: 20),
+                                        Expanded(
                                           child: Column(
                                             crossAxisAlignment:
                                                 CrossAxisAlignment.start,
                                             children: [
-                                              const SizedBox(height: 10),
-                                              Row(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  ClipRRect(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          12,
-                                                        ),
-                                                    child: CachedNetworkImage(
-                                                      imageUrl:
-                                                          movie
-                                                              .info!
-                                                              .movieImage ??
-                                                          "",
-                                                      width: 140,
-                                                      height: 200,
-                                                      fit: BoxFit.cover,
-                                                      errorWidget:
-                                                          (
-                                                            _,
-                                                            __,
-                                                            ___,
-                                                          ) => Container(
-                                                            width: 140,
-                                                            height: 200,
-                                                            color:
-                                                                kColorCardLight,
-                                                            child: const Icon(
-                                                              FontAwesomeIcons
-                                                                  .film,
-                                                              color: kColorHint,
-                                                              size: 40,
-                                                            ),
-                                                          ),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 20),
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: [
-                                                        Text(
-                                                          movie
-                                                                  .movieData!
-                                                                  .name ??
-                                                              "",
-                                                          style:
-                                                              const TextStyle(
-                                                                color: Colors
-                                                                    .white,
-                                                                fontSize: 22,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .bold,
-                                                              ),
-                                                        ),
-
-                                                        const SizedBox(
-                                                          height: 16,
-                                                        ),
-                                                        _buildInfoRow(
-                                                          icon: FontAwesomeIcons
-                                                              .clapperboard,
-                                                          label: 'Director',
-                                                          value:
-                                                              movie
-                                                                  .info!
-                                                                  .director ??
-                                                              "",
-                                                        ),
-                                                        const SizedBox(
-                                                          height: 10,
-                                                        ),
-                                                        _buildInfoRow(
-                                                          icon: FontAwesomeIcons
-                                                              .calendarDay,
-                                                          label: 'Release',
-                                                          value: expirationDate(
-                                                            movie
-                                                                .info!
-                                                                .releasedate,
-                                                          ),
-                                                        ),
-                                                        const SizedBox(
-                                                          height: 10,
-                                                        ),
-                                                        _buildInfoRow(
-                                                          icon: FontAwesomeIcons
-                                                              .clock,
-                                                          label: 'Duration',
-                                                          value:
-                                                              movie
-                                                                  .info!
-                                                                  .duration ??
-                                                              "",
-                                                        ),
-                                                        const SizedBox(
-                                                          height: 10,
-                                                        ),
-                                                        _buildInfoRow(
-                                                          icon: FontAwesomeIcons
-                                                              .film,
-                                                          label: 'Genre',
-                                                          value:
-                                                              movie
-                                                                  .info!
-                                                                  .genre ??
-                                                              "",
-                                                        ),
-
-                                                        const SizedBox(
-                                                          height: 12,
-                                                        ),
-                                                        _buildButtons(
-                                                          movie,
-                                                          userAuth,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                              const SizedBox(height: 24),
                                               Text(
-                                                'Plot',
-                                                style: TextStyle(
-                                                  color: kColorHint,
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.bold,
-                                                  letterSpacing: 1.1,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 8),
-                                              Text(
-                                                movie.info!.plot ?? "",
+                                                movie.movieData!.name ?? "",
                                                 style: const TextStyle(
-                                                  color: Colors.white70,
-                                                  fontSize: 14,
-                                                  height: 1.5,
+                                                  color: Colors.white,
+                                                  fontSize: 22,
+                                                  fontWeight: FontWeight.bold,
                                                 ),
                                               ),
-                                              const SizedBox(height: 40),
+                                              const SizedBox(height: 16),
+                                              _buildInfoRow(
+                                                icon: FontAwesomeIcons
+                                                    .clapperboard,
+                                                label: 'Director',
+                                                value:
+                                                    movie.info!.director ?? "",
+                                              ),
+                                              const SizedBox(height: 10),
+                                              _buildInfoRow(
+                                                icon: FontAwesomeIcons
+                                                    .calendarDay,
+                                                label: 'Release',
+                                                value: expirationDate(
+                                                  movie.info!.releasedate,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 10),
+                                              _buildInfoRow(
+                                                icon: FontAwesomeIcons.clock,
+                                                label: 'Duration',
+                                                value:
+                                                    movie.info!.duration ?? "",
+                                              ),
+                                              const SizedBox(height: 10),
+                                              _buildInfoRow(
+                                                icon: FontAwesomeIcons.film,
+                                                label: 'Genre',
+                                                value: movie.info!.genre ?? "",
+                                              ),
+                                              const SizedBox(height: 12),
+                                              _buildButtons(movie),
                                             ],
                                           ),
                                         ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 24),
+                                    Text(
+                                      'Plot',
+                                      style: TextStyle(
+                                        color: kColorHint,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 1.1,
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      movie.info!.plot ?? "",
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 14,
+                                        height: 1.5,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 40),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ),
-                          ),
-                        ],
-                      );
-                    },
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              );
-            }
-            return const SizedBox();
+                ),
+              ],
+            );
           },
         ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: () => Get.back(),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: _isBackFocused
-                    ? kColorPrimary
-                    : Colors.black.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: _isBackFocused ? kColorFocus : Colors.transparent,
-                  width: 2,
-                ),
-              ),
-              child: const Icon(
-                FontAwesomeIcons.chevronLeft,
-                color: Colors.white,
-                size: 18,
-              ),
-            ),
-          ),
-          const Spacer(),
-        ],
       ),
     );
   }
@@ -428,12 +393,11 @@ class _MovieContentState extends State<MovieContent> {
     );
   }
 
-  Widget _buildButtons(MovieDetail movie, UserModel userAuth) {
+  Widget _buildButtons(MovieDetail movie) {
     return BlocBuilder<FavoritesCubit, FavoritesState>(
       builder: (context, favState) {
         final isLiked = favState.movies
-            .where((m) => m.streamId == widget.channelMovie.streamId)
-            .isNotEmpty;
+            .any((m) => m.streamId == widget.channelMovie.streamId);
         return Row(
           children: [
             Expanded(
@@ -443,36 +407,14 @@ class _MovieContentState extends State<MovieContent> {
                 icon: FontAwesomeIcons.play,
                 isSelected: _selectedButton == 0,
                 onTap: () {
-                  final watchingCubit = context.read<WatchingCubit>();
-                  final link =
-                      "${userAuth.serverInfo!.serverUrl}/movie/${userAuth.userInfo!.username}/${userAuth.userInfo!.password}/${movie.movieData!.streamId}.${movie.movieData!.containerExtension}";
-
-                  debugPrint("URL: $link");
-                  Get.to(
-                    () => FullVideoScreen(
-                      link: link,
-                      title: movie.movieData!.name ?? "",
-                    ),
-                  )!.then((slider) {
-                    debugPrint("DATA: $slider");
-                    if (slider != null) {
-                      var model = WatchingModel(
-                        sliderValue: slider[0],
-                        durationStrm: slider[1],
-                        stream: link,
-                        title: widget.channelMovie.name ?? "",
-                        image: widget.channelMovie.streamIcon ?? "",
-                        streamId: widget.channelMovie.streamId.toString(),
-                      );
-                      watchingCubit.addMovie(model);
-                    }
-                  });
+                  setState(() => _selectedButton = 0);
+                  _onButtonPressed();
                 },
               ),
             ),
             const SizedBox(width: 10),
             if (movie.info!.youtubeTrailer != null &&
-                movie.info!.youtubeTrailer!.isNotEmpty)
+                movie.info!.youtubeTrailer!.isNotEmpty) ...[
               Expanded(
                 flex: 2,
                 child: _FocusableButton(
@@ -480,21 +422,13 @@ class _MovieContentState extends State<MovieContent> {
                   icon: FontAwesomeIcons.youtube,
                   isSelected: _selectedButton == 1,
                   onTap: () {
-                    showDialog(
-                      context: context,
-                      builder: (builder) => DialogTrailerYoutube(
-                        thumb:
-                            movie.info!.backdropPath != null &&
-                                movie.info!.backdropPath!.isNotEmpty
-                            ? movie.info!.backdropPath!.first
-                            : null,
-                        trailer: movie.info!.youtubeTrailer ?? "",
-                      ),
-                    );
+                    setState(() => _selectedButton = 1);
+                    _onButtonPressed();
                   },
                 ),
               ),
-            const SizedBox(width: 10),
+              const SizedBox(width: 10),
+            ],
             _FocusableButton(
               label: isLiked ? "FAV" : "FAV",
               icon: isLiked
@@ -503,10 +437,8 @@ class _MovieContentState extends State<MovieContent> {
               isSelected: _selectedButton == (_hasTrailer ? 2 : 1),
               isFavorite: true,
               onTap: () {
-                context.read<FavoritesCubit>().addMovie(
-                  widget.channelMovie,
-                  isAdd: !isLiked,
-                );
+                setState(() => _selectedButton = _hasTrailer ? 2 : 1);
+                _onButtonPressed();
               },
             ),
           ],
@@ -537,10 +469,7 @@ class _FocusableButton extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: EdgeInsets.symmetric(
-          vertical: isFavorite ? 10 : 10,
-          horizontal: isFavorite ? 12 : 14,
-        ),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
         decoration: BoxDecoration(
           gradient: isSelected
               ? const LinearGradient(colors: [kColorPrimary, kColorPrimaryDark])
