@@ -16,6 +16,7 @@ class _SeriesCategoriesScreenState extends State<SeriesCategoriesScreen> {
   List<ChannelSerie> _series = [];
   int _serieIdx = 0;
   String _serieSearch = '';
+  bool _serieLoading = false;
 
   int _panel = 0;
 
@@ -39,7 +40,11 @@ class _SeriesCategoriesScreenState extends State<SeriesCategoriesScreen> {
 
   void _onSearchFocusChange() {
     if (!_searchFocus.hasFocus && mounted) {
-      setState(() => _showSearch = false);
+      _searchCtrl.clear();
+      setState(() {
+        _showSearch = false;
+        _serieSearch = '';
+      });
       _navFocus.requestFocus();
     }
   }
@@ -54,15 +59,11 @@ class _SeriesCategoriesScreenState extends State<SeriesCategoriesScreen> {
     setState(() {
       _series = [];
       _serieIdx = 0;
+      _serieLoading = true;
     });
     context.read<ChannelsBloc>().add(
       GetLiveChannelsEvent(catyId: catyId, typeCategory: TypeCategory.series),
     );
-  }
-
-  @override
-  void deactivate() {
-    super.deactivate();
   }
 
   @override
@@ -82,11 +83,7 @@ class _SeriesCategoriesScreenState extends State<SeriesCategoriesScreen> {
     final k = e.logicalKey;
 
     if (k == LogicalKeyboardKey.arrowLeft) {
-      if (_panel == 0) {
-        setState(() => _panel = 1);
-      } else {
-        _dpadLeft();
-      }
+      if (_panel == 1) _dpadLeft();
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.arrowRight) {
@@ -189,6 +186,7 @@ class _SeriesCategoriesScreenState extends State<SeriesCategoriesScreen> {
   void _dpadSelect() {
     if (_panel == 0 && _cats.isNotEmpty) {
       _fetchSeries(_cats[_catIdx].categoryId ?? '');
+      setState(() => _panel = 1);
     } else if (_panel == 1 && _filteredSeries.isNotEmpty) {
       final serie = _filteredSeries[_serieIdx];
       Get.to(
@@ -215,6 +213,7 @@ class _SeriesCategoriesScreenState extends State<SeriesCategoriesScreen> {
           if (s is ChannelsSeriesSuccess && mounted) {
             setState(() {
               _series = s.channels;
+              _serieLoading = false;
               _serieIdx = 0;
             });
             if (_gridScroll.hasClients) _gridScroll.jumpTo(0);
@@ -226,64 +225,63 @@ class _SeriesCategoriesScreenState extends State<SeriesCategoriesScreen> {
           onKeyEvent: _onKey,
           child: Scaffold(
             backgroundColor: Colors.black,
-            body: Stack(
-              fit: StackFit.expand,
-              children: [
-                Ink(
-                  decoration: kDecorBackground,
-                  child: Column(
-                    children: [
-                      SafeArea(
-                        bottom: false,
-                        child: SizedBox(height: 56, child: _buildBar()),
-                      ),
-                      Expanded(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            SizedBox(
-                              width: 210,
-                              child: _SeriePanel(
-                                label: 'CATEGORIES',
-                                isLoading: _cats.isEmpty,
-                                scroll: _catScroll,
-                                itemCount: _cats.length,
-                                itemBuilder: (i) => _SeriePanelItem(
-                                  icon: FontAwesomeIcons.list,
-                                  label: _cats[i].categoryName ?? '',
-                                  isSelected: i == _catIdx,
-                                  isHighlighted: i == _catIdx && _panel == 0,
-                                  onTap: () {
-                                    setState(() => _catIdx = i);
-                                    _fetchSeries(_cats[i].categoryId ?? '');
-                                  },
-                                ),
-                              ),
-                            ),
-                            Container(width: 1, color: kColorCardLight),
-                            Expanded(
-                              child: _SerieGridPanel(
-                                series: _filteredSeries,
-                                selectedIdx: _serieIdx,
-                                isGridFocused: _panel == 1,
-                                scrollController: _gridScroll,
-                                onSerieTap: (serie, idx) {
-                                  Get.to(
-                                    () => SerieContent(
-                                      videoId: serie.seriesId ?? '',
-                                      channelSerie: serie,
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+            body: Ink(
+              decoration: kDecorBackground,
+              child: Column(
+                children: [
+                  SafeArea(
+                    bottom: false,
+                    child: SizedBox(height: 56, child: _buildBar()),
                   ),
-                ),
-              ],
+                  Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SizedBox(
+                          width: 210,
+                          child: _SeriePanel(
+                            label: 'CATEGORIES',
+                            isLoading: _cats.isEmpty,
+                            scroll: _catScroll,
+                            itemCount: _cats.length,
+                            itemBuilder: (i) => _SeriePanelItem(
+                              icon: FontAwesomeIcons.list,
+                              label: _cats[i].categoryName ?? '',
+                              isSelected: i == _catIdx,
+                              isHighlighted: i == _catIdx && _panel == 0,
+                              onTap: () {
+                                setState(() {
+                                  _catIdx = i;
+                                  _panel = 1;
+                                });
+                                _fetchSeries(_cats[i].categoryId ?? '');
+                              },
+                            ),
+                          ),
+                        ),
+                        Container(width: 1, color: kColorCardLight),
+                        Expanded(
+                          child: _SerieGridPanel(
+                            series: _filteredSeries,
+                            selectedIdx: _serieIdx,
+                            isGridFocused: _panel == 1,
+                            isLoading: _serieLoading,
+                            scrollController: _gridScroll,
+                            onSerieTap: (serie, idx) {
+                              Get.to(
+                                () => SerieContent(
+                                  videoId: serie.seriesId ?? '',
+                                  channelSerie: serie,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -518,6 +516,7 @@ class _SerieGridPanel extends StatelessWidget {
     required this.series,
     required this.selectedIdx,
     required this.isGridFocused,
+    required this.isLoading,
     required this.onSerieTap,
     required this.scrollController,
   });
@@ -525,6 +524,7 @@ class _SerieGridPanel extends StatelessWidget {
   final List<ChannelSerie> series;
   final int selectedIdx;
   final bool isGridFocused;
+  final bool isLoading;
   final Function(ChannelSerie, int) onSerieTap;
   final ScrollController scrollController;
 
@@ -534,18 +534,27 @@ class _SerieGridPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (series.isEmpty) {
+    if (isLoading) {
       return Container(
         color: kColorBackDark,
         child: const Center(
+          child: CircularProgressIndicator(color: kColorPrimary),
+        ),
+      );
+    }
+
+    if (series.isEmpty) {
+      return Container(
+        color: kColorBackDark,
+        child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(FontAwesomeIcons.tv, size: 48, color: kColorHint),
-              SizedBox(height: 14),
+              const Icon(FontAwesomeIcons.tv, size: 48, color: kColorHint),
+              const SizedBox(height: 14),
               Text(
-                'Select a serie to view',
-                style: TextStyle(color: kColorHint),
+                'No series found',
+                style: Get.textTheme.bodyMedium!.copyWith(color: kColorHint),
               ),
             ],
           ),
@@ -676,9 +685,8 @@ class _SerieGridItem extends StatelessWidget {
                     style: TextStyle(
                       color: isSelected ? Colors.white : Colors.white70,
                       fontSize: 11,
-                      fontWeight: isSelected
-                          ? FontWeight.bold
-                          : FontWeight.normal,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
                 ),

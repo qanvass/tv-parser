@@ -222,48 +222,41 @@ class _SerieSeasonsState extends State<SerieSeasons> {
         focusNode: _navFocus,
         autofocus: true,
         onKeyEvent: _onKey,
-        child: BlocBuilder<AuthBloc, AuthState>(
-          builder: (context, state) {
-            if (state is AuthSuccess) {
-              return Stack(
+        child: Stack(
+          children: [
+            CardMovieImagesBackground(
+              listImages: _serieDetails.info!.backdropPath ?? [],
+            ),
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xCC000000),
+                    Colors.transparent,
+                    Colors.transparent,
+                    Color(0xEE000000),
+                  ],
+                  stops: [0.0, 0.25, 0.6, 1.0],
+                ),
+              ),
+            ),
+            SafeArea(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  CardMovieImagesBackground(
-                    listImages: _serieDetails.info!.backdropPath ?? [],
-                  ),
-                  Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Color(0xCC000000),
-                          Colors.transparent,
-                          Colors.transparent,
-                          Color(0xEE000000),
-                        ],
-                        stops: [0.0, 0.25, 0.6, 1.0],
-                      ),
-                    ),
-                  ),
-                  SafeArea(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildHeader(),
-                        const SizedBox(height: 10),
-                        _buildSerieInfo(),
-                        const SizedBox(height: 20),
-                        _buildSeasonsList(),
-                        const SizedBox(height: 15),
-                        _buildEpisodesList(),
-                      ],
-                    ),
-                  ),
+                  _buildHeader(),
+                  const SizedBox(height: 10),
+                  _buildSerieInfo(),
+                  const SizedBox(height: 20),
+                  _buildSeasonsList(),
+                  const SizedBox(height: 15),
+                  _buildEpisodesList(),
                 ],
-              );
-            }
-            return const SizedBox();
-          },
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -280,8 +273,14 @@ class _SerieSeasonsState extends State<SerieSeasons> {
               duration: const Duration(milliseconds: 150),
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: _isBackFocused ? kColorPrimary : Colors.transparent,
+                color: _isBackFocused
+                    ? kColorPrimary
+                    : Colors.black.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: _isBackFocused ? kColorFocus : Colors.transparent,
+                  width: 2,
+                ),
               ),
               child: const Icon(
                 FontAwesomeIcons.chevronLeft,
@@ -474,61 +473,65 @@ class _SerieSeasonsState extends State<SerieSeasons> {
                             ]
                           : [],
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Stack(
                       children: [
-                        ClipRRect(
-                          borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(8),
-                          ),
-                          child: CachedNetworkImage(
-                            imageUrl:
-                                ep.info?.movieImage ??
-                                _serieDetails.info!.cover ??
-                                "",
-                            width: 150,
-                            height: 100,
-                            fit: BoxFit.cover,
-                            errorWidget: (_, __, ___) => Container(
-                              width: 150,
-                              height: 100,
-                              color: kColorCardDark,
-                              child: const Icon(
-                                FontAwesomeIcons.tv,
-                                color: kColorHint,
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ClipRRect(
+                              borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(8),
+                              ),
+                              child: CachedNetworkImage(
+                                imageUrl:
+                                    ep.info?.movieImage ??
+                                    _serieDetails.info!.cover ??
+                                    "",
+                                width: 150,
+                                height: 100,
+                                fit: BoxFit.cover,
+                                errorWidget: (_, __, ___) => Container(
+                                  width: 150,
+                                  height: 100,
+                                  color: kColorCardDark,
+                                  child: const Icon(
+                                    FontAwesomeIcons.tv,
+                                    color: kColorHint,
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.all(8),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "E${idx + 1}",
-                                  style: TextStyle(
-                                    color: isSelected
-                                        ? kColorPrimary
-                                        : Colors.white70,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.all(8),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "E${idx + 1}",
+                                      style: TextStyle(
+                                        color: isSelected
+                                            ? kColorPrimary
+                                            : Colors.white70,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      ep.title ?? "Episode ${idx + 1}",
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  ep.title ?? "Episode ${idx + 1}",
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 11,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                         if (isFocused)
                           Positioned(

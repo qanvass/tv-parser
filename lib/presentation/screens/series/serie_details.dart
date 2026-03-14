@@ -16,6 +16,7 @@ class SerieContent extends StatefulWidget {
 
 class _SerieContentState extends State<SerieContent> {
   late Future<SerieDetails?> _future;
+  SerieDetails? _serieDetails;
   final _navFocus = FocusNode();
 
   int _selectedButton = 0;
@@ -29,7 +30,6 @@ class _SerieContentState extends State<SerieContent> {
 
   List<String> _seasons = [];
   List<Episode> _episodes = [];
-  SerieDetails? _serieDetails;
 
   final _seasonScroll = ScrollController();
   final _episodeScroll = ScrollController();
@@ -38,6 +38,17 @@ class _SerieContentState extends State<SerieContent> {
   void initState() {
     super.initState();
     _future = IpTvApi.getSerieDetails(widget.videoId);
+    _future.then((serie) {
+      if (mounted && serie != null) {
+        setState(() {
+          _serieDetails = serie;
+          _hasTrailer =
+              serie.info?.youtubeTrailer != null &&
+              serie.info!.youtubeTrailer!.isNotEmpty;
+        });
+        _initSeasonsEpisodes(serie);
+      }
+    });
   }
 
   @override
@@ -61,17 +72,11 @@ class _SerieContentState extends State<SerieContent> {
   void _loadEpisodes(String season) {
     if (_serieDetails == null) return;
     final eps = _serieDetails!.episodes![season] ?? [];
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        setState(() {
-          _episodes = eps.whereType<Episode>().toList();
-          _episodeIdx = 0;
-        });
-        if (_episodeScroll.hasClients) {
-          _episodeScroll.jumpTo(0);
-        }
-      }
+    setState(() {
+      _episodes = eps.whereType<Episode>().toList();
+      _episodeIdx = 0;
     });
+    if (_episodeScroll.hasClients) _episodeScroll.jumpTo(0);
   }
 
   KeyEventResult _onKey(FocusNode _, KeyEvent e) {
@@ -132,15 +137,11 @@ class _SerieContentState extends State<SerieContent> {
   KeyEventResult _onKeySeasons(KeyEvent e, LogicalKeyboardKey k) {
     if (k == LogicalKeyboardKey.arrowUp) {
       if (_selectedPanel == 0) {
-        if (!_isBackFocused) {
-          setState(() => _isBackFocused = true);
-        }
+        if (!_isBackFocused) setState(() => _isBackFocused = true);
       } else if (_selectedPanel == 1) {
         if (_seasonIdx > 0) {
-          setState(() {
-            _seasonIdx--;
-            _loadEpisodes(_seasons[_seasonIdx]);
-          });
+          setState(() => _seasonIdx--);
+          _loadEpisodes(_seasons[_seasonIdx]);
           _scrollTo(_seasonScroll, _seasonIdx);
         } else {
           setState(() => _selectedPanel = 0);
@@ -164,10 +165,8 @@ class _SerieContentState extends State<SerieContent> {
         setState(() => _selectedPanel = 1);
       } else if (_selectedPanel == 1) {
         if (_seasonIdx < _seasons.length - 1) {
-          setState(() {
-            _seasonIdx++;
-            _loadEpisodes(_seasons[_seasonIdx]);
-          });
+          setState(() => _seasonIdx++);
+          _loadEpisodes(_seasons[_seasonIdx]);
           _scrollTo(_seasonScroll, _seasonIdx);
         } else {
           setState(() => _selectedPanel = 2);
@@ -184,10 +183,8 @@ class _SerieContentState extends State<SerieContent> {
     if (k == LogicalKeyboardKey.arrowLeft) {
       if (_selectedPanel == 1) {
         if (_seasonIdx > 0) {
-          setState(() {
-            _seasonIdx--;
-            _loadEpisodes(_seasons[_seasonIdx]);
-          });
+          setState(() => _seasonIdx--);
+          _loadEpisodes(_seasons[_seasonIdx]);
           _scrollTo(_seasonScroll, _seasonIdx);
         } else {
           setState(() => _selectedPanel = 0);
@@ -206,10 +203,8 @@ class _SerieContentState extends State<SerieContent> {
         setState(() => _selectedPanel = 1);
       } else if (_selectedPanel == 1) {
         if (_seasonIdx < _seasons.length - 1) {
-          setState(() {
-            _seasonIdx++;
-            _loadEpisodes(_seasons[_seasonIdx]);
-          });
+          setState(() => _seasonIdx++);
+          _loadEpisodes(_seasons[_seasonIdx]);
           _scrollTo(_seasonScroll, _seasonIdx);
         } else {
           setState(() => _selectedPanel = 2);
@@ -246,6 +241,7 @@ class _SerieContentState extends State<SerieContent> {
 
   void _handleButtonPress() {
     if (_selectedButton == 0) {
+      // Seasons
       if (_seasons.isNotEmpty) {
         setState(() {
           _showSeasons = true;
@@ -254,30 +250,50 @@ class _SerieContentState extends State<SerieContent> {
         });
         _loadEpisodes(_seasons[0]);
       }
+    } else if (_selectedButton == 1 && _hasTrailer && _serieDetails != null) {
+      // Trailer
+      showDialog(
+        context: context,
+        builder: (_) => DialogTrailerYoutube(
+          thumb:
+              _serieDetails!.info!.backdropPath != null &&
+                  _serieDetails!.info!.backdropPath!.isNotEmpty
+              ? _serieDetails!.info!.backdropPath!.first
+              : null,
+          trailer: _serieDetails!.info!.youtubeTrailer ?? "",
+        ),
+      );
+    } else {
+      // Favorite
+      final favState = context.read<FavoritesCubit>().state;
+      final isLiked = favState.series
+          .any((s) => s.seriesId == widget.channelSerie.seriesId);
+      context.read<FavoritesCubit>().addSerie(
+        widget.channelSerie,
+        isAdd: !isLiked,
+      );
     }
   }
 
   void _playEpisode() {
     if (_episodes.isEmpty || _episodeIdx >= _episodes.length) return;
-
     final model = _episodes[_episodeIdx];
-    final userAuth = context.read<AuthBloc>().state;
-    if (userAuth is! AuthSuccess) return;
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! AuthSuccess) return;
 
     final link =
-        "${userAuth.user.serverInfo!.serverUrl}/series/${userAuth.user.userInfo!.username}/${userAuth.user.userInfo!.password}/${model!.id}.${model.containerExtension}";
+        "${authState.user.serverInfo!.serverUrl}/series/${authState.user.userInfo!.username}/${authState.user.userInfo!.password}/${model.id}.${model.containerExtension}";
 
-    debugPrint("Link: $link");
-    Get.to(() => FullVideoScreen(link: link, title: model.title ?? ""))!.then((
+    Get.to(() => FullVideoScreen(link: link, title: model.title ?? ""))?.then((
       slider,
     ) {
       if (slider != null) {
-        var watchModel = WatchingModel(
+        final watchModel = WatchingModel(
           sliderValue: slider[0],
           durationStrm: slider[1],
           stream: link,
           title: model.title ?? "",
-          image: model.info!.movieImage ?? _serieDetails?.info?.cover ?? "",
+          image: model.info?.movieImage ?? _serieDetails?.info?.cover ?? "",
           streamId: model.id.toString(),
         );
         context.read<WatchingCubit>().addSerie(watchModel);
@@ -345,252 +361,202 @@ class _SerieContentState extends State<SerieContent> {
         focusNode: _navFocus,
         autofocus: true,
         onKeyEvent: _onKey,
-        child: BlocBuilder<AuthBloc, AuthState>(
-          builder: (context, state) {
-            if (state is AuthSuccess) {
-              return Stack(
-                children: [
-                  FutureBuilder<SerieDetails?>(
-                    future: _future,
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return Container(
-                          decoration: kDecorBackground,
-                          child: const Center(
-                            child: CircularProgressIndicator(
-                              color: kColorPrimary,
-                            ),
-                          ),
-                        );
-                      } else if (!snapshot.hasData) {
-                        return Container(
-                          decoration: kDecorBackground,
-                          child: const Center(
-                            child: Text(
-                              "Could not load data",
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        );
-                      }
+        child: FutureBuilder<SerieDetails?>(
+          future: _future,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Container(
+                decoration: kDecorBackground,
+                child: const Center(
+                  child: CircularProgressIndicator(color: kColorPrimary),
+                ),
+              );
+            }
+            if (!snapshot.hasData) {
+              return Container(
+                decoration: kDecorBackground,
+                child: const Center(
+                  child: Text(
+                    "Could not load data",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              );
+            }
 
-                      final serie = snapshot.data!;
-                      _serieDetails = serie;
+            final serie = snapshot.data!;
 
-                      if (!_hasTrailer) {
-                        _hasTrailer =
-                            serie.info!.youtubeTrailer != null &&
-                            serie.info!.youtubeTrailer!.isNotEmpty;
-                      }
-                      if (_seasons.isEmpty && serie.episodes != null) {
-                        _initSeasonsEpisodes(serie);
-                      }
-
-                      return Stack(
-                        children: [
-                          CardMovieImagesBackground(
-                            listImages: serie.info!.backdropPath ?? [],
-                          ),
-                          Container(
-                            decoration: const BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Color(0xCC000000),
-                                  Colors.transparent,
-                                  Colors.transparent,
-                                  Color(0xEE000000),
-                                ],
-                                stops: [0.0, 0.3, 0.6, 1.0],
-                              ),
+            return Stack(
+              children: [
+                CardMovieImagesBackground(
+                  listImages: serie.info!.backdropPath ?? [],
+                ),
+                Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0xCC000000),
+                        Colors.transparent,
+                        Colors.transparent,
+                        Color(0xEE000000),
+                      ],
+                      stops: [0.0, 0.3, 0.6, 1.0],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(
+                    top: 25,
+                    left: 10,
+                    right: 10,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      GestureDetector(
+                        onTap: () => _showSeasons
+                            ? setState(() => _showSeasons = false)
+                            : Get.back(),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: _isBackFocused && !_showSeasons
+                                ? kColorPrimary
+                                : Colors.black.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: _isBackFocused && !_showSeasons
+                                  ? kColorFocus
+                                  : Colors.transparent,
+                              width: 2,
                             ),
                           ),
-                          Padding(
-                            padding: const EdgeInsets.only(
-                              top: 25,
-                              left: 10,
-                              right: 10,
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                IconButton(
-                                  focusColor: kColorFocus,
-                                  onPressed: () => _showSeasons
-                                      ? setState(() => _showSeasons = false)
-                                      : Get.back(),
-                                  icon: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 150),
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: _isBackFocused && !_showSeasons
-                                          ? kColorPrimary
-                                          : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Icon(
-                                      FontAwesomeIcons.chevronLeft,
-                                      color: Colors.white,
-                                      size: 20,
-                                    ),
-                                  ),
+                          child: const Icon(
+                            FontAwesomeIcons.chevronLeft,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Expanded(
+                              child: SingleChildScrollView(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
                                 ),
-                                Expanded(
-                                  child: Column(
-                                    children: [
-                                      Expanded(
-                                        child: SingleChildScrollView(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 20,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(height: 10),
+                                    Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          child: CachedNetworkImage(
+                                            imageUrl:
+                                                serie.info!.cover ?? "",
+                                            width: 140,
+                                            height: 200,
+                                            fit: BoxFit.cover,
+                                            errorWidget: (_, __, ___) =>
+                                                Container(
+                                                  width: 140,
+                                                  height: 200,
+                                                  color: kColorCardLight,
+                                                  child: const Icon(
+                                                    FontAwesomeIcons.tv,
+                                                    color: kColorHint,
+                                                    size: 40,
+                                                  ),
+                                                ),
                                           ),
+                                        ),
+                                        const SizedBox(width: 20),
+                                        Expanded(
                                           child: Column(
                                             crossAxisAlignment:
                                                 CrossAxisAlignment.start,
                                             children: [
-                                              const SizedBox(height: 10),
-                                              Row(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  ClipRRect(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          12,
-                                                        ),
-                                                    child: CachedNetworkImage(
-                                                      imageUrl:
-                                                          serie.info!.cover ??
-                                                          "",
-                                                      width: 140,
-                                                      height: 200,
-                                                      fit: BoxFit.cover,
-                                                      errorWidget:
-                                                          (
-                                                            _,
-                                                            __,
-                                                            ___,
-                                                          ) => Container(
-                                                            width: 140,
-                                                            height: 200,
-                                                            color:
-                                                                kColorCardLight,
-                                                            child: const Icon(
-                                                              FontAwesomeIcons
-                                                                  .tv,
-                                                              color: kColorHint,
-                                                              size: 40,
-                                                            ),
-                                                          ),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 20),
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: [
-                                                        Text(
-                                                          serie.info!.name ??
-                                                              "",
-                                                          style:
-                                                              const TextStyle(
-                                                                color: Colors
-                                                                    .white,
-                                                                fontSize: 22,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .bold,
-                                                              ),
-                                                        ),
-                                                        const SizedBox(
-                                                          height: 16,
-                                                        ),
-                                                        _buildInfoRow(
-                                                          icon: FontAwesomeIcons
-                                                              .clapperboard,
-                                                          label: 'Director',
-                                                          value:
-                                                              serie
-                                                                  .info!
-                                                                  .director ??
-                                                              "",
-                                                        ),
-                                                        const SizedBox(
-                                                          height: 10,
-                                                        ),
-                                                        _buildInfoRow(
-                                                          icon: FontAwesomeIcons
-                                                              .calendarDay,
-                                                          label: 'Release',
-                                                          value:
-                                                              serie
-                                                                  .info!
-                                                                  .releaseDate ??
-                                                              "",
-                                                        ),
-                                                        const SizedBox(
-                                                          height: 10,
-                                                        ),
-                                                        _buildInfoRow(
-                                                          icon: FontAwesomeIcons
-                                                              .film,
-                                                          label: 'Genre',
-                                                          value:
-                                                              serie
-                                                                  .info!
-                                                                  .genre ??
-                                                              "",
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                              const SizedBox(height: 24),
                                               Text(
-                                                'Plot',
-                                                style: TextStyle(
-                                                  color: kColorHint,
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.bold,
-                                                  letterSpacing: 1.1,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 8),
-                                              Text(
-                                                serie.info!.plot ?? "",
+                                                serie.info!.name ?? "",
                                                 style: const TextStyle(
-                                                  color: Colors.white70,
-                                                  fontSize: 14,
-                                                  height: 1.5,
+                                                  color: Colors.white,
+                                                  fontSize: 22,
+                                                  fontWeight: FontWeight.bold,
                                                 ),
                                               ),
-                                              const SizedBox(height: 24),
-                                              _buildButtons(),
-                                              const SizedBox(height: 20),
-                                              if (_showSeasons)
-                                                _buildSeasonsEpisodes(),
-                                              const SizedBox(height: 40),
+                                              const SizedBox(height: 16),
+                                              _buildInfoRow(
+                                                icon: FontAwesomeIcons
+                                                    .clapperboard,
+                                                label: 'Director',
+                                                value:
+                                                    serie.info!.director ?? "",
+                                              ),
+                                              const SizedBox(height: 10),
+                                              _buildInfoRow(
+                                                icon: FontAwesomeIcons
+                                                    .calendarDay,
+                                                label: 'Release',
+                                                value:
+                                                    serie.info!.releaseDate ??
+                                                    "",
+                                              ),
+                                              const SizedBox(height: 10),
+                                              _buildInfoRow(
+                                                icon: FontAwesomeIcons.film,
+                                                label: 'Genre',
+                                                value: serie.info!.genre ?? "",
+                                              ),
                                             ],
                                           ),
                                         ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 24),
+                                    Text(
+                                      'Plot',
+                                      style: TextStyle(
+                                        color: kColorHint,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 1.1,
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      serie.info!.plot ?? "",
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 14,
+                                        height: 1.5,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 24),
+                                    _buildButtons(),
+                                    const SizedBox(height: 20),
+                                    if (_showSeasons) _buildSeasonsEpisodes(),
+                                    const SizedBox(height: 40),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ),
-                          ),
-                        ],
-                      );
-                    },
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              );
-            }
-            return const SizedBox();
+                ),
+              ],
+            );
           },
         ),
       ),
@@ -601,185 +567,48 @@ class _SerieContentState extends State<SerieContent> {
     return BlocBuilder<FavoritesCubit, FavoritesState>(
       builder: (context, favState) {
         final isLiked = favState.series
-            .where((s) => s.seriesId == widget.channelSerie.seriesId)
-            .isNotEmpty;
+            .any((s) => s.seriesId == widget.channelSerie.seriesId);
         return Row(
           children: [
             Expanded(
               flex: 2,
-              child: GestureDetector(
-                onTap: _handleButtonPress,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 10,
-                    horizontal: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: _selectedButton == 0
-                        ? const LinearGradient(
-                            colors: [kColorPrimary, kColorPrimaryDark],
-                          )
-                        : LinearGradient(
-                            colors: [
-                              kColorPrimary.withValues(alpha: 0.3),
-                              kColorPrimaryDark.withValues(alpha: 0.3),
-                            ],
-                          ),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: _selectedButton == 0
-                          ? kColorFocus
-                          : Colors.transparent,
-                      width: 2,
-                    ),
-                    boxShadow: _selectedButton == 0
-                        ? [
-                            BoxShadow(
-                              color: kColorFocus.withValues(alpha: 0.4),
-                              blurRadius: 12,
-                              spreadRadius: 1,
-                            ),
-                          ]
-                        : [],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        FontAwesomeIcons.list,
-                        color: Colors.white,
-                        size: 14,
-                      ),
-                      const SizedBox(width: 6),
-                      const Text(
-                        "SEASONS",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              child: _SerieButton(
+                label: "SEASONS",
+                icon: FontAwesomeIcons.list,
+                isSelected: _selectedButton == 0,
+                onTap: () {
+                  setState(() => _selectedButton = 0);
+                  _handleButtonPress();
+                },
               ),
             ),
             const SizedBox(width: 10),
-            if (_hasTrailer)
+            if (_hasTrailer) ...[
               Expanded(
                 flex: 2,
-                child: GestureDetector(
-                  onTap: () {},
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 10,
-                      horizontal: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: _selectedButton == 1
-                          ? const LinearGradient(
-                              colors: [kColorPrimary, kColorPrimaryDark],
-                            )
-                          : LinearGradient(
-                              colors: [
-                                kColorPrimary.withValues(alpha: 0.3),
-                                kColorPrimaryDark.withValues(alpha: 0.3),
-                              ],
-                            ),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: _selectedButton == 1
-                            ? kColorFocus
-                            : Colors.transparent,
-                        width: 2,
-                      ),
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          FontAwesomeIcons.youtube,
-                          color: Colors.white,
-                          size: 14,
-                        ),
-                        SizedBox(width: 6),
-                        Text(
-                          "TRAILER",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                child: _SerieButton(
+                  label: "TRAILER",
+                  icon: FontAwesomeIcons.youtube,
+                  isSelected: _selectedButton == 1,
+                  onTap: () {
+                    setState(() => _selectedButton = 1);
+                    _handleButtonPress();
+                  },
                 ),
               ),
-            if (_hasTrailer) const SizedBox(width: 10),
-            GestureDetector(
-              onTap: () => context.read<FavoritesCubit>().addSerie(
-                widget.channelSerie,
-                isAdd: !isLiked,
-              ),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(
-                  vertical: 10,
-                  horizontal: 12,
-                ),
-                decoration: BoxDecoration(
-                  gradient:
-                      (_hasTrailer
-                          ? _selectedButton == 2
-                          : _selectedButton == 1)
-                      ? const LinearGradient(
-                          colors: [kColorPrimary, kColorPrimaryDark],
-                        )
-                      : LinearGradient(
-                          colors: [
-                            Colors.red.withValues(alpha: 0.3),
-                            Colors.red.withValues(alpha: 0.3),
-                          ],
-                        ),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color:
-                        (_hasTrailer
-                            ? _selectedButton == 2
-                            : _selectedButton == 1)
-                        ? kColorFocus
-                        : Colors.transparent,
-                    width: 2,
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      isLiked
-                          ? FontAwesomeIcons.solidHeart
-                          : FontAwesomeIcons.heart,
-                      color: Colors.white,
-                      size: 14,
-                    ),
-                    const SizedBox(width: 6),
-                    const Text(
-                      "FAV",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              const SizedBox(width: 10),
+            ],
+            _SerieButton(
+              label: "FAV",
+              icon: isLiked
+                  ? FontAwesomeIcons.solidHeart
+                  : FontAwesomeIcons.heart,
+              isSelected: _selectedButton == (_hasTrailer ? 2 : 1),
+              isFavorite: true,
+              onTap: () {
+                setState(() => _selectedButton = _hasTrailer ? 2 : 1);
+                _handleButtonPress();
+              },
             ),
           ],
         );
@@ -845,9 +674,8 @@ class _SerieContentState extends State<SerieContent> {
                     style: TextStyle(
                       color: isSelected ? Colors.white : Colors.white70,
                       fontSize: 14,
-                      fontWeight: isSelected
-                          ? FontWeight.bold
-                          : FontWeight.normal,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
                 ),
@@ -974,6 +802,80 @@ class _SerieContentState extends State<SerieContent> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _SerieButton extends StatelessWidget {
+  const _SerieButton({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+    this.isFavorite = false,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final bool isFavorite;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+        decoration: BoxDecoration(
+          gradient: isSelected
+              ? const LinearGradient(colors: [kColorPrimary, kColorPrimaryDark])
+              : isFavorite
+              ? LinearGradient(
+                  colors: [
+                    Colors.red.withValues(alpha: 0.3),
+                    Colors.red.withValues(alpha: 0.3),
+                  ],
+                )
+              : LinearGradient(
+                  colors: [
+                    kColorPrimary.withValues(alpha: 0.3),
+                    kColorPrimaryDark.withValues(alpha: 0.3),
+                  ],
+                ),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? kColorFocus : Colors.transparent,
+            width: 2,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: kColorFocus.withValues(alpha: 0.4),
+                    blurRadius: 12,
+                    spreadRadius: 1,
+                  ),
+                ]
+              : [],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.white, size: 14),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
