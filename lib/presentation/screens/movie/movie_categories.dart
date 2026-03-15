@@ -197,7 +197,7 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
   }
 
   void _dpadLeft() {
-    if (_movieIdx > 0) {
+    if (_movieIdx % _gridColumns > 0) {
       setState(() => _movieIdx--);
     } else {
       setState(() => _panel = 0);

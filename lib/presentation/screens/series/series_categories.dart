@@ -181,7 +181,7 @@ class _SeriesCategoriesScreenState extends State<SeriesCategoriesScreen> {
   }
 
   void _dpadLeft() {
-    if (_serieIdx > 0) {
+    if (_serieIdx % _gridColumns > 0) {
       setState(() => _serieIdx--);
     } else {
       setState(() => _panel = 0);
