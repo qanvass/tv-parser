@@ -7,62 +7,91 @@ class WelcomeAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isTV = isTv(context);
-    return Row(
-      children: [
-        Image(
-          width: isTV ? 52 : 38,
-          height: isTV ? 52 : 38,
-          image: const AssetImage(kIconSplash),
-        ),
-        const SizedBox(width: 10),
-        Text(kAppName, style: Get.textTheme.headlineMedium),
-        Container(
-          width: 1,
-          height: 36,
-          margin: const EdgeInsets.symmetric(horizontal: 14),
-          color: kColorHint,
-        ),
-        const Spacer(),
-        BlocBuilder<AuthBloc, AuthState>(
-          builder: (context, state) {
-            if (state is AuthSuccess) {
-              final userInfo = state.user.userInfo;
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    userInfo?.username ?? '',
-                    style: Get.textTheme.titleSmall!.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+      child: Row(
+        children: [
+          // Brand pill
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  kColorPrimary.withValues(alpha: 0.18),
+                  kColorPrimaryDark.withValues(alpha: 0.08),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: kColorPrimary.withValues(alpha: 0.35),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Image(
+                  width: 18,
+                  height: 18,
+                  image: const AssetImage(kIconSplash),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  kAppName.toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.0,
                   ),
-                  Text(
-                    'Expires: ${expirationDate(userInfo?.expDate)}',
-                    style: Get.textTheme.bodySmall!.copyWith(
-                      color: kColorHint,
+                ),
+              ],
+            ),
+          ),
+          const Spacer(),
+          // User info + settings
+          BlocBuilder<AuthBloc, AuthState>(
+            builder: (context, state) {
+              final userInfo =
+                  state is AuthSuccess ? state.user.userInfo : null;
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (userInfo != null) ...[
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          userInfo.username ?? '',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          'Exp: ${expirationDate(userInfo.expDate)}',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.45),
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
                     ),
+                    const SizedBox(width: 10),
+                  ],
+                  _AppBarBtn(
+                    icon: FontAwesomeIcons.gear,
+                    onTap: () => Get.toNamed(screenSettings),
                   ),
                 ],
               );
-            }
-            return const SizedBox();
-          },
-        ),
-        if (!isTV) ...[
-          const SizedBox(width: 4),
-          IconButton(
-            focusColor: kColorFocus,
-            onPressed: () => Get.toNamed(screenSettings),
-            icon: Icon(
-              FontAwesomeIcons.gear,
-              color: Colors.white,
-              size: 18.sp,
-            ),
+            },
           ),
         ],
-      ],
+      ),
     );
   }
 }
