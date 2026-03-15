@@ -20,6 +20,11 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
 
   int _panel = 0;
 
+  bool _appbarActive = false;
+  int _appbarIdx = 0;
+  // back=0, search/close=1
+  static const int _appbarBtnMax = 1;
+
   final _catScroll = ScrollController();
   final _gridScroll = ScrollController();
   final _navFocus = FocusNode();
@@ -82,6 +87,24 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
     if (e is! KeyDownEvent) return KeyEventResult.ignored;
     final k = e.logicalKey;
 
+    // ── Appbar active ──────────────────────────────────────────────────────
+    if (_appbarActive) {
+      if (k == LogicalKeyboardKey.arrowDown) {
+        setState(() => _appbarActive = false);
+      } else if (k == LogicalKeyboardKey.arrowLeft) {
+        if (_appbarIdx > 0) setState(() => _appbarIdx--);
+      } else if (k == LogicalKeyboardKey.arrowRight) {
+        if (_appbarIdx < _appbarBtnMax) setState(() => _appbarIdx++);
+      } else if (k == LogicalKeyboardKey.select ||
+          k == LogicalKeyboardKey.enter ||
+          k == LogicalKeyboardKey.gameButtonA) {
+        _onAppbarSelect();
+      } else if (k == LogicalKeyboardKey.escape) {
+        Get.back();
+      }
+      return KeyEventResult.handled;
+    }
+
     if (k == LogicalKeyboardKey.arrowLeft) {
       if (_panel == 1) _dpadLeft();
       return KeyEventResult.handled;
@@ -95,7 +118,13 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.arrowUp) {
-      _dpadUp();
+      final atTop = (_panel == 0 && _catIdx == 0) ||
+          (_panel == 1 && _movieIdx < _gridColumns);
+      if (atTop) {
+        setState(() { _appbarActive = true; _appbarIdx = 0; });
+      } else {
+        _dpadUp();
+      }
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.arrowDown) {
@@ -109,6 +138,17 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
+  }
+
+  void _onAppbarSelect() {
+    if (_appbarIdx == 0) { Get.back(); return; }
+    if (_showSearch) {
+      _searchCtrl.clear();
+      setState(() { _movieSearch = ''; _showSearch = false; _appbarActive = false; });
+      _navFocus.requestFocus();
+    } else {
+      setState(() { _showSearch = true; _appbarActive = false; });
+    }
   }
 
   static const int _gridColumns = 5;
@@ -290,80 +330,22 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
   }
 
   Widget _buildBar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Row(
-        children: [
-          const Image(width: 32, height: 32, image: AssetImage(kIconSplash)),
-          const SizedBox(width: 8),
-          if (!_showSearch) ...[
-            Text(kAppName, style: Get.textTheme.titleMedium),
-            Container(
-              width: 1,
-              height: 28,
-              margin: const EdgeInsets.symmetric(horizontal: 10),
-              color: kColorHint,
-            ),
-            const Icon(FontAwesomeIcons.film, size: 16, color: kColorPrimary),
-            const Spacer(),
-          ] else ...[
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                controller: _searchCtrl,
-                focusNode: _searchFocus,
-                autofocus: true,
-                onChanged: (v) =>
-                    setState(() => _movieSearch = v.toLowerCase()),
-                style: Get.textTheme.bodyMedium!.copyWith(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'Search movies...',
-                  hintStyle: Get.textTheme.bodyMedium!.copyWith(
-                    color: kColorHint,
-                  ),
-                  border: InputBorder.none,
-                  isDense: true,
-                ),
-              ),
-            ),
-            IconButton(
-              onPressed: () {
-                _searchCtrl.clear();
-                setState(() {
-                  _movieSearch = '';
-                  _showSearch = false;
-                });
-                _navFocus.requestFocus();
-              },
-              icon: const Icon(
-                FontAwesomeIcons.xmark,
-                color: Colors.white,
-                size: 16,
-              ),
-            ),
-          ],
-          if (!_showSearch) ...[
-            IconButton(
-              focusColor: kColorFocus,
-              onPressed: () => setState(() => _showSearch = true),
-              icon: const Icon(
-                FontAwesomeIcons.magnifyingGlass,
-                color: Colors.white,
-                size: 16,
-              ),
-            ),
-            IconButton(
-              focusColor: kColorFocus,
-              onPressed: () => Get.back(),
-              icon: const Icon(
-                FontAwesomeIcons.chevronLeft,
-                color: Colors.white,
-                size: 16,
-              ),
-            ),
-          ],
-        ],
-      ),
+    return IptvAppBar(
+      title: 'Movies',
+      icon: FontAwesomeIcons.film,
+      onBack: Get.back,
+      focusedIndex: _appbarActive ? _appbarIdx : null,
+      showSearch: _showSearch,
+      searchHint: 'Search movies...',
+      searchController: _searchCtrl,
+      searchFocus: _searchFocus,
+      onSearchChanged: (v) => setState(() => _movieSearch = v.toLowerCase()),
+      onSearchToggle: () => setState(() => _showSearch = true),
+      onSearchClose: () {
+        _searchCtrl.clear();
+        setState(() { _movieSearch = ''; _showSearch = false; });
+        _navFocus.requestFocus();
+      },
     );
   }
 }

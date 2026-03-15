@@ -40,6 +40,12 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
   // ── D-pad panel focus (0 = categories, 1 = channels) ─────────────────────
   int _panel = 0;
 
+  // ── Appbar focus ──────────────────────────────────────────────────────────
+  bool _appbarActive = false;
+  int _appbarIdx = 0;
+  // back=0, fav=1 (if channel selected), search=1 or 2
+  int get _appbarBtnMax => _showSearch ? 1 : (_selCh != null ? 2 : 1);
+
   // ── Scroll / focus ────────────────────────────────────────────────────────
   final _catScroll = ScrollController();
   final _chScroll = ScrollController();
@@ -162,9 +168,27 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
 
   KeyEventResult _onKey(FocusNode _, KeyEvent e) {
     if (_searchFocus.hasFocus) return KeyEventResult.ignored;
-    if (_isFullscreen) return KeyEventResult.ignored; // overlay handles it
+    if (_isFullscreen) return KeyEventResult.ignored;
     if (e is! KeyDownEvent) return KeyEventResult.ignored;
     final k = e.logicalKey;
+
+    // ── Appbar active ──────────────────────────────────────────────────────
+    if (_appbarActive) {
+      if (k == LogicalKeyboardKey.arrowDown) {
+        setState(() => _appbarActive = false);
+      } else if (k == LogicalKeyboardKey.arrowLeft) {
+        if (_appbarIdx > 0) setState(() => _appbarIdx--);
+      } else if (k == LogicalKeyboardKey.arrowRight) {
+        if (_appbarIdx < _appbarBtnMax) setState(() => _appbarIdx++);
+      } else if (k == LogicalKeyboardKey.select ||
+          k == LogicalKeyboardKey.enter ||
+          k == LogicalKeyboardKey.gameButtonA) {
+        _onAppbarSelect();
+      } else if (k == LogicalKeyboardKey.escape) {
+        Get.back();
+      }
+      return KeyEventResult.handled;
+    }
 
     if (k == LogicalKeyboardKey.arrowLeft) {
       if (_panel > 0) setState(() => _panel--);
@@ -175,7 +199,12 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.arrowUp) {
-      _dpadUp();
+      final atTop = (_panel == 0 && _catIdx == 0) || (_panel == 1 && _chIdx == 0);
+      if (atTop) {
+        setState(() { _appbarActive = true; _appbarIdx = 0; });
+      } else {
+        _dpadUp();
+      }
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.arrowDown) {
@@ -189,6 +218,23 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
+  }
+
+  void _onAppbarSelect() {
+    if (_appbarIdx == 0) { Get.back(); return; }
+    if (_showSearch) {
+      _searchCtrl.clear();
+      setState(() { _chSearch = ''; _showSearch = false; _appbarActive = false; });
+      _navFocus.requestFocus();
+      return;
+    }
+    if (_selCh != null && _appbarIdx == 1) {
+      final favState = context.read<FavoritesCubit>().state;
+      final liked = favState.lives.any((l) => l.streamId == _selCh!.streamId);
+      context.read<FavoritesCubit>().addLive(_selCh, isAdd: !liked);
+    } else {
+      setState(() { _showSearch = true; _appbarActive = false; });
+    }
   }
 
   void _dpadUp() {
@@ -456,101 +502,36 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
   // ── App bar ───────────────────────────────────────────────────────────────
 
   Widget _buildBar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Row(
-        children: [
-          const Image(width: 32, height: 32, image: AssetImage(kIconSplash)),
-          const SizedBox(width: 8),
-          if (!_showSearch) ...[
-            Text(kAppName, style: Get.textTheme.titleMedium),
-            Container(
-              width: 1,
-              height: 28,
-              margin: const EdgeInsets.symmetric(horizontal: 10),
-              color: kColorHint,
-            ),
-            const Image(height: 24, image: AssetImage(kIconLive)),
-            const Spacer(),
-          ] else ...[
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                controller: _searchCtrl,
-                focusNode: _searchFocus,
-                autofocus: true,
-                onChanged: (v) => setState(() => _chSearch = v.toLowerCase()),
-                style: Get.textTheme.bodyMedium!.copyWith(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'Search channels...',
-                  hintStyle: Get.textTheme.bodyMedium!.copyWith(
-                    color: kColorHint,
-                  ),
-                  border: InputBorder.none,
-                  isDense: true,
-                ),
-              ),
-            ),
-            IconButton(
-              onPressed: () {
-                _searchCtrl.clear();
-                setState(() {
-                  _chSearch = '';
-                  _showSearch = false;
-                });
-                _navFocus.requestFocus();
-              },
-              icon: const Icon(
-                FontAwesomeIcons.xmark,
-                color: Colors.white,
-                size: 16,
-              ),
-            ),
-          ],
-          if (!_showSearch) ...[
-            IconButton(
-              focusColor: kColorFocus,
-              onPressed: () => setState(() => _showSearch = true),
-              icon: const Icon(
-                FontAwesomeIcons.magnifyingGlass,
-                color: Colors.white,
-                size: 16,
-              ),
-            ),
-            if (_selCh != null)
-              BlocBuilder<FavoritesCubit, FavoritesState>(
-                builder: (context, state) {
-                  final liked = state.lives.any(
-                    (l) => l.streamId == _selCh!.streamId,
-                  );
-                  return IconButton(
-                    focusColor: kColorFocus,
-                    onPressed: () => context.read<FavoritesCubit>().addLive(
-                      _selCh,
-                      isAdd: !liked,
-                    ),
-                    icon: Icon(
-                      liked
-                          ? FontAwesomeIcons.solidHeart
-                          : FontAwesomeIcons.heart,
-                      color: liked ? kColorPrimary : Colors.white,
-                      size: 16,
-                    ),
-                  );
-                },
-              ),
-            IconButton(
-              focusColor: kColorFocus,
-              onPressed: () => Get.back(),
-              icon: const Icon(
-                FontAwesomeIcons.chevronLeft,
-                color: Colors.white,
-                size: 16,
-              ),
-            ),
-          ],
-        ],
-      ),
+    return IptvAppBar(
+      title: 'Live TV',
+      icon: FontAwesomeIcons.towerBroadcast,
+      onBack: Get.back,
+      focusedIndex: _appbarActive ? _appbarIdx : null,
+      showSearch: _showSearch,
+      searchHint: 'Search channels...',
+      searchController: _searchCtrl,
+      searchFocus: _searchFocus,
+      onSearchChanged: (v) => setState(() => _chSearch = v.toLowerCase()),
+      onSearchToggle: () => setState(() => _showSearch = true),
+      onSearchClose: () {
+        _searchCtrl.clear();
+        setState(() { _chSearch = ''; _showSearch = false; });
+        _navFocus.requestFocus();
+      },
+      trailing: [
+        if (_selCh != null)
+          BlocBuilder<FavoritesCubit, FavoritesState>(
+            builder: (context, state) {
+              final liked = state.lives.any((l) => l.streamId == _selCh!.streamId);
+              return IptvAppBarAction(
+                icon: liked ? FontAwesomeIcons.solidHeart : FontAwesomeIcons.heart,
+                color: liked ? kColorPrimary : Colors.white,
+                isFocused: _appbarActive && _appbarIdx == 1,
+                onTap: () => context.read<FavoritesCubit>().addLive(_selCh, isAdd: !liked),
+              );
+            },
+          ),
+      ],
     );
   }
 }

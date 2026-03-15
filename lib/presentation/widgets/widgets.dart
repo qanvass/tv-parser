@@ -20,6 +20,7 @@ import '../../repository/models/serie_details.dart';
 import '../../repository/models/watching.dart';
 import '../screens/screens.dart';
 
+part 'appbar.dart';
 part 'dialog.dart';
 part 'live.dart';
 part 'movie.dart';
