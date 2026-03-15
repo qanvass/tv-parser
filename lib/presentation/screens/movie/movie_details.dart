@@ -19,7 +19,7 @@ class _MovieContentState extends State<MovieContent> {
   MovieDetail? _movieDetail;
   final _navFocus = FocusNode();
 
-  int _selectedButton = 0;
+  int _selectedButton = -1;
   bool _isBackFocused = false;
   bool _hasTrailer = false;
 
@@ -34,6 +34,7 @@ class _MovieContentState extends State<MovieContent> {
           _hasTrailer =
               detail.info?.youtubeTrailer != null &&
               detail.info!.youtubeTrailer!.isNotEmpty;
+          _selectedButton = 0; // default focus on PLAY
         });
       }
     });
@@ -45,40 +46,63 @@ class _MovieContentState extends State<MovieContent> {
     super.dispose();
   }
 
+  // Layout:
+  //  Left column  |  Right content
+  //  [Back]       |  [PLAY]
+  //  [Spacer]     |
+  //  [Trailer?]   |
+  //  [Fav]        |
+  //
+  // Up/Down → navigate within left column
+  // Left     → PLAY → left column
+  // Right    → left column → PLAY
   KeyEventResult _onKey(FocusNode _, KeyEvent e) {
     if (e is! KeyDownEvent) return KeyEventResult.ignored;
     final k = e.logicalKey;
+    final favIdx = _hasTrailer ? 2 : 1;
 
     if (k == LogicalKeyboardKey.arrowUp) {
-      if (!_isBackFocused) {
-        setState(() => _isBackFocused = true);
+      if (_isBackFocused) return KeyEventResult.handled;
+      if (_selectedButton == 0) {
+        // PLAY → Back
+        setState(() { _isBackFocused = true; _selectedButton = -1; });
+      } else if (_selectedButton == favIdx && _hasTrailer) {
+        // Fav → Trailer
+        setState(() => _selectedButton = 1);
+      } else {
+        // Trailer or Fav (no trailer) → Back
+        setState(() { _isBackFocused = true; _selectedButton = -1; });
       }
       return KeyEventResult.handled;
     }
+
     if (k == LogicalKeyboardKey.arrowDown) {
       if (_isBackFocused) {
-        setState(() {
-          _isBackFocused = false;
-          _selectedButton = 0;
-        });
+        // Back → Trailer (if exists) else Fav
+        setState(() { _isBackFocused = false; _selectedButton = 1; });
+      } else if (_selectedButton == 1 && _hasTrailer) {
+        // Trailer → Fav
+        setState(() => _selectedButton = 2);
       }
       return KeyEventResult.handled;
     }
+
     if (k == LogicalKeyboardKey.arrowLeft) {
-      if (_isBackFocused) return KeyEventResult.handled;
-      if (_selectedButton > 0) {
-        setState(() => _selectedButton--);
+      if (_selectedButton == 0) {
+        // PLAY → left column (Trailer if available, else Fav)
+        setState(() => _selectedButton = 1);
       }
       return KeyEventResult.handled;
     }
+
     if (k == LogicalKeyboardKey.arrowRight) {
-      if (_isBackFocused) return KeyEventResult.handled;
-      final maxButton = _hasTrailer ? 2 : 1;
-      if (_selectedButton < maxButton) {
-        setState(() => _selectedButton++);
+      if (_isBackFocused || _selectedButton > 0) {
+        // Any left column item → PLAY
+        setState(() { _isBackFocused = false; _selectedButton = 0; });
       }
       return KeyEventResult.handled;
     }
+
     if (k == LogicalKeyboardKey.select ||
         k == LogicalKeyboardKey.enter ||
         k == LogicalKeyboardKey.gameButtonA) {
@@ -89,10 +113,12 @@ class _MovieContentState extends State<MovieContent> {
       }
       return KeyEventResult.handled;
     }
+
     if (k == LogicalKeyboardKey.escape) {
       Get.back();
       return KeyEventResult.handled;
     }
+
     return KeyEventResult.ignored;
   }
 
