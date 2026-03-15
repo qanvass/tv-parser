@@ -141,8 +141,9 @@ class _MovieContentState extends State<MovieContent> {
     } else {
       // Favorite
       final favState = context.read<FavoritesCubit>().state;
-      final isLiked = favState.movies
-          .any((m) => m.streamId == widget.channelMovie.streamId);
+      final isLiked = favState.movies.any(
+        (m) => m.streamId == widget.channelMovie.streamId,
+      );
       context.read<FavoritesCubit>().addMovie(
         widget.channelMovie,
         isAdd: !isLiked,
@@ -205,38 +206,81 @@ class _MovieContentState extends State<MovieContent> {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.only(
-                    top: 25,
-                    left: 10,
-                    right: 10,
-                  ),
+                  padding: const EdgeInsets.only(top: 25, left: 20, right: 10),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      GestureDetector(
-                        onTap: () => Get.back(),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: _isBackFocused
-                                ? kColorPrimary
-                                : Colors.black.withValues(alpha: 0.5),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: _isBackFocused
-                                  ? kColorFocus
-                                  : Colors.transparent,
-                              width: 2,
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 30, left: 0),
+                        child: Column(
+                          spacing: 5,
+                          children: [
+                            GestureDetector(
+                              onTap: () => Get.back(),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 150),
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: _isBackFocused
+                                      ? kColorPrimary
+                                      : Colors.black.withValues(alpha: 0.5),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: _isBackFocused
+                                        ? kColorFocus
+                                        : Colors.transparent,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  FontAwesomeIcons.chevronLeft,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                              ),
                             ),
-                          ),
-                          child: const Icon(
-                            FontAwesomeIcons.chevronLeft,
-                            color: Colors.white,
-                            size: 18,
-                          ),
+                            const Spacer(),
+                            if (movie.info!.youtubeTrailer != null &&
+                                movie.info!.youtubeTrailer!.isNotEmpty) ...[
+                              _FocusableButton(
+                                icon: FontAwesomeIcons.youtube,
+                                isSelected: _selectedButton == 1,
+                                onTap: () {
+                                  setState(() => _selectedButton = 1);
+                                  _onButtonPressed();
+                                },
+                              ),
+                              const SizedBox(width: 10),
+                            ],
+                            BlocBuilder<FavoritesCubit, FavoritesState>(
+                              builder: (context, favState) {
+                                final isLiked = favState.movies.any(
+                                  (m) =>
+                                      m.streamId ==
+                                      widget.channelMovie.streamId,
+                                );
+                                return _FocusableButton(
+                                  icon: isLiked
+                                      ? FontAwesomeIcons.solidHeart
+                                      : FontAwesomeIcons.heart,
+                                  isSelected:
+                                      _selectedButton == (_hasTrailer ? 2 : 1),
+                                  isFavorite: true,
+                                  onTap: () {
+                                    setState(
+                                      () =>
+                                          _selectedButton = _hasTrailer ? 2 : 1,
+                                    );
+                                    _onButtonPressed();
+                                  },
+                                );
+                              },
+                            ),
+                          ],
                         ),
                       ),
+
+                      //TODO add here
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -255,8 +299,9 @@ class _MovieContentState extends State<MovieContent> {
                                           CrossAxisAlignment.start,
                                       children: [
                                         ClipRRect(
-                                          borderRadius:
-                                              BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
                                           child: CachedNetworkImage(
                                             imageUrl:
                                                 movie.info!.movieImage ?? "",
@@ -321,7 +366,21 @@ class _MovieContentState extends State<MovieContent> {
                                                 value: movie.info!.genre ?? "",
                                               ),
                                               const SizedBox(height: 12),
-                                              _buildButtons(movie),
+                                              SizedBox(
+                                                width: 130,
+                                                child: _FocusableButton(
+                                                  label: "PLAY",
+                                                  icon: FontAwesomeIcons.play,
+                                                  isSelected:
+                                                      _selectedButton == 0,
+                                                  onTap: () {
+                                                    setState(
+                                                      () => _selectedButton = 0,
+                                                    );
+                                                    _onButtonPressed();
+                                                  },
+                                                ),
+                                              ),
                                             ],
                                           ),
                                         ),
@@ -392,72 +451,18 @@ class _MovieContentState extends State<MovieContent> {
       ],
     );
   }
-
-  Widget _buildButtons(MovieDetail movie) {
-    return BlocBuilder<FavoritesCubit, FavoritesState>(
-      builder: (context, favState) {
-        final isLiked = favState.movies
-            .any((m) => m.streamId == widget.channelMovie.streamId);
-        return Row(
-          children: [
-            Expanded(
-              flex: 2,
-              child: _FocusableButton(
-                label: "PLAY",
-                icon: FontAwesomeIcons.play,
-                isSelected: _selectedButton == 0,
-                onTap: () {
-                  setState(() => _selectedButton = 0);
-                  _onButtonPressed();
-                },
-              ),
-            ),
-            const SizedBox(width: 10),
-            if (movie.info!.youtubeTrailer != null &&
-                movie.info!.youtubeTrailer!.isNotEmpty) ...[
-              Expanded(
-                flex: 2,
-                child: _FocusableButton(
-                  label: "TRAILER",
-                  icon: FontAwesomeIcons.youtube,
-                  isSelected: _selectedButton == 1,
-                  onTap: () {
-                    setState(() => _selectedButton = 1);
-                    _onButtonPressed();
-                  },
-                ),
-              ),
-              const SizedBox(width: 10),
-            ],
-            _FocusableButton(
-              label: isLiked ? "FAV" : "FAV",
-              icon: isLiked
-                  ? FontAwesomeIcons.solidHeart
-                  : FontAwesomeIcons.heart,
-              isSelected: _selectedButton == (_hasTrailer ? 2 : 1),
-              isFavorite: true,
-              onTap: () {
-                setState(() => _selectedButton = _hasTrailer ? 2 : 1);
-                _onButtonPressed();
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
 }
 
 class _FocusableButton extends StatelessWidget {
   const _FocusableButton({
-    required this.label,
+    this.label,
     required this.icon,
     required this.isSelected,
     required this.onTap,
     this.isFavorite = false,
   });
 
-  final String label;
+  final String? label;
   final IconData icon;
   final bool isSelected;
   final VoidCallback onTap;
@@ -503,18 +508,19 @@ class _FocusableButton extends StatelessWidget {
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
+          spacing: 6,
           children: [
             Icon(icon, color: Colors.white, size: 14),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5,
+            if (label != null)
+              Text(
+                label!,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
               ),
-            ),
           ],
         ),
       ),
