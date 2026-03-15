@@ -519,22 +519,34 @@ class _SerieContentState extends State<SerieContent> {
                   margin: const EdgeInsets.only(right: 8),
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                   decoration: BoxDecoration(
-                    color: isSelected ? kColorPrimary : kColorPrimary.withValues(alpha: 0.15),
+                    color: isFocused
+                        ? kColorFocus
+                        : isSelected
+                        ? kColorPrimary.withValues(alpha: 0.25)
+                        : kColorPrimary.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: isFocused ? kColorFocus : Colors.transparent,
-                      width: 2,
+                      color: isFocused
+                          ? kColorFocus
+                          : isSelected
+                          ? kColorPrimary.withValues(alpha: 0.6)
+                          : Colors.white.withValues(alpha: 0.1),
+                      width: isFocused ? 2 : 1,
                     ),
                     boxShadow: isFocused
-                        ? [BoxShadow(color: kColorFocus.withValues(alpha: 0.4), blurRadius: 8, spreadRadius: 1)]
+                        ? [BoxShadow(color: kColorFocus.withValues(alpha: 0.45), blurRadius: 10, spreadRadius: 1)]
                         : [],
                   ),
                   child: Text(
                     "Season ${_seasons[idx]}",
                     style: TextStyle(
-                      color: isSelected ? Colors.white : Colors.white54,
+                      color: isFocused
+                          ? Colors.white
+                          : isSelected
+                          ? kColorPrimary
+                          : Colors.white38,
                       fontSize: 13,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: isFocused || isSelected ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
                 ),
