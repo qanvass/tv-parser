@@ -19,9 +19,11 @@ class _SerieContentState extends State<SerieContent> {
   SerieDetails? _serieDetails;
   final _navFocus = FocusNode();
 
-  // 0 = action buttons, 1 = seasons, 2 = episodes
-  int _panel = 0;
-  int _selectedButton = 0;
+  // Left column buttons: -1 = none, 1 = Trailer, 2 = Fav (with trailer) / 1 = Fav (no trailer)
+  // Right panels: 1 = seasons, 2 = episodes
+  int _selectedButton = -1;
+  int _panel = 0; // 0 = left column active, 1 = seasons, 2 = episodes
+
   int _seasonIdx = 0;
   int _episodeIdx = 0;
 
@@ -41,11 +43,13 @@ class _SerieContentState extends State<SerieContent> {
     _future = IpTvApi.getSerieDetails(widget.videoId);
     _future.then((serie) {
       if (mounted && serie != null) {
+        final hasTrailer =
+            serie.info?.youtubeTrailer != null &&
+            serie.info!.youtubeTrailer!.isNotEmpty;
         setState(() {
           _serieDetails = serie;
-          _hasTrailer =
-              serie.info?.youtubeTrailer != null &&
-              serie.info!.youtubeTrailer!.isNotEmpty;
+          _hasTrailer = hasTrailer;
+          _selectedButton = 1; // default focus: Trailer or Fav
         });
         _initSeasonsEpisodes(serie);
       }
@@ -107,46 +111,71 @@ class _SerieContentState extends State<SerieContent> {
     _episodeScroll.animateTo(target, duration: const Duration(milliseconds: 150), curve: Curves.easeOut);
   }
 
+  // Layout:
+  //  Left column   |  Right content
+  //  [Back]        |  [Cover + info + plot]
+  //  [Spacer]      |  [Seasons row]
+  //  [Trailer?]    |  [Episodes row]
+  //  [Fav]         |
+  //
+  // Up/Down → navigate within left column / right panels
+  // Down from Fav → seasons (panel 1)
+  // Up from seasons → back to left column (Fav)
+  // Right from left column → seasons (panel 1)
   KeyEventResult _onKey(FocusNode _, KeyEvent e) {
     if (e is! KeyDownEvent) return KeyEventResult.ignored;
     final k = e.logicalKey;
+    final favIdx = _hasTrailer ? 2 : 1;
 
     if (k == LogicalKeyboardKey.arrowUp) {
       if (_isBackFocused) return KeyEventResult.handled;
-      if (_panel > 0) {
-        final prev = _panel - 1;
-        setState(() => _panel = prev);
-        if (prev == 0) _scrollPageToTop();
-        if (prev == 1) _scrollSeasonTo(_seasonIdx);
-      } else {
-        setState(() => _isBackFocused = true);
+      if (_panel == 0) {
+        // Within left column: Fav → Trailer → Back
+        if (_selectedButton == favIdx && _hasTrailer) {
+          setState(() => _selectedButton = 1);
+        } else {
+          setState(() { _isBackFocused = true; _selectedButton = -1; });
+          _scrollPageToTop();
+        }
+      } else if (_panel == 1) {
+        // Seasons → left column (Fav)
+        setState(() { _panel = 0; _selectedButton = favIdx; });
         _scrollPageToTop();
+      } else if (_panel == 2) {
+        // Episodes → Seasons
+        setState(() => _panel = 1);
+        _scrollSeasonTo(_seasonIdx);
+        _scrollPageToBottom();
       }
       return KeyEventResult.handled;
     }
 
     if (k == LogicalKeyboardKey.arrowDown) {
       if (_isBackFocused) {
-        setState(() { _isBackFocused = false; _panel = 0; });
-        _scrollPageToTop();
-      } else {
-        final maxPanel = _seasons.isNotEmpty ? 2 : 0;
-        if (_panel < maxPanel) {
-          final next = _panel + 1;
-          setState(() => _panel = next);
-          if (next == 1 || next == 2) _scrollPageToBottom();
-          if (next == 1) _scrollSeasonTo(_seasonIdx);
-          else if (next == 2) _scrollEpisodeTo(_episodeIdx);
+        // Back → first left column button (Trailer or Fav)
+        setState(() { _isBackFocused = false; _panel = 0; _selectedButton = 1; });
+      } else if (_panel == 0) {
+        if (_selectedButton == 1 && _hasTrailer) {
+          // Trailer → Fav
+          setState(() => _selectedButton = favIdx);
+        } else {
+          // Fav (bottom of left column) → seasons
+          setState(() { _panel = 1; _selectedButton = -1; });
+          _scrollPageToBottom();
+          _scrollSeasonTo(_seasonIdx);
         }
+      } else if (_panel == 1) {
+        // Seasons → Episodes
+        setState(() => _panel = 2);
+        _scrollEpisodeTo(_episodeIdx);
+        _scrollPageToBottom();
       }
       return KeyEventResult.handled;
     }
 
     if (k == LogicalKeyboardKey.arrowLeft) {
-      if (_isBackFocused) return KeyEventResult.handled;
-      if (_panel == 0 && _selectedButton > 0) {
-        setState(() => _selectedButton--);
-      } else if (_panel == 1 && _seasonIdx > 0) {
+      if (_isBackFocused || _panel == 0) return KeyEventResult.handled;
+      if (_panel == 1 && _seasonIdx > 0) {
         setState(() => _seasonIdx--);
         _loadEpisodes(_seasons[_seasonIdx]);
         _scrollSeasonTo(_seasonIdx);
@@ -158,10 +187,18 @@ class _SerieContentState extends State<SerieContent> {
     }
 
     if (k == LogicalKeyboardKey.arrowRight) {
-      if (_isBackFocused) return KeyEventResult.handled;
-      final maxBtn = _hasTrailer ? 1 : 0;
-      if (_panel == 0 && _selectedButton < maxBtn) {
-        setState(() => _selectedButton++);
+      if (_isBackFocused) {
+        // Back → seasons
+        setState(() { _isBackFocused = false; _panel = 1; _selectedButton = -1; });
+        _scrollPageToBottom();
+        _scrollSeasonTo(_seasonIdx);
+        return KeyEventResult.handled;
+      }
+      if (_panel == 0) {
+        // Left column → seasons
+        setState(() { _panel = 1; _selectedButton = -1; });
+        _scrollPageToBottom();
+        _scrollSeasonTo(_seasonIdx);
       } else if (_panel == 1 && _seasonIdx < _seasons.length - 1) {
         setState(() => _seasonIdx++);
         _loadEpisodes(_seasons[_seasonIdx]);
@@ -195,7 +232,7 @@ class _SerieContentState extends State<SerieContent> {
   }
 
   void _handleButtonPress() {
-    if (_selectedButton == 0 && _hasTrailer && _serieDetails != null) {
+    if (_selectedButton == 1 && _hasTrailer && _serieDetails != null) {
       showDialog(
         context: context,
         builder: (_) => DialogTrailerYoutube(
@@ -259,6 +296,8 @@ class _SerieContentState extends State<SerieContent> {
 
   @override
   Widget build(BuildContext context) {
+    final favIdx = _hasTrailer ? 2 : 1;
+
     return Scaffold(
       body: Focus(
         focusNode: _navFocus,
@@ -302,24 +341,65 @@ class _SerieContentState extends State<SerieContent> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Back button
-                      GestureDetector(
-                        onTap: Get.back,
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: _isBackFocused ? kColorPrimary : Colors.black.withValues(alpha: 0.5),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: _isBackFocused ? kColorFocus : Colors.transparent,
-                              width: 2,
+                      // Left column: Back + Trailer + Fav
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 30),
+                        child: Column(
+                          spacing: 5,
+                          children: [
+                            // Back button
+                            GestureDetector(
+                              onTap: Get.back,
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 150),
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: _isBackFocused ? kColorPrimary : Colors.black.withValues(alpha: 0.5),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: _isBackFocused ? kColorFocus : Colors.transparent,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: const Icon(FontAwesomeIcons.chevronLeft, color: Colors.white, size: 18),
+                              ),
                             ),
-                          ),
-                          child: const Icon(FontAwesomeIcons.chevronLeft, color: Colors.white, size: 18),
+                            const Spacer(),
+                            // Trailer button
+                            if (_hasTrailer)
+                              GestureDetector(
+                                onTap: () {
+                                  setState(() { _panel = 0; _selectedButton = 1; });
+                                  _handleButtonPress();
+                                },
+                                child: _SideButton(
+                                  icon: FontAwesomeIcons.youtube,
+                                  isSelected: _selectedButton == 1 && _panel == 0,
+                                ),
+                              ),
+                            // Fav button
+                            BlocBuilder<FavoritesCubit, FavoritesState>(
+                              builder: (context, favState) {
+                                final isLiked = favState.series.any(
+                                  (s) => s.seriesId == widget.channelSerie.seriesId,
+                                );
+                                return GestureDetector(
+                                  onTap: () {
+                                    setState(() { _panel = 0; _selectedButton = favIdx; });
+                                    _handleButtonPress();
+                                  },
+                                  child: _SideButton(
+                                    icon: isLiked ? FontAwesomeIcons.solidHeart : FontAwesomeIcons.heart,
+                                    isSelected: _selectedButton == favIdx && _panel == 0,
+                                    isFavorite: true,
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
                         ),
                       ),
-                      // Main content
+                      // Right content
                       Expanded(
                         child: SingleChildScrollView(
                           controller: _pageScroll,
@@ -327,7 +407,7 @@ class _SerieContentState extends State<SerieContent> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const SizedBox(height: 10),
-                              // Cover + info + plot + buttons (padded)
+                              // Cover + info + plot (padded)
                               Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 20),
                                 child: Column(
@@ -385,13 +465,11 @@ class _SerieContentState extends State<SerieContent> {
                                       serie.info!.plot ?? "",
                                       style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
                                     ),
-                                    const SizedBox(height: 20),
-                                    _buildButtons(),
                                   ],
                                 ),
                               ),
                               const SizedBox(height: 24),
-                              // Seasons + Episodes — full width, no horizontal padding
+                              // Seasons + Episodes — full width
                               if (_seasons.isNotEmpty) _buildSeasonsEpisodes(),
                               const SizedBox(height: 40),
                             ],
@@ -409,48 +487,10 @@ class _SerieContentState extends State<SerieContent> {
     );
   }
 
-  Widget _buildButtons() {
-    return BlocBuilder<FavoritesCubit, FavoritesState>(
-      builder: (context, favState) {
-        final isLiked = favState.series.any((s) => s.seriesId == widget.channelSerie.seriesId);
-        final favBtnIdx = _hasTrailer ? 1 : 0;
-        return Row(
-          children: [
-            if (_hasTrailer) ...[
-              Expanded(
-                child: _SerieButton(
-                  label: "TRAILER",
-                  icon: FontAwesomeIcons.youtube,
-                  isSelected: _panel == 0 && _selectedButton == 0,
-                  onTap: () {
-                    setState(() { _panel = 0; _selectedButton = 0; });
-                    _handleButtonPress();
-                  },
-                ),
-              ),
-              const SizedBox(width: 10),
-            ],
-            _SerieButton(
-              label: isLiked ? "UNFAV" : "FAV",
-              icon: isLiked ? FontAwesomeIcons.solidHeart : FontAwesomeIcons.heart,
-              isSelected: _panel == 0 && _selectedButton == favBtnIdx,
-              isFavorite: true,
-              onTap: () {
-                setState(() { _panel = 0; _selectedButton = favBtnIdx; });
-                _handleButtonPress();
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   Widget _buildSeasonsEpisodes() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Seasons label
         const Padding(
           padding: EdgeInsets.only(left: 20),
           child: Text(
@@ -459,7 +499,6 @@ class _SerieContentState extends State<SerieContent> {
           ),
         ),
         const SizedBox(height: 10),
-        // Seasons horizontal list
         SizedBox(
           height: 36,
           child: ListView.builder(
@@ -472,7 +511,7 @@ class _SerieContentState extends State<SerieContent> {
               final isFocused = isSelected && _panel == 1;
               return GestureDetector(
                 onTap: () {
-                  setState(() { _seasonIdx = idx; _panel = 1; });
+                  setState(() { _seasonIdx = idx; _panel = 1; _selectedButton = -1; });
                   _loadEpisodes(_seasons[idx]);
                 },
                 child: AnimatedContainer(
@@ -504,7 +543,6 @@ class _SerieContentState extends State<SerieContent> {
           ),
         ),
         const SizedBox(height: 16),
-        // Episodes label
         const Padding(
           padding: EdgeInsets.only(left: 20),
           child: Text(
@@ -513,7 +551,6 @@ class _SerieContentState extends State<SerieContent> {
           ),
         ),
         const SizedBox(height: 10),
-        // Episodes horizontal list
         if (_episodes.isEmpty)
           const Padding(
             padding: EdgeInsets.only(left: 20, top: 12, bottom: 12),
@@ -533,7 +570,7 @@ class _SerieContentState extends State<SerieContent> {
                 final isFocused = isSelected && _panel == 2;
                 return GestureDetector(
                   onTap: () {
-                    setState(() { _episodeIdx = idx; _panel = 2; });
+                    setState(() { _episodeIdx = idx; _panel = 2; _selectedButton = -1; });
                     _playEpisode();
                   },
                   child: AnimatedContainer(
@@ -610,55 +647,38 @@ class _SerieContentState extends State<SerieContent> {
   }
 }
 
-class _SerieButton extends StatelessWidget {
-  const _SerieButton({
-    required this.label,
+class _SideButton extends StatelessWidget {
+  const _SideButton({
     required this.icon,
     required this.isSelected,
-    required this.onTap,
     this.isFavorite = false,
   });
 
-  final String label;
   final IconData icon;
   final bool isSelected;
-  final VoidCallback onTap;
   final bool isFavorite;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
-        decoration: BoxDecoration(
-          gradient: isSelected
-              ? const LinearGradient(colors: [kColorPrimary, kColorPrimaryDark])
-              : isFavorite
-              ? LinearGradient(colors: [Colors.red.withValues(alpha: 0.25), Colors.red.withValues(alpha: 0.25)])
-              : LinearGradient(colors: [kColorPrimary.withValues(alpha: 0.2), kColorPrimaryDark.withValues(alpha: 0.2)]),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSelected ? kColorFocus : Colors.transparent,
-            width: 2,
-          ),
-          boxShadow: isSelected
-              ? [BoxShadow(color: kColorFocus.withValues(alpha: 0.4), blurRadius: 12, spreadRadius: 1)]
-              : [],
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        gradient: isSelected
+            ? const LinearGradient(colors: [kColorPrimary, kColorPrimaryDark])
+            : isFavorite
+            ? LinearGradient(colors: [Colors.red.withValues(alpha: 0.25), Colors.red.withValues(alpha: 0.25)])
+            : LinearGradient(colors: [kColorPrimary.withValues(alpha: 0.2), kColorPrimaryDark.withValues(alpha: 0.2)]),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isSelected ? kColorFocus : Colors.transparent,
+          width: 2,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: Colors.white, size: 14),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.5),
-            ),
-          ],
-        ),
+        boxShadow: isSelected
+            ? [BoxShadow(color: kColorFocus.withValues(alpha: 0.4), blurRadius: 12, spreadRadius: 1)]
+            : [],
       ),
+      child: Icon(icon, color: Colors.white, size: 16),
     );
   }
 }
