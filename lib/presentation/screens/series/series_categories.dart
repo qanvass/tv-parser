@@ -60,9 +60,10 @@ class _SeriesCategoriesScreenState extends State<SeriesCategoriesScreen> {
     }
   }
 
-  void _onSearchSubmitted(String _) {
+  void _onSearchSubmitted(String value) {
     _keepSearchOnFocusLoss = true;
     setState(() {
+      _serieSearch = value.toLowerCase();
       _isSearchEditing = false;
       _appbarActive = false;
     });

@@ -84,9 +84,10 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
     }
   }
 
-  void _onSearchSubmitted(String _) {
+  void _onSearchSubmitted(String value) {
     _keepSearchOnFocusLoss = true;
     setState(() {
+      _chSearch = value.toLowerCase();
       _isSearchEditing = false;
       _appbarActive = false;
     });
