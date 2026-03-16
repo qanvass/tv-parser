@@ -61,9 +61,10 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
     }
   }
 
-  void _onSearchSubmitted(String _) {
+  void _onSearchSubmitted(String value) {
     _keepSearchOnFocusLoss = true;
     setState(() {
+      _movieSearch = value.toLowerCase();
       _isSearchEditing = false;
       _appbarActive = false;
     });
@@ -149,10 +150,14 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.arrowUp) {
-      final atTop = (_panel == 0 && _catIdx == 0) ||
+      final atTop =
+          (_panel == 0 && _catIdx == 0) ||
           (_panel == 1 && _movieIdx < _gridColumns);
       if (atTop) {
-        setState(() { _appbarActive = true; _appbarIdx = 0; });
+        setState(() {
+          _appbarActive = true;
+          _appbarIdx = 0;
+        });
       } else {
         _dpadUp();
       }
@@ -172,13 +177,21 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
   }
 
   void _onAppbarSelect() {
-    if (_appbarIdx == 0) { Get.back(); return; }
+    if (_appbarIdx == 0) {
+      Get.back();
+      return;
+    }
     if (_showSearch) {
       if (_appbarIdx == 1) {
         _activateSearchInput();
       } else {
         _searchCtrl.clear();
-        setState(() { _movieSearch = ''; _showSearch = false; _isSearchEditing = false; _appbarActive = false; });
+        setState(() {
+          _movieSearch = '';
+          _showSearch = false;
+          _isSearchEditing = false;
+          _appbarActive = false;
+        });
         _navFocus.requestFocus();
       }
     } else {
@@ -381,7 +394,11 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
       onSearchSubmitted: _onSearchSubmitted,
       onSearchClose: () {
         _searchCtrl.clear();
-        setState(() { _movieSearch = ''; _showSearch = false; _isSearchEditing = false; });
+        setState(() {
+          _movieSearch = '';
+          _showSearch = false;
+          _isSearchEditing = false;
+        });
         _navFocus.requestFocus();
       },
     );
@@ -711,8 +728,9 @@ class _MovieGridItem extends StatelessWidget {
                     style: TextStyle(
                       color: isSelected ? Colors.white : Colors.white70,
                       fontSize: 11,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                     ),
                   ),
                 ),
