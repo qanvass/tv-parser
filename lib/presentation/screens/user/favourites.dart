@@ -192,7 +192,11 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
       final link =
           '${authState.user.serverInfo!.serverUrl}/${authState.user.userInfo!.username}/${authState.user.userInfo!.password}/${ch.streamId}';
       Get.to(
-        () => FullVideoScreen(isLive: true, link: link, title: ch.name ?? ''),
+        () => LivePlayerScreen(
+          link: link,
+          title: ch.name ?? '',
+          streamIcon: ch.streamIcon,
+        ),
       );
     } else if (_tabIdx == 1) {
       if (_movieIdx >= favState.movies.length) return;
@@ -376,10 +380,10 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
                       final link =
                           '${authState.user.serverInfo!.serverUrl}/${authState.user.userInfo!.username}/${authState.user.userInfo!.password}/${items[i].streamId}';
                       Get.to(
-                        () => FullVideoScreen(
-                          isLive: true,
+                        () => LivePlayerScreen(
                           link: link,
                           title: items[i].name ?? '',
+                          streamIcon: items[i].streamIcon,
                         ),
                       );
                     },

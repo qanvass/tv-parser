@@ -53,8 +53,9 @@ class WelcomeAppBar extends StatelessWidget {
           // User info + settings
           BlocBuilder<AuthBloc, AuthState>(
             builder: (context, state) {
-              final userInfo =
-                  state is AuthSuccess ? state.user.userInfo : null;
+              final userInfo = state is AuthSuccess
+                  ? state.user.userInfo
+                  : null;
               return Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -94,13 +95,6 @@ class WelcomeAppBar extends StatelessWidget {
       ),
     );
   }
-}
-
-// Keep alias for any remaining references
-class AppBarWelcome extends StatelessWidget {
-  const AppBarWelcome({super.key});
-  @override
-  Widget build(BuildContext context) => const WelcomeAppBar();
 }
 
 // ─── HOME SEARCH BAR ──────────────────────────────────────────────────────────
@@ -221,8 +215,7 @@ class _HomeNavItemState extends State<HomeNavItem> {
                 widget.title,
                 style: Get.textTheme.titleSmall!.copyWith(
                   color: active ? Colors.white : Colors.white60,
-                  fontWeight:
-                      active ? FontWeight.bold : FontWeight.normal,
+                  fontWeight: active ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
               if (widget.isSelected) ...[
@@ -464,9 +457,7 @@ class _TvActionButtonState extends State<TvActionButton> {
           decoration: BoxDecoration(
             color: _focused ? kColorPrimary : kColorCardLight,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: _focused ? kColorFocus : kColorCardDark,
-            ),
+            border: Border.all(color: _focused ? kColorFocus : kColorCardDark),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -481,8 +472,7 @@ class _TvActionButtonState extends State<TvActionButton> {
                 widget.title,
                 style: Get.textTheme.titleSmall!.copyWith(
                   color: _focused ? Colors.white : Colors.white70,
-                  fontWeight:
-                      _focused ? FontWeight.bold : FontWeight.normal,
+                  fontWeight: _focused ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
             ],
