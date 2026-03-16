@@ -164,9 +164,10 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
                                     kAppName,
                                     style: Get.textTheme.headlineLarge!
                                         .copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 2,
-                                    ),
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 2,
+                                          color: Colors.white,
+                                        ),
                                   ),
                                   const SizedBox(height: 10),
                                   Text(
@@ -212,16 +213,10 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
                                       'Sign In',
                                       style: Get.textTheme.headlineMedium!
                                           .copyWith(
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '▲▼ Navigate   OK Activate',
-                                      style: Get.textTheme.bodySmall!.copyWith(
-                                        color: kColorHint,
-                                      ),
-                                    ),
+
                                     const SizedBox(height: 24),
 
                                     _TvField(
@@ -306,7 +301,7 @@ class _TvField extends StatelessWidget {
   final FocusNode focusNode;
   final TextInputType keyboardType;
   final bool isSelected; // D-pad is on this row
-  final bool isEditing;  // keyboard is open for this row
+  final bool isEditing; // keyboard is open for this row
   final bool obscure;
   final VoidCallback onDone;
 
