@@ -45,6 +45,12 @@ dependencies:
 
 
 
+  # Native TV text input — fixes Flutter engine bug on Chromecast where
+  # arrow keys are intercepted before reaching the IME.
+  # Vendored locally so the compileSdk fix (33→35) is permanent.
+  android_tv_text_field:
+    path: packages/android_tv_text_field
+
   #Http
   dio: ^5.9.0
   google_mobile_ads: ^6.0.0

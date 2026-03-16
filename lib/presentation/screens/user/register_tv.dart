@@ -8,9 +8,9 @@ class RegisterUserTv extends StatefulWidget {
 }
 
 class _RegisterUserTvState extends State<RegisterUserTv> {
-  final _username = TextEditingController();
-  final _password = TextEditingController();
-  final _domain = TextEditingController();
+  final _username = NativeTextFieldController();
+  final _password = NativeTextFieldController();
+  final _domain = NativeTextFieldController();
 
   // 0=username, 1=password, 2=url, 3=button
   int _row = 0;
@@ -66,13 +66,22 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
     return KeyEventResult.ignored;
   }
 
-  void _activate() {
-    if (_row == 3) {
+  void _activate([int? row]) {
+    final target = row ?? _row;
+    if (target == 3) {
       _login();
       return;
     }
-    setState(() => _editing = true);
-    [_fn0, _fn1, _fn2][_row].requestFocus();
+    setState(() {
+      _row = target;
+      _editing = true;
+    });
+    // Request focus AFTER rebuild so the field is already enabled.
+    // On Chromecast the IME won't open if requestFocus is called while
+    // the TextField is still disabled (enabled: false).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      [_fn0, _fn1, _fn2][target].requestFocus();
+    });
   }
 
   // Called when user presses Done on keyboard
@@ -227,6 +236,7 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
                                       keyboardType: TextInputType.text,
                                       isSelected: _row == 0,
                                       isEditing: _editing && _row == 0,
+                                      onTap: () => _activate(0),
                                       onDone: () => _done(1),
                                     ),
                                     const SizedBox(height: 12),
@@ -241,6 +251,7 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
                                       isSelected: _row == 1,
                                       isEditing: _editing && _row == 1,
                                       obscure: true,
+                                      onTap: () => _activate(1),
                                       onDone: () => _done(2),
                                     ),
                                     const SizedBox(height: 12),
@@ -253,6 +264,7 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
                                       keyboardType: TextInputType.url,
                                       isSelected: _row == 2,
                                       isEditing: _editing && _row == 2,
+                                      onTap: () => _activate(2),
                                       onDone: () => _done(3),
                                     ),
                                     const SizedBox(height: 20),
@@ -292,10 +304,11 @@ class _TvField extends StatelessWidget {
     required this.isSelected,
     required this.isEditing,
     required this.onDone,
+    required this.onTap,
     this.obscure = false,
   });
 
-  final TextEditingController controller;
+  final NativeTextFieldController controller;
   final String hint;
   final IconData icon;
   final FocusNode focusNode;
@@ -304,58 +317,84 @@ class _TvField extends StatelessWidget {
   final bool isEditing; // keyboard is open for this row
   final bool obscure;
   final VoidCallback onDone;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
-      height: 52,
-      decoration: BoxDecoration(
-        color: isEditing ? Colors.white : kColorCardDark,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: isSelected ? kColorFocus : Colors.transparent,
-          width: 2,
+    // When editing: use native Android EditText via PlatformView.
+    // This bypasses Flutter's InputConnectionAdaptor which intercepts arrow
+    // keys and prevents on-screen keyboard navigation on Chromecast.
+    if (isEditing) {
+      // onFocusChanged lives on the controller, not the widget.
+      // This handles keyboard dismissed via back button (focus lost without Done).
+      controller.onFocusChanged = (hasFocus) {
+        if (!hasFocus) onDone();
+      };
+      return SizedBox(
+        height: 52,
+        child: AndroidTVTextField(
+          controller: controller,
+          focusNode: focusNode,
+          hint: hint,
+          obscureText: obscure,
+          onSubmitted: (_) => onDone(),
+          backgroundColor: kColorCardDark,
+          textColor: Colors.white,
+          focuesedBorderColor: kColorFocus,
+          unFocuesedBorderColor: Colors.transparent,
         ),
-        boxShadow: isSelected
-            ? [
-                BoxShadow(
-                  color: kColorFocus.withValues(alpha: .35),
-                  blurRadius: 10,
-                ),
-              ]
-            : [],
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: TextField(
-        controller: controller,
-        focusNode: focusNode,
-        enabled: isEditing,
-        obscureText: obscure,
-        keyboardType: keyboardType,
-        textInputAction: TextInputAction.done,
-        onSubmitted: (_) => onDone(),
-        style: TextStyle(
-          color: isEditing ? Colors.black87 : Colors.white70,
-          fontWeight: FontWeight.w600,
-          fontSize: 15,
-        ),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: TextStyle(
-            color: isEditing ? Colors.grey : kColorHint,
-            fontSize: 14,
+      );
+    }
+
+    // When not editing: show a styled read-only container.
+    // Tapping it (Chromecast phone remote) calls onTap to activate editing.
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        height: 52,
+        decoration: BoxDecoration(
+          color: kColorCardDark,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? kColorFocus : Colors.transparent,
+            width: 2,
           ),
-          suffixIcon: Icon(
-            icon,
-            size: 16,
-            color: isEditing ? kColorPrimaryDark : kColorPrimary,
-          ),
-          border: InputBorder.none,
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(vertical: 16),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: kColorFocus.withValues(alpha: .35),
+                    blurRadius: 10,
+                  ),
+                ]
+              : [],
         ),
-        cursorColor: kColorPrimary,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        child: Row(
+          children: [
+            Expanded(
+              child: ValueListenableBuilder(
+                valueListenable: controller,
+                builder: (_, value, __) {
+                  final text = value.text;
+                  final display = obscure && text.isNotEmpty
+                      ? '•' * text.length
+                      : text;
+                  return Text(
+                    display.isEmpty ? hint : display,
+                    style: TextStyle(
+                      color: display.isEmpty ? kColorHint : Colors.white70,
+                      fontWeight: FontWeight.w600,
+                      fontSize: display.isEmpty ? 14 : 15,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  );
+                },
+              ),
+            ),
+            Icon(icon, size: 16, color: kColorPrimary),
+          ],
+        ),
       ),
     );
   }
