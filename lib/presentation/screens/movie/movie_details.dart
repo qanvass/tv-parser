@@ -85,13 +85,19 @@ class _MovieContentState extends State<MovieContent> {
       if (_isBackFocused) return KeyEventResult.handled;
       if (_selectedButton == 0) {
         // PLAY → Back
-        setState(() { _isBackFocused = true; _selectedButton = -1; });
+        setState(() {
+          _isBackFocused = true;
+          _selectedButton = -1;
+        });
       } else if (_selectedButton == favIdx && _hasTrailer) {
         // Fav → Trailer
         setState(() => _selectedButton = 1);
       } else {
         // Trailer or Fav (no trailer) → Back
-        setState(() { _isBackFocused = true; _selectedButton = -1; });
+        setState(() {
+          _isBackFocused = true;
+          _selectedButton = -1;
+        });
       }
       return KeyEventResult.handled;
     }
@@ -99,7 +105,10 @@ class _MovieContentState extends State<MovieContent> {
     if (k == LogicalKeyboardKey.arrowDown) {
       if (_isBackFocused) {
         // Back → Trailer (if exists) else Fav
-        setState(() { _isBackFocused = false; _selectedButton = 1; });
+        setState(() {
+          _isBackFocused = false;
+          _selectedButton = 1;
+        });
       } else if (_selectedButton == 1 && _hasTrailer) {
         // Trailer → Fav
         setState(() => _selectedButton = 2);
@@ -118,7 +127,10 @@ class _MovieContentState extends State<MovieContent> {
     if (k == LogicalKeyboardKey.arrowRight) {
       if (_isBackFocused || _selectedButton > 0) {
         // Any left column item → PLAY
-        setState(() { _isBackFocused = false; _selectedButton = 0; });
+        setState(() {
+          _isBackFocused = false;
+          _selectedButton = 0;
+        });
       }
       return KeyEventResult.handled;
     }
@@ -182,6 +194,7 @@ class _MovieContentState extends State<MovieContent> {
               ? _movieDetail!.info!.backdropPath!.first
               : null,
           trailer: _movieDetail!.info!.youtubeTrailer ?? "",
+          title: widget.channelMovie.name,
         ),
       );
     } else {
@@ -208,13 +221,12 @@ class _MovieContentState extends State<MovieContent> {
           future: _future,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return _DetailsLoadingState(title: widget.channelMovie.name ?? '');
+              return _DetailsLoadingState(
+                title: widget.channelMovie.name ?? '',
+              );
             }
             if (!snapshot.hasData) {
-              return _DetailsErrorState(
-                onBack: Get.back,
-                onReload: _reload,
-              );
+              return _DetailsErrorState(onBack: Get.back, onReload: _reload);
             }
 
             final movie = snapshot.data!;

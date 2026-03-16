@@ -269,6 +269,7 @@ class _SerieContentState extends State<SerieContent> {
               ? _serieDetails!.info!.backdropPath!.first
               : null,
           trailer: _serieDetails!.info!.youtubeTrailer ?? "",
+          title: _serieDetails!.info?.name ?? widget.channelSerie.name,
         ),
       );
     } else {

@@ -1,21 +1,32 @@
 part of 'widgets.dart';
 
 class DialogTrailerYoutube extends StatefulWidget {
-  const DialogTrailerYoutube({super.key, required this.trailer, this.thumb});
+  const DialogTrailerYoutube({
+    super.key,
+    required this.trailer,
+    this.thumb,
+    this.title,
+  });
+
   final String trailer;
   final String? thumb;
+  final String? title;
 
   @override
   State<DialogTrailerYoutube> createState() => _DialogTrailerYoutubeState();
 }
 
 class _DialogTrailerYoutubeState extends State<DialogTrailerYoutube> {
-  late final PodPlayerController controller;
+  late final PodPlayerController _controller;
+  final _focusNode = FocusNode();
+
+  // 0 = play/pause, 1 = close
+  int _focusedBtn = 0;
 
   @override
   void initState() {
     super.initState();
-    controller = PodPlayerController(
+    _controller = PodPlayerController(
       playVideoFrom: PlayVideoFrom.youtube(
         'https://youtu.be/${widget.trailer}',
       ),
@@ -28,72 +39,293 @@ class _DialogTrailerYoutubeState extends State<DialogTrailerYoutube> {
 
   @override
   void dispose() {
-    controller.dispose();
+    _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
+  }
+
+  KeyEventResult _onKey(FocusNode _, KeyEvent e) {
+    if (e is! KeyDownEvent) return KeyEventResult.ignored;
+    final k = e.logicalKey;
+
+    if (k == LogicalKeyboardKey.arrowLeft) {
+      if (_focusedBtn > 0) setState(() => _focusedBtn--);
+      return KeyEventResult.handled;
+    }
+    if (k == LogicalKeyboardKey.arrowRight) {
+      if (_focusedBtn < 1) setState(() => _focusedBtn++);
+      return KeyEventResult.handled;
+    }
+    if (k == LogicalKeyboardKey.select ||
+        k == LogicalKeyboardKey.enter ||
+        k == LogicalKeyboardKey.gameButtonA) {
+      if (_focusedBtn == 0) {
+        _togglePlay();
+      } else {
+        Get.back();
+      }
+      return KeyEventResult.handled;
+    }
+    if (k == LogicalKeyboardKey.escape) {
+      Get.back();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  void _togglePlay() {
+    setState(() {
+      if (_controller.isVideoPlaying) {
+        _controller.pause();
+      } else {
+        _controller.play();
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      contentPadding: const EdgeInsets.all(0),
-      content: Ink(
-        decoration: kDecorBackground,
-        padding: const EdgeInsets.all(5),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: PodVideoPlayer(
-                controller: controller,
-                //onToggleFullScreen: (value) async {},
-                alwaysShowProgressBar: false,
-                onToggleFullScreen: (value) async {
-                  if (!value) {
-                    SystemChrome.setPreferredOrientations([
-                      DeviceOrientation.landscapeLeft,
-                      DeviceOrientation.landscapeRight,
-                    ]);
-                  }
-                  return;
-                },
-                podProgressBarConfig: const PodProgressBarConfig(
-                  alwaysVisibleCircleHandler: false,
-                  circleHandlerColor: kColorPrimary,
-                  playingBarColor: kColorPrimary,
-                ),
-                videoThumbnail: widget.thumb == null
-                    ? null
-                    : DecorationImage(
-                        image: NetworkImage(widget.thumb ?? ""),
-                        fit: BoxFit.cover,
-                      ),
+    final isPlaying = _controller.isVideoPlaying;
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
+      child: Focus(
+        focusNode: _focusNode,
+        autofocus: true,
+        onKeyEvent: _onKey,
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF0E0E14),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.7),
+                blurRadius: 40,
+                spreadRadius: 8,
               ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                CardButtonWatchMovie(
-                  isFocused: true,
-                  title: "Exit",
-                  onTap: () => Get.back(),
+                // ── Header ───────────────────────────────────────────
+                Container(
+                  height: 48,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.04),
+                    border: Border(
+                      bottom: BorderSide(color: Colors.white.withValues(alpha: 0.07)),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      // Trailer pill
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              kColorPrimary.withValues(alpha: 0.18),
+                              kColorPrimaryDark.withValues(alpha: 0.08),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: kColorPrimary.withValues(alpha: 0.35),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              FontAwesomeIcons.youtube,
+                              size: 12,
+                              color: kColorPrimary,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'TRAILER',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (widget.title != null) ...[
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            widget.title!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.5),
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ] else
+                        const Spacer(),
+                      // Close button
+                      GestureDetector(
+                        onTap: Get.back,
+                        child: Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.07),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
+                          ),
+                          child: const Icon(
+                            FontAwesomeIcons.xmark,
+                            color: Colors.white54,
+                            size: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(width: 15),
-                CardButtonWatchMovie(
-                  title: controller.isVideoPlaying ? "Pause" : "Play",
-                  onTap: () {
-                    setState(() {
-                      if (controller.isVideoPlaying) {
-                        controller.pause();
-                      } else {
-                        controller.play();
+
+                // ── Video player ──────────────────────────────────────
+                SizedBox(
+                  height: 200,
+                  child: PodVideoPlayer(
+                    controller: _controller,
+                    alwaysShowProgressBar: false,
+                    onToggleFullScreen: (value) async {
+                      if (!value) {
+                        SystemChrome.setPreferredOrientations([
+                          DeviceOrientation.landscapeLeft,
+                          DeviceOrientation.landscapeRight,
+                        ]);
                       }
-                    });
-                  },
+                    },
+                    podProgressBarConfig: const PodProgressBarConfig(
+                      alwaysVisibleCircleHandler: false,
+                      circleHandlerColor: kColorPrimary,
+                      playingBarColor: kColorPrimary,
+                    ),
+                    videoThumbnail: widget.thumb == null
+                        ? null
+                        : DecorationImage(
+                            image: NetworkImage(widget.thumb!),
+                            fit: BoxFit.cover,
+                          ),
+                  ),
+                ),
+
+                // ── Bottom controls ───────────────────────────────────
+                Container(
+                  height: 56,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.04),
+                    border: Border(
+                      top: BorderSide(color: Colors.white.withValues(alpha: 0.07)),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Play / Pause
+                      _DialogBtn(
+                        icon: isPlaying
+                            ? FontAwesomeIcons.pause
+                            : FontAwesomeIcons.play,
+                        label: isPlaying ? 'Pause' : 'Play',
+                        isFocused: _focusedBtn == 0,
+                        isPrimary: true,
+                        onTap: _togglePlay,
+                      ),
+                      const SizedBox(width: 12),
+                      // Close
+                      _DialogBtn(
+                        icon: FontAwesomeIcons.xmark,
+                        label: 'Close',
+                        isFocused: _focusedBtn == 1,
+                        isPrimary: false,
+                        onTap: Get.back,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 5),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Dialog action button ──────────────────────────────────────────────────────
+
+class _DialogBtn extends StatelessWidget {
+  const _DialogBtn({
+    required this.icon,
+    required this.label,
+    required this.isFocused,
+    required this.isPrimary,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool isFocused;
+  final bool isPrimary;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isPrimary ? kColorPrimary : Colors.white38;
+    final focusColor = isPrimary ? kColorFocus : Colors.white54;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+        decoration: BoxDecoration(
+          color: isFocused
+              ? (isPrimary ? kColorPrimary : Colors.white.withValues(alpha: 0.1))
+              : Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isFocused ? focusColor : Colors.white.withValues(alpha: 0.08),
+            width: isFocused ? 1.5 : 1,
+          ),
+          boxShadow: isFocused
+              ? [BoxShadow(color: focusColor.withValues(alpha: 0.3), blurRadius: 8)]
+              : [],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 12,
+              color: isFocused ? Colors.white : color,
+            ),
+            const SizedBox(width: 7),
+            Text(
+              label,
+              style: TextStyle(
+                color: isFocused ? Colors.white : color,
+                fontSize: 12,
+                fontWeight: isFocused ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
           ],
         ),
       ),
