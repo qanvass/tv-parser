@@ -22,14 +22,16 @@ class _SeriesCategoriesScreenState extends State<SeriesCategoriesScreen> {
 
   bool _appbarActive = false;
   int _appbarIdx = 0;
-  static const int _appbarBtnMax = 1;
+  int get _appbarBtnMax => _showSearch ? 2 : 1;
 
   final _catScroll = ScrollController();
   final _gridScroll = ScrollController();
   final _navFocus = FocusNode();
 
   bool _showSearch = false;
-  final _searchCtrl = TextEditingController();
+  bool _isSearchEditing = false;
+  bool _keepSearchOnFocusLoss = false;
+  final _searchCtrl = NativeTextFieldController();
   final _searchFocus = FocusNode();
 
   @override
@@ -44,13 +46,42 @@ class _SeriesCategoriesScreenState extends State<SeriesCategoriesScreen> {
 
   void _onSearchFocusChange() {
     if (!_searchFocus.hasFocus && mounted) {
+      if (_keepSearchOnFocusLoss) {
+        _keepSearchOnFocusLoss = false;
+        return;
+      }
       _searchCtrl.clear();
       setState(() {
         _showSearch = false;
+        _isSearchEditing = false;
         _serieSearch = '';
       });
       _navFocus.requestFocus();
     }
+  }
+
+  void _onSearchSubmitted(String _) {
+    _keepSearchOnFocusLoss = true;
+    setState(() {
+      _isSearchEditing = false;
+      _appbarActive = false;
+    });
+    _navFocus.requestFocus();
+  }
+
+  void _activateSearchInput() {
+    setState(() => _isSearchEditing = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _searchFocus.requestFocus();
+    });
+  }
+
+  void _openSearch() {
+    setState(() {
+      _showSearch = true;
+      _appbarActive = true;
+      _appbarIdx = 1;
+    });
   }
 
   void _initCats(List<CategoryModel> cats) {
@@ -142,11 +173,15 @@ class _SeriesCategoriesScreenState extends State<SeriesCategoriesScreen> {
   void _onAppbarSelect() {
     if (_appbarIdx == 0) { Get.back(); return; }
     if (_showSearch) {
-      _searchCtrl.clear();
-      setState(() { _serieSearch = ''; _showSearch = false; _appbarActive = false; });
-      _navFocus.requestFocus();
+      if (_appbarIdx == 1) {
+        _activateSearchInput();
+      } else {
+        _searchCtrl.clear();
+        setState(() { _serieSearch = ''; _showSearch = false; _isSearchEditing = false; _appbarActive = false; });
+        _navFocus.requestFocus();
+      }
     } else {
-      setState(() { _showSearch = true; _appbarActive = false; });
+      _openSearch();
     }
   }
 
@@ -335,14 +370,17 @@ class _SeriesCategoriesScreenState extends State<SeriesCategoriesScreen> {
       onBack: Get.back,
       focusedIndex: _appbarActive ? _appbarIdx : null,
       showSearch: _showSearch,
+      isSearchEditing: _isSearchEditing,
       searchHint: 'Search series...',
       searchController: _searchCtrl,
       searchFocus: _searchFocus,
       onSearchChanged: (v) => setState(() => _serieSearch = v.toLowerCase()),
-      onSearchToggle: () => setState(() => _showSearch = true),
+      onSearchToggle: _openSearch,
+      onSearchActivate: _activateSearchInput,
+      onSearchSubmitted: _onSearchSubmitted,
       onSearchClose: () {
         _searchCtrl.clear();
-        setState(() { _serieSearch = ''; _showSearch = false; });
+        setState(() { _serieSearch = ''; _showSearch = false; _isSearchEditing = false; });
         _navFocus.requestFocus();
       },
     );

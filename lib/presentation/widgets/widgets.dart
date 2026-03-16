@@ -10,6 +10,7 @@ import 'package:get/get.dart';
 import 'package:pod_player/pod_player.dart';
 import 'package:readmore/readmore.dart';
 import 'package:responsive_sizer/responsive_sizer.dart';
+import 'package:android_tv_text_field/native_textfield_tv.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 
 import '../../helpers/helpers.dart';

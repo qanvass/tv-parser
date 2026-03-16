@@ -43,8 +43,8 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
   // ── Appbar focus ──────────────────────────────────────────────────────────
   bool _appbarActive = false;
   int _appbarIdx = 0;
-  // back=0, fav=1 (if channel selected), search=1 or 2
-  int get _appbarBtnMax => _showSearch ? 1 : (_selCh != null ? 2 : 1);
+  // search mode: back=0, input=1, close=2 | normal: back=0, fav=1, search=2
+  int get _appbarBtnMax => _showSearch ? 2 : (_selCh != null ? 2 : 1);
 
   // ── Scroll / focus ────────────────────────────────────────────────────────
   final _catScroll = ScrollController();
@@ -53,7 +53,9 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
 
   // ── Search (appbar) ───────────────────────────────────────────────────────
   bool _showSearch = false;
-  final _searchCtrl = TextEditingController();
+  bool _isSearchEditing = false;
+  bool _keepSearchOnFocusLoss = false;
+  final _searchCtrl = NativeTextFieldController();
   final _searchFocus = FocusNode();
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -70,9 +72,40 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
 
   void _onSearchFocusChange() {
     if (!_searchFocus.hasFocus && mounted) {
-      setState(() => _showSearch = false);
+      if (_keepSearchOnFocusLoss) {
+        _keepSearchOnFocusLoss = false;
+        return; // Done pressed — keep search visible, focus on items
+      }
+      setState(() {
+        _showSearch = false;
+        _isSearchEditing = false;
+      });
       _navFocus.requestFocus();
     }
+  }
+
+  void _onSearchSubmitted(String _) {
+    _keepSearchOnFocusLoss = true;
+    setState(() {
+      _isSearchEditing = false;
+      _appbarActive = false;
+    });
+    _navFocus.requestFocus();
+  }
+
+  void _activateSearchInput() {
+    setState(() => _isSearchEditing = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _searchFocus.requestFocus();
+    });
+  }
+
+  void _openSearch() {
+    setState(() {
+      _showSearch = true;
+      _appbarActive = true;
+      _appbarIdx = 1; // land D-pad on the input field
+    });
   }
 
   void _initCats(List<CategoryModel> cats) {
@@ -247,18 +280,21 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
   }
 
   void _onAppbarSelect() {
-    if (_appbarIdx == 0) {
-      Get.back();
-      return;
-    }
+    if (_appbarIdx == 0) { Get.back(); return; }
     if (_showSearch) {
-      _searchCtrl.clear();
-      setState(() {
-        _chSearch = '';
-        _showSearch = false;
-        _appbarActive = false;
-      });
-      _navFocus.requestFocus();
+      if (_appbarIdx == 1) {
+        _activateSearchInput(); // focus on input → open keyboard
+      } else {
+        // idx == 2: close search
+        _searchCtrl.clear();
+        setState(() {
+          _chSearch = '';
+          _showSearch = false;
+          _isSearchEditing = false;
+          _appbarActive = false;
+        });
+        _navFocus.requestFocus();
+      }
       return;
     }
     if (_selCh != null && _appbarIdx == 1) {
@@ -266,10 +302,7 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
       final liked = favState.lives.any((l) => l.streamId == _selCh!.streamId);
       context.read<FavoritesCubit>().addLive(_selCh, isAdd: !liked);
     } else {
-      setState(() {
-        _showSearch = true;
-        _appbarActive = false;
-      });
+      _openSearch();
     }
   }
 
@@ -544,16 +577,20 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
       onBack: Get.back,
       focusedIndex: _appbarActive ? _appbarIdx : null,
       showSearch: _showSearch,
+      isSearchEditing: _isSearchEditing,
       searchHint: 'Search channels...',
       searchController: _searchCtrl,
       searchFocus: _searchFocus,
       onSearchChanged: (v) => setState(() => _chSearch = v.toLowerCase()),
-      onSearchToggle: () => setState(() => _showSearch = true),
+      onSearchToggle: _openSearch,
+      onSearchActivate: _activateSearchInput,
+      onSearchSubmitted: _onSearchSubmitted,
       onSearchClose: () {
         _searchCtrl.clear();
         setState(() {
           _chSearch = '';
           _showSearch = false;
+          _isSearchEditing = false;
         });
         _navFocus.requestFocus();
       },

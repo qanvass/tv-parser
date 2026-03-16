@@ -17,12 +17,15 @@ class IptvAppBar extends StatelessWidget {
     this.focusedIndex,
     // Search
     this.showSearch = false,
+    this.isSearchEditing = false,
     this.searchHint = 'Search...',
     this.searchController,
     this.searchFocus,
     this.onSearchChanged,
+    this.onSearchSubmitted,
     this.onSearchToggle,
     this.onSearchClose,
+    this.onSearchActivate,
     // Extra right-side widgets
     this.trailing = const [],
   });
@@ -33,12 +36,19 @@ class IptvAppBar extends StatelessWidget {
   final int? focusedIndex;
 
   final bool showSearch;
+
+  /// TV only: true while the native keyboard is open for the search field.
+  final bool isSearchEditing;
   final String searchHint;
-  final TextEditingController? searchController;
+  final NativeTextFieldController? searchController;
   final FocusNode? searchFocus;
   final ValueChanged<String>? onSearchChanged;
+  final ValueChanged<String>? onSearchSubmitted;
   final VoidCallback? onSearchToggle;
   final VoidCallback? onSearchClose;
+
+  /// TV only: called when user presses OK on the focused (but not yet open) input.
+  final VoidCallback? onSearchActivate;
 
   final List<Widget> trailing;
 
@@ -52,7 +62,7 @@ class IptvAppBar extends StatelessWidget {
         // border: Border(bottom: BorderSide(color: Color(0x18FFFFFF), width: 1)),
       ),
       // padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: showSearch ? _buildSearchMode() : _buildNormalMode(),
+      child: showSearch ? _buildSearchMode(context) : _buildNormalMode(),
     );
   }
 
@@ -114,7 +124,122 @@ class IptvAppBar extends StatelessWidget {
     );
   }
 
-  Widget _buildSearchMode() {
+  Widget _buildSearchMode(BuildContext context) {
+    final tv = isTv(context);
+
+    // Bridge native→Flutter focus so back-key keyboard dismiss
+    // triggers the screen's _onSearchFocusChange.
+    if (tv) {
+      searchController?.onFocusChanged = (hasFocus) {
+        if (!hasFocus) searchFocus?.unfocus();
+      };
+    }
+
+    // ── TV: same pattern as register_tv ─────────────────────────────────────
+    if (tv) {
+      final inputFocused = focusedIndex == 1;
+
+      // When editing: use AndroidTVTextField (has focus→native bridge + explicit size)
+      // When not editing: show styled read-only container with hint/text
+      Widget inputSection;
+      if (isSearchEditing) {
+        inputSection = SizedBox(
+          height: 38,
+          child: AndroidTVTextField(
+            controller: searchController ?? NativeTextFieldController(),
+            focusNode: searchFocus ?? FocusNode(),
+            height: 38,
+            hint: searchHint,
+            onSubmitted: onSearchSubmitted,
+            backgroundColor: Colors.white.withValues(alpha: 0.06),
+            textColor: Colors.white,
+            focuesedBorderColor: kColorFocus,
+            unFocuesedBorderColor: kColorPrimary.withValues(alpha: 0.5),
+          ),
+        );
+      } else {
+        inputSection = GestureDetector(
+          onTap: onSearchActivate,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            height: 38,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: inputFocused
+                    ? kColorFocus
+                    : kColorPrimary.withValues(alpha: 0.5),
+                width: inputFocused ? 2.0 : 1.0,
+              ),
+              boxShadow: inputFocused
+                  ? [
+                      BoxShadow(
+                        color: kColorFocus.withValues(alpha: .25),
+                        blurRadius: 8,
+                      ),
+                    ]
+                  : [],
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Row(
+              children: [
+                Icon(
+                  FontAwesomeIcons.magnifyingGlass,
+                  size: 13,
+                  color: kColorPrimary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ValueListenableBuilder(
+                    valueListenable:
+                        searchController ?? NativeTextFieldController(),
+                    builder: (_, value, __) {
+                      final text = value.text;
+                      return Text(
+                        text.isEmpty ? searchHint : text,
+                        style: TextStyle(
+                          color: text.isEmpty
+                              ? Colors.white.withValues(alpha: 0.35)
+                              : Colors.white,
+                          fontSize: text.isEmpty ? 11 : 13,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: 15),
+        child: Row(
+          spacing: 10,
+          children: [
+            _AppBarBtn(
+              icon: FontAwesomeIcons.chevronLeft,
+              onTap: onBack ?? Get.back,
+              isFocused: focusedIndex == 0,
+            ),
+            const Spacer(),
+
+            SizedBox(width: context.width * .3, child: inputSection),
+
+            _AppBarBtn(
+              icon: FontAwesomeIcons.xmark,
+              onTap: onSearchClose ?? () {},
+              isFocused: focusedIndex == 2,
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ── Mobile: original layout ─────────────────────────────────────────────
     return Row(
       children: [
         _AppBarBtn(
@@ -149,6 +274,8 @@ class IptvAppBar extends StatelessWidget {
                     focusNode: searchFocus,
                     autofocus: true,
                     onChanged: onSearchChanged,
+                    onSubmitted: onSearchSubmitted,
+                    textInputAction: TextInputAction.search,
                     style: const TextStyle(color: Colors.white, fontSize: 14),
                     decoration: InputDecoration(
                       hintText: searchHint,
