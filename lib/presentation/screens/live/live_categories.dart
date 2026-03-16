@@ -97,13 +97,17 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
     final url =
         '${user!.serverInfo!.serverUrl}/${user.userInfo!.username}/${user.userInfo!.password}/${ch.streamId}';
 
-    try {
-      _player?.pause();
-      _player?.stop();
-    } catch (_) {}
+    // Reuse existing controller — swap stream in-place so VlcPlayer stays in tree
+    if (_player != null && _player!.value.isInitialized) {
+      try {
+        await _player!.setMediaFromNetwork(url, autoPlay: true, hwAcc: HwAcc.full);
+        if (mounted) setState(() { _selCh = ch; _chIdx = idx; });
+        return;
+      } catch (_) {}
+    }
 
-    await Future.delayed(const Duration(milliseconds: 200));
-
+    // First launch or fallback: create a fresh controller
+    final old = _player;
     final ctrl = VlcPlayerController.network(
       url,
       hwAcc: HwAcc.full,
@@ -122,6 +126,12 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
         _selCh = ch;
         _chIdx = idx;
       });
+    }
+
+    // Dispose old after state is updated (VlcPlayer has already detached from it)
+    if (old != null) {
+      old.stopRendererScanning().catchError((_) {});
+      old.dispose();
     }
   }
 
@@ -926,9 +936,10 @@ class _EpgPanel extends StatelessWidget {
   }
 }
 
-// ─── Fullscreen Controls Overlay (NO VlcPlayer — video stays in _PlayerPanel) ─
-// Listens to controller via addListener for isBuffering / isPlaying state.
-// Controls auto-hide after 4 s; tap anywhere to toggle.
+// ─── Fullscreen Controls Overlay ──────────────────────────────────────────────
+// Tap anywhere → toggle controls.  D-pad navigates buttons.
+// Top row:    [Back]  [channel icon + name]  [LIVE]  [SUB badge]  [AUD badge]
+// Bottom row: [-10s (VOD)]  [▶/⏸]  [slider (VOD)]  [⊞ exit]
 
 class _LiveFullscreenControls extends StatefulWidget {
   const _LiveFullscreenControls({
@@ -942,8 +953,7 @@ class _LiveFullscreenControls extends StatefulWidget {
   final VoidCallback onClose;
 
   @override
-  State<_LiveFullscreenControls> createState() =>
-      _LiveFullscreenControlsState();
+  State<_LiveFullscreenControls> createState() => _LiveFullscreenControlsState();
 }
 
 class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
@@ -952,12 +962,40 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
   bool _isBuffering = true;
   Timer? _hideTimer;
 
+  // Tracks
+  Map<int, String> _audioTracks = {};
+  Map<int, String> _subtitleTracks = {};
+  bool _tracksLoaded = false;
+
+  // Track panel: null=closed, 'sub'|'audio'=open
+  String? _trackPanel;
+  int _trackPanelIdx = 0;
+  List<MapEntry<int, String>> get _trackList => _trackPanel == 'sub'
+      ? _subtitleTracks.entries.toList()
+      : _audioTracks.entries.toList();
+
+  // Position
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+  bool get _isLive => _duration.inSeconds < 5;
+
+  // D-pad focus
+  // Row 0 (top):    0=back, 1=sub, 2=audio
+  // Row 1 (bottom): live=[0=play,1=exit]  vod=[0=rewind,1=play,2=exit]
+  int _focusRow = 1;
+  int _focusCol = 0; // default: play
+
+  final _focusNode = FocusNode();
+
+  // ── Lifecycle ─────────────────────────────────────────────────────────────
+
   @override
   void initState() {
     super.initState();
     widget.controller.addListener(_onVlc);
     _syncState();
     _scheduleHide();
+    _loadTracks();
   }
 
   @override
@@ -967,6 +1005,10 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
       old.controller.removeListener(_onVlc);
       widget.controller.addListener(_onVlc);
       _syncState();
+      _tracksLoaded = false;
+      _audioTracks = {};
+      _subtitleTracks = {};
+      _loadTracks();
     }
   }
 
@@ -974,6 +1016,7 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
   void dispose() {
     widget.controller.removeListener(_onVlc);
     _hideTimer?.cancel();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -981,6 +1024,8 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
     final v = widget.controller.value;
     _isPlaying = v.isPlaying;
     _isBuffering = !v.isInitialized || v.isBuffering;
+    _position = v.position;
+    _duration = v.duration;
   }
 
   void _onVlc() {
@@ -989,20 +1034,54 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
     setState(() {
       _isPlaying = v.isPlaying;
       _isBuffering = !v.isInitialized || v.isBuffering;
+      _position = v.position;
+      _duration = v.duration;
     });
+    if (v.isInitialized && !_tracksLoaded) {
+      _tracksLoaded = true;
+      _loadTracks();
+    }
   }
+
+  Future<void> _loadTracks() async {
+    if (!widget.controller.value.isInitialized) return;
+    try {
+      final audio = await widget.controller.getAudioTracks();
+      final sub = await widget.controller.getSpuTracks();
+      if (mounted) {
+        setState(() {
+          _audioTracks = audio;
+          _subtitleTracks = sub;
+        });
+      }
+    } catch (_) {}
+  }
+
+  // ── Timers ────────────────────────────────────────────────────────────────
 
   void _scheduleHide() {
     _hideTimer?.cancel();
-    _hideTimer = Timer(const Duration(seconds: 4), () {
+    if (_trackPanel != null) return;
+    _hideTimer = Timer(const Duration(seconds: 5), () {
       if (mounted) setState(() => _showControls = false);
     });
   }
 
-  void _onTap() {
-    setState(() => _showControls = !_showControls);
-    if (_showControls) _scheduleHide();
+  void _showAndReschedule() {
+    setState(() => _showControls = true);
+    _scheduleHide();
   }
+
+  void _onTap() {
+    if (_showControls) {
+      _hideTimer?.cancel();
+      setState(() => _showControls = false);
+    } else {
+      _showAndReschedule();
+    }
+  }
+
+  // ── Actions ───────────────────────────────────────────────────────────────
 
   void _togglePlay() {
     if (_isPlaying) {
@@ -1013,171 +1092,542 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
     _scheduleHide();
   }
 
+  Future<void> _rewind10s() async {
+    try {
+      final target = _position - const Duration(seconds: 10);
+      await widget.controller.seekTo(target < Duration.zero ? Duration.zero : target);
+    } catch (_) {}
+    _scheduleHide();
+  }
+
+  void _openTrackPanel(String type) {
+    setState(() { _trackPanel = type; _trackPanelIdx = 0; });
+    _hideTimer?.cancel();
+  }
+
+  void _selectTrack(int trackId) {
+    try {
+      if (_trackPanel == 'sub') {
+        widget.controller.setSpuTrack(trackId);
+      } else {
+        widget.controller.setAudioTrack(trackId);
+      }
+    } catch (_) {}
+    setState(() => _trackPanel = null);
+    _scheduleHide();
+  }
+
+  // ── D-pad navigation ──────────────────────────────────────────────────────
+
+  int get _bottomMax => _isLive ? 1 : 2;
+
+  bool _isFocused(int row, int col) =>
+      _showControls && _focusRow == row && _focusCol == col;
+
+  // bottom col → logical action
+  String _bottomAction(int col) {
+    if (_isLive) return col == 0 ? 'play' : 'exit';
+    return ['rewind', 'play', 'exit'][col];
+  }
+
+  void _activateFocused() {
+    if (_focusRow == 0) {
+      switch (_focusCol) {
+        case 0: widget.onClose();
+        case 1:
+          if (_subtitleTracks.isNotEmpty) _openTrackPanel('sub');
+        case 2:
+          if (_audioTracks.isNotEmpty) _openTrackPanel('audio');
+      }
+    } else {
+      switch (_bottomAction(_focusCol)) {
+        case 'rewind': _rewind10s();
+        case 'play': _togglePlay();
+        case 'exit': widget.onClose();
+      }
+    }
+  }
+
+  KeyEventResult _onKey(FocusNode _, KeyEvent e) {
+    if (e is! KeyDownEvent) return KeyEventResult.ignored;
+    final k = e.logicalKey;
+
+    // Track panel open → navigate it
+    if (_trackPanel != null) {
+      if (k == LogicalKeyboardKey.arrowUp) {
+        if (_trackPanelIdx > 0) setState(() => _trackPanelIdx--);
+      } else if (k == LogicalKeyboardKey.arrowDown) {
+        if (_trackPanelIdx < _trackList.length - 1) setState(() => _trackPanelIdx++);
+      } else if (k == LogicalKeyboardKey.select ||
+          k == LogicalKeyboardKey.enter ||
+          k == LogicalKeyboardKey.gameButtonA) {
+        if (_trackList.isNotEmpty) _selectTrack(_trackList[_trackPanelIdx].key);
+      } else if (k == LogicalKeyboardKey.escape || k == LogicalKeyboardKey.arrowLeft) {
+        setState(() => _trackPanel = null);
+        _scheduleHide();
+      }
+      return KeyEventResult.handled;
+    }
+
+    // Controls hidden → any key shows them
+    if (!_showControls) {
+      _showAndReschedule();
+      return KeyEventResult.handled;
+    }
+
+    if (k == LogicalKeyboardKey.arrowUp) {
+      if (_focusRow == 1) setState(() { _focusRow = 0; _focusCol = _focusCol.clamp(0, 2); });
+      _scheduleHide();
+    } else if (k == LogicalKeyboardKey.arrowDown) {
+      if (_focusRow == 0) setState(() { _focusRow = 1; _focusCol = _focusCol.clamp(0, _bottomMax); });
+      _scheduleHide();
+    } else if (k == LogicalKeyboardKey.arrowLeft) {
+      if (_focusCol > 0) setState(() => _focusCol--);
+      _scheduleHide();
+    } else if (k == LogicalKeyboardKey.arrowRight) {
+      final max = _focusRow == 0 ? 2 : _bottomMax;
+      if (_focusCol < max) setState(() => _focusCol++);
+      _scheduleHide();
+    } else if (k == LogicalKeyboardKey.select ||
+        k == LogicalKeyboardKey.enter ||
+        k == LogicalKeyboardKey.gameButtonA) {
+      _activateFocused();
+    } else if (k == LogicalKeyboardKey.escape) {
+      widget.onClose();
+    }
+    return KeyEventResult.handled;
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: _onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Stack(
-        children: [
-          // Buffering spinner (always visible when buffering)
-          if (_isBuffering)
-            const Center(
-              child: CircularProgressIndicator(
-                color: Colors.white,
-                strokeWidth: 2.5,
+    return Focus(
+      focusNode: _focusNode,
+      autofocus: true,
+      onKeyEvent: _onKey,
+      child: GestureDetector(
+        onTap: _onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Stack(
+          children: [
+            // Buffering spinner
+            if (_isBuffering)
+              const Center(
+                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+              ),
+
+            // Controls overlay
+            AnimatedOpacity(
+              opacity: _showControls ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 250),
+              child: IgnorePointer(
+                ignoring: !_showControls,
+                child: DecoratedBox(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0xCC000000),
+                        Colors.transparent,
+                        Colors.transparent,
+                        Color(0xCC000000),
+                      ],
+                      stops: [0.0, 0.25, 0.75, 1.0],
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      _buildTopBar(),
+                      const Spacer(),
+                      _buildBottomBar(),
+                    ],
+                  ),
+                ),
               ),
             ),
 
-          // Controls (auto-hide)
-          AnimatedOpacity(
-            opacity: _showControls ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 250),
-            child: IgnorePointer(
-              ignoring: !_showControls,
-              child: _buildControls(context),
-            ),
-          ),
-        ],
+            // Track selection panel
+            if (_trackPanel != null) _buildTrackPanel(),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildControls(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color(0xCC000000),
-            Colors.transparent,
-            Colors.transparent,
-            Color(0xAA000000),
+  // ── Top bar ───────────────────────────────────────────────────────────────
+
+  Widget _buildTopBar() {
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            // Back / exit fullscreen
+            _FsBtn(
+              icon: FontAwesomeIcons.chevronDown,
+              label: 'Back',
+              isFocused: _isFocused(0, 0),
+              onTap: widget.onClose,
+            ),
+            const SizedBox(width: 8),
+
+            // Channel icon
+            if (widget.channel.streamIcon != null && widget.channel.streamIcon!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: CachedNetworkImage(
+                  imageUrl: widget.channel.streamIcon!,
+                  width: 28,
+                  height: 28,
+                  fit: BoxFit.contain,
+                  errorWidget: (_, __, ___) => const SizedBox(),
+                ),
+              ),
+
+            // Channel name
+            Expanded(
+              child: Text(
+                widget.channel.name ?? '',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+
+            // LIVE badge
+            Container(
+              margin: const EdgeInsets.only(left: 8, right: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: Colors.red,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Text(
+                'LIVE',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1,
+                ),
+              ),
+            ),
+
+            // Subtitle tracks
+            _FsBtn(
+              icon: FontAwesomeIcons.closedCaptioning,
+              label: 'SUB',
+              badge: _subtitleTracks.isNotEmpty ? '${_subtitleTracks.length}' : null,
+              isFocused: _isFocused(0, 1),
+              isDisabled: _subtitleTracks.isEmpty,
+              onTap: () => _openTrackPanel('sub'),
+            ),
+            const SizedBox(width: 8),
+
+            // Audio tracks
+            _FsBtn(
+              icon: FontAwesomeIcons.volumeHigh,
+              label: 'AUD',
+              badge: _audioTracks.isNotEmpty ? '${_audioTracks.length}' : null,
+              isFocused: _isFocused(0, 2),
+              isDisabled: _audioTracks.isEmpty,
+              onTap: () => _openTrackPanel('audio'),
+            ),
           ],
-          stops: [0.0, 0.3, 0.7, 1.0],
         ),
       ),
-      child: Column(
-        children: [
-          // ── Top bar ───────────────────────────────────────────────
-          SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    );
+  }
+
+  // ── Bottom bar ────────────────────────────────────────────────────────────
+
+  Widget _buildBottomBar() {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            // Rewind 10 s (VOD only)
+            if (!_isLive) ...[
+              _FsBtn(
+                icon: FontAwesomeIcons.rotateLeft,
+                label: '-10s',
+                isFocused: _isFocused(1, 0),
+                onTap: _rewind10s,
+              ),
+              const SizedBox(width: 12),
+            ],
+
+            // Play / Pause
+            _FsBtn(
+              icon: _isPlaying ? FontAwesomeIcons.pause : FontAwesomeIcons.play,
+              label: _isPlaying ? 'Pause' : 'Play',
+              isFocused: _isFocused(1, _isLive ? 0 : 1),
+              isLarge: true,
+              onTap: _togglePlay,
+            ),
+            const SizedBox(width: 12),
+
+            // Progress slider (VOD only) / spacer for live
+            if (!_isLive) ...[
+              Expanded(child: _buildSlider()),
+              const SizedBox(width: 12),
+            ] else
+              const Spacer(),
+
+            // Exit fullscreen
+            _FsBtn(
+              icon: FontAwesomeIcons.compress,
+              label: 'Exit',
+              isFocused: _isFocused(1, _isLive ? 1 : 2),
+              onTap: widget.onClose,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSlider() {
+    final total = _duration.inMilliseconds;
+    final pos = total > 0 ? (_position.inMilliseconds / total).clamp(0.0, 1.0) : 0.0;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            activeTrackColor: kColorPrimary,
+            inactiveTrackColor: Colors.white24,
+            thumbColor: kColorFocus,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 0),
+            trackHeight: 3,
+          ),
+          child: Slider(
+            value: pos,
+            onChanged: (v) async {
+              try {
+                final target = Duration(milliseconds: (v * total).round());
+                await widget.controller.seekTo(target);
+              } catch (_) {}
+            },
+          ),
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(_fmt(_position), style: const TextStyle(color: Colors.white70, fontSize: 11)),
+            Text(_fmt(_duration), style: const TextStyle(color: Colors.white70, fontSize: 11)),
+          ],
+        ),
+      ],
+    );
+  }
+
+  String _fmt(Duration d) {
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return h > 0 ? '$h:$m:$s' : '$m:$s';
+  }
+
+  // ── Track selection panel ─────────────────────────────────────────────────
+
+  Widget _buildTrackPanel() {
+    final list = _trackList;
+    final isSubPanel = _trackPanel == 'sub';
+    return Positioned(
+      top: 72,
+      right: 16,
+      child: Container(
+        width: 220,
+        constraints: const BoxConstraints(maxHeight: 260),
+        decoration: BoxDecoration(
+          color: const Color(0xF0101018),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withValues(alpha: 0.6), blurRadius: 20),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Row(
                 children: [
-                  // Back (exit fullscreen)
-                  IconButton(
-                    onPressed: widget.onClose,
-                    icon: const Icon(
-                      FontAwesomeIcons.chevronDown,
+                  Icon(
+                    isSubPanel
+                        ? FontAwesomeIcons.closedCaptioning
+                        : FontAwesomeIcons.volumeHigh,
+                    size: 12,
+                    color: kColorPrimary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    isSubPanel ? 'SUBTITLES' : 'AUDIO TRACKS',
+                    style: const TextStyle(
                       color: Colors.white,
-                      size: 18,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.8,
                     ),
-                  ),
-                  const SizedBox(width: 4),
-
-                  // Channel icon
-                  if (widget.channel.streamIcon != null &&
-                      widget.channel.streamIcon!.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: CachedNetworkImage(
-                        imageUrl: widget.channel.streamIcon!,
-                        width: 28,
-                        height: 28,
-                        fit: BoxFit.contain,
-                        errorWidget: (_, __, ___) => const SizedBox(),
-                      ),
-                    ),
-
-                  // Channel name
-                  Expanded(
-                    child: Text(
-                      widget.channel.name ?? '',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-
-                  // LIVE badge
-                  Container(
-                    margin: const EdgeInsets.only(left: 10, right: 12),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Text(
-                      'LIVE',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                  ),
-
-                  // Favourite
-                  BlocBuilder<FavoritesCubit, FavoritesState>(
-                    builder: (context, state) {
-                      final liked = state.lives.any(
-                        (l) => l.streamId == widget.channel.streamId,
-                      );
-                      return IconButton(
-                        onPressed: () => context.read<FavoritesCubit>().addLive(
-                          widget.channel,
-                          isAdd: !liked,
-                        ),
-                        icon: Icon(
-                          liked
-                              ? FontAwesomeIcons.solidHeart
-                              : FontAwesomeIcons.heart,
-                          color: liked ? kColorPrimary : Colors.white,
-                          size: 18,
-                        ),
-                      );
-                    },
                   ),
                 ],
               ),
             ),
-          ),
+            Container(height: 1, color: Colors.white.withValues(alpha: 0.08)),
 
-          // ── Center play / pause ───────────────────────────────────
-          const Spacer(),
-          GestureDetector(
-            onTap: _togglePlay,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: .5),
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white54, width: 1.5),
-              ),
-              alignment: Alignment.center,
-              child: Icon(
-                _isPlaying ? FontAwesomeIcons.pause : FontAwesomeIcons.play,
-                color: Colors.white,
-                size: 26,
+            // Track list
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                itemCount: list.length,
+                itemBuilder: (_, i) {
+                  final focused = i == _trackPanelIdx;
+                  return GestureDetector(
+                    onTap: () => _selectTrack(list[i].key),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 100),
+                      margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                      decoration: BoxDecoration(
+                        color: focused
+                            ? kColorPrimary.withValues(alpha: 0.2)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: focused ? kColorFocus : Colors.transparent,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Text(
+                        list[i].value.isNotEmpty
+                            ? list[i].value
+                            : 'Track ${i + 1}',
+                        style: TextStyle(
+                          color: focused ? Colors.white : Colors.white70,
+                          fontSize: 12,
+                          fontWeight:
+                              focused ? FontWeight.w600 : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
-          ),
-          const Spacer(),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
-          // ── Bottom padding ────────────────────────────────────────
-          SafeArea(top: false, child: const SizedBox(height: 12)),
+// ─── Fullscreen control button ─────────────────────────────────────────────────
+
+class _FsBtn extends StatelessWidget {
+  const _FsBtn({
+    required this.icon,
+    required this.label,
+    required this.isFocused,
+    required this.onTap,
+    this.badge,
+    this.isDisabled = false,
+    this.isLarge = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool isFocused;
+  final VoidCallback onTap;
+  final String? badge;
+  final bool isDisabled;
+  final bool isLarge;
+
+  @override
+  Widget build(BuildContext context) {
+    final baseColor = isDisabled
+        ? Colors.white24
+        : isFocused
+        ? Colors.white
+        : Colors.white70;
+
+    return GestureDetector(
+      onTap: isDisabled ? null : onTap,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: EdgeInsets.symmetric(
+              horizontal: isLarge ? 16 : 12,
+              vertical: isLarge ? 10 : 8,
+            ),
+            decoration: BoxDecoration(
+              color: isFocused
+                  ? kColorPrimary.withValues(alpha: 0.35)
+                  : Colors.black.withValues(alpha: 0.45),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isFocused
+                    ? kColorFocus
+                    : Colors.white.withValues(alpha: isDisabled ? 0.1 : 0.2),
+                width: isFocused ? 1.5 : 1,
+              ),
+              boxShadow: isFocused
+                  ? [BoxShadow(color: kColorFocus.withValues(alpha: 0.35), blurRadius: 10)]
+                  : [],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 6,
+              children: [
+                Icon(icon, size: isLarge ? 18 : 14, color: baseColor),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: baseColor,
+                    fontSize: isLarge ? 13 : 11,
+                    fontWeight:
+                        isFocused ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (badge != null)
+            Positioned(
+              top: -7,
+              right: -7,
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: kColorPrimary,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.black, width: 1.5),
+                ),
+                child: Text(
+                  badge!,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
