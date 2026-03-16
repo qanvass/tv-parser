@@ -82,9 +82,7 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
       hwAcc: HwAcc.full,
       autoPlay: true,
       options: VlcPlayerOptions(
-        advanced: VlcAdvancedOptions([
-          VlcAdvancedOptions.networkCaching(2000),
-        ]),
+        advanced: VlcAdvancedOptions([VlcAdvancedOptions.networkCaching(2000)]),
       ),
     );
     _ctrl.addListener(_onVlc);
@@ -136,7 +134,11 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
     try {
       final audio = await _ctrl.getAudioTracks();
       final sub = await _ctrl.getSpuTracks();
-      if (mounted) setState(() { _audioTracks = audio; _subtitleTracks = sub; });
+      if (mounted)
+        setState(() {
+          _audioTracks = audio;
+          _subtitleTracks = sub;
+        });
     } catch (_) {}
   }
 
@@ -161,13 +163,17 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
   }
 
   void _togglePlay() {
-    if (_isPlaying) { _ctrl.pause(); } else { _ctrl.play(); }
+    if (_isPlaying) {
+      _ctrl.pause();
+    } else {
+      _ctrl.play();
+    }
     _scheduleHide();
   }
 
   Future<void> _rewind10s() async {
     try {
-      final t = _position - const Duration(seconds: 10);
+      final t = _position - const Duration(seconds: 30);
       await _ctrl.seekTo(t < Duration.zero ? Duration.zero : t);
     } catch (_) {}
     _scheduleHide();
@@ -175,7 +181,7 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
 
   Future<void> _forward10s() async {
     try {
-      final t = _position + const Duration(seconds: 10);
+      final t = _position + const Duration(seconds: 30);
       await _ctrl.seekTo(t > _duration ? _duration : t);
     } catch (_) {}
     _scheduleHide();
@@ -183,19 +189,28 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
 
   Future<void> _cycleAspect() async {
     final next = (_aspectIdx + 1) % _kVodAspects.length;
-    try { await _ctrl.setVideoAspectRatio(_kVodAspects[next]); } catch (_) {}
+    try {
+      await _ctrl.setVideoAspectRatio(_kVodAspects[next]);
+    } catch (_) {}
     if (mounted) setState(() => _aspectIdx = next);
     _scheduleHide();
   }
 
   void _openTrackPanel(String type) {
-    setState(() { _trackPanel = type; _trackPanelIdx = 0; });
+    setState(() {
+      _trackPanel = type;
+      _trackPanelIdx = 0;
+    });
     _hideTimer?.cancel();
   }
 
   void _selectTrack(int id) {
     try {
-      if (_trackPanel == 'sub') { _ctrl.setSpuTrack(id); } else { _ctrl.setAudioTrack(id); }
+      if (_trackPanel == 'sub') {
+        _ctrl.setSpuTrack(id);
+      } else {
+        _ctrl.setAudioTrack(id);
+      }
     } catch (_) {}
     setState(() => _trackPanel = null);
     _scheduleHide();
@@ -236,7 +251,11 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
       _aspectIdx = 0;
     });
     try {
-      await _ctrl.setMediaFromNetwork(newUrl, autoPlay: true, hwAcc: HwAcc.full);
+      await _ctrl.setMediaFromNetwork(
+        newUrl,
+        autoPlay: true,
+        hwAcc: HwAcc.full,
+      );
     } catch (_) {}
     _scheduleHide();
   }
@@ -262,10 +281,12 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
       if (k == LogicalKeyboardKey.arrowUp) {
         if (_trackPanelIdx > 0) setState(() => _trackPanelIdx--);
       } else if (k == LogicalKeyboardKey.arrowDown) {
-        if (_trackPanelIdx < _trackList.length - 1) setState(() => _trackPanelIdx++);
+        if (_trackPanelIdx < _trackList.length - 1)
+          setState(() => _trackPanelIdx++);
       } else if (_isSelectKey(k)) {
         if (_trackList.isNotEmpty) _selectTrack(_trackList[_trackPanelIdx].key);
-      } else if (k == LogicalKeyboardKey.escape || k == LogicalKeyboardKey.arrowLeft) {
+      } else if (k == LogicalKeyboardKey.escape ||
+          k == LogicalKeyboardKey.arrowLeft) {
         setState(() => _trackPanel = null);
         _scheduleHide();
       }
@@ -280,10 +301,18 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
     }
 
     if (k == LogicalKeyboardKey.arrowUp) {
-      if (_focusRow > 0) setState(() { _focusRow--; _focusCol = _focusCol.clamp(0, _maxColForRow(_focusRow)); });
+      if (_focusRow > 0)
+        setState(() {
+          _focusRow--;
+          _focusCol = _focusCol.clamp(0, _maxColForRow(_focusRow));
+        });
       _scheduleHide();
     } else if (k == LogicalKeyboardKey.arrowDown) {
-      if (_focusRow < 2) setState(() { _focusRow++; _focusCol = _focusCol.clamp(0, _maxColForRow(_focusRow)); });
+      if (_focusRow < 2)
+        setState(() {
+          _focusRow++;
+          _focusCol = _focusCol.clamp(0, _maxColForRow(_focusRow));
+        });
       _scheduleHide();
     } else if (k == LogicalKeyboardKey.arrowLeft) {
       if (_focusCol > 0) setState(() => _focusCol--);
@@ -302,21 +331,30 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
   void _activate() {
     if (_focusRow == 0) {
       switch (_focusCol) {
-        case 0: _goBack();
-        case 1: if (_subtitleTracks.isNotEmpty) _openTrackPanel('sub');
-        case 2: if (_audioTracks.isNotEmpty) _openTrackPanel('audio');
+        case 0:
+          _goBack();
+        case 1:
+          if (_subtitleTracks.isNotEmpty) _openTrackPanel('sub');
+        case 2:
+          if (_audioTracks.isNotEmpty) _openTrackPanel('audio');
       }
     } else if (_focusRow == 1) {
       switch (_focusCol) {
-        case 0: if (_epIdx > 0) _switchEpisode(_epIdx - 1);
-        case 1: if (_epIdx < widget.episodes.length - 1) _switchEpisode(_epIdx + 1);
+        case 0:
+          if (_epIdx > 0) _switchEpisode(_epIdx - 1);
+        case 1:
+          if (_epIdx < widget.episodes.length - 1) _switchEpisode(_epIdx + 1);
       }
     } else {
       switch (_focusCol) {
-        case 0: _rewind10s();
-        case 1: _togglePlay();
-        case 2: _forward10s();
-        case 3: _cycleAspect();
+        case 0:
+          _rewind10s();
+        case 1:
+          _togglePlay();
+        case 2:
+          _forward10s();
+        case 3:
+          _cycleAspect();
       }
     }
   }
@@ -336,7 +374,9 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
-      onPopInvokedWithResult: (didPop, _) { if (!didPop) _goBack(); },
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _goBack();
+      },
       child: Focus(
         focusNode: _focusNode,
         autofocus: true,
@@ -455,7 +495,9 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
             _FsBtn(
               icon: FontAwesomeIcons.closedCaptioning,
               label: 'SUB',
-              badge: _subtitleTracks.isNotEmpty ? '${_subtitleTracks.length}' : null,
+              badge: _subtitleTracks.isNotEmpty
+                  ? '${_subtitleTracks.length}'
+                  : null,
               isFocused: _isFocused(0, 1),
               isDisabled: _subtitleTracks.isEmpty,
               onTap: () => _openTrackPanel('sub'),
@@ -556,15 +598,21 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
                         activeTrackColor: kColorPrimary,
                         inactiveTrackColor: Colors.white24,
                         thumbColor: kColorFocus,
-                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 0),
+                        thumbShape: const RoundSliderThumbShape(
+                          enabledThumbRadius: 6,
+                        ),
+                        overlayShape: const RoundSliderOverlayShape(
+                          overlayRadius: 0,
+                        ),
                         trackHeight: 3,
                       ),
                       child: Slider(
                         value: pos,
                         onChanged: (v) async {
                           try {
-                            await _ctrl.seekTo(Duration(milliseconds: (v * totalMs).round()));
+                            await _ctrl.seekTo(
+                              Duration(milliseconds: (v * totalMs).round()),
+                            );
                           } catch (_) {}
                         },
                       ),

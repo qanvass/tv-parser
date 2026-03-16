@@ -323,10 +323,18 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
     }
 
     if (k == LogicalKeyboardKey.arrowUp) {
-      if (_focusRow == 1) setState(() { _focusRow = 0; _focusCol = _focusCol.clamp(0, 2); });
+      if (_focusRow == 1)
+        setState(() {
+          _focusRow = 0;
+          _focusCol = _focusCol.clamp(0, 2);
+        });
       _scheduleHide();
     } else if (k == LogicalKeyboardKey.arrowDown) {
-      if (_focusRow == 0) setState(() { _focusRow = 1; _focusCol = _focusCol.clamp(0, 1); });
+      if (_focusRow == 0)
+        setState(() {
+          _focusRow = 1;
+          _focusCol = _focusCol.clamp(0, 1);
+        });
       _scheduleHide();
     } else if (k == LogicalKeyboardKey.arrowLeft) {
       if (_focusCol > 0) setState(() => _focusCol--);
@@ -346,14 +354,19 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
   void _activate() {
     if (_focusRow == 0) {
       switch (_focusCol) {
-        case 0: Get.back();
-        case 1: if (_subtitleTracks.isNotEmpty) _openTrackPanel('sub');
-        case 2: if (_audioTracks.isNotEmpty) _openTrackPanel('audio');
+        case 0:
+          Get.back();
+        case 1:
+          if (_subtitleTracks.isNotEmpty) _openTrackPanel('sub');
+        case 2:
+          if (_audioTracks.isNotEmpty) _openTrackPanel('audio');
       }
     } else {
       switch (_focusCol) {
-        case 0: _togglePlay();
-        case 1: _cycleAspect();
+        case 0:
+          _togglePlay();
+        case 1:
+          _cycleAspect();
       }
     }
   }
@@ -696,7 +709,7 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
 
   Future<void> _rewind10s() async {
     try {
-      final t = _position - const Duration(seconds: 10);
+      final t = _position - const Duration(seconds: 30);
       await _ctrl.seekTo(t < Duration.zero ? Duration.zero : t);
     } catch (_) {}
     _scheduleHide();
@@ -704,7 +717,7 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
 
   Future<void> _forward10s() async {
     try {
-      final t = _position + const Duration(seconds: 10);
+      final t = _position + const Duration(seconds: 30);
       await _ctrl.seekTo(t > _duration ? _duration : t);
     } catch (_) {}
     _scheduleHide();
@@ -779,10 +792,18 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
     }
 
     if (k == LogicalKeyboardKey.arrowUp) {
-      if (_focusRow == 1) setState(() { _focusRow = 0; _focusCol = _focusCol.clamp(0, 2); });
+      if (_focusRow == 1)
+        setState(() {
+          _focusRow = 0;
+          _focusCol = _focusCol.clamp(0, 2);
+        });
       _scheduleHide();
     } else if (k == LogicalKeyboardKey.arrowDown) {
-      if (_focusRow == 0) setState(() { _focusRow = 1; _focusCol = _focusCol.clamp(0, 3); });
+      if (_focusRow == 0)
+        setState(() {
+          _focusRow = 1;
+          _focusCol = _focusCol.clamp(0, 3);
+        });
       _scheduleHide();
     } else if (k == LogicalKeyboardKey.arrowLeft) {
       if (_focusCol > 0) setState(() => _focusCol--);
@@ -811,10 +832,14 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
       }
     } else {
       switch (_focusCol) {
-        case 0: _rewind10s();
-        case 1: _togglePlay();
-        case 2: _forward10s();
-        case 3: _cycleAspect();
+        case 0:
+          _rewind10s();
+        case 1:
+          _togglePlay();
+        case 2:
+          _forward10s();
+        case 3:
+          _cycleAspect();
       }
     }
   }
@@ -1018,8 +1043,12 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
                         activeTrackColor: kColorPrimary,
                         inactiveTrackColor: Colors.white24,
                         thumbColor: kColorFocus,
-                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 0),
+                        thumbShape: const RoundSliderThumbShape(
+                          enabledThumbRadius: 6,
+                        ),
+                        overlayShape: const RoundSliderOverlayShape(
+                          overlayRadius: 0,
+                        ),
                         trackHeight: 3,
                       ),
                       child: Slider(

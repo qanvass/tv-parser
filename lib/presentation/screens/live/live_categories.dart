@@ -281,7 +281,10 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
   }
 
   void _onAppbarSelect() {
-    if (_appbarIdx == 0) { Get.back(); return; }
+    if (_appbarIdx == 0) {
+      Get.back();
+      return;
+    }
     if (_showSearch) {
       if (_appbarIdx == 1) {
         _activateSearchInput(); // focus on input → open keyboard
@@ -1187,7 +1190,7 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
 
   Future<void> _rewind10s() async {
     try {
-      final target = _position - const Duration(seconds: 10);
+      final target = _position - const Duration(seconds: 30);
       await widget.controller.seekTo(
         target < Duration.zero ? Duration.zero : target,
       );
