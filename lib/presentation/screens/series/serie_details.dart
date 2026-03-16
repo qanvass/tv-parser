@@ -56,6 +56,34 @@ class _SerieContentState extends State<SerieContent> {
     });
   }
 
+  void _reload() {
+    setState(() {
+      _serieDetails = null;
+      _selectedButton = -1;
+      _isBackFocused = false;
+      _hasTrailer = false;
+      _seasons = [];
+      _episodes = [];
+      _seasonIdx = 0;
+      _episodeIdx = 0;
+      _panel = 0;
+      _future = IpTvApi.getSerieDetails(widget.videoId);
+      _future.then((serie) {
+        if (mounted && serie != null) {
+          final hasTrailer =
+              serie.info?.youtubeTrailer != null &&
+              serie.info!.youtubeTrailer!.isNotEmpty;
+          setState(() {
+            _serieDetails = serie;
+            _hasTrailer = hasTrailer;
+            _selectedButton = 1;
+          });
+          _initSeasonsEpisodes(serie);
+        }
+      });
+    });
+  }
+
   @override
   void dispose() {
     _navFocus.dispose();
@@ -307,17 +335,12 @@ class _SerieContentState extends State<SerieContent> {
           future: _future,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return Container(
-                decoration: kDecorBackground,
-                child: const Center(child: CircularProgressIndicator(color: kColorPrimary)),
-              );
+              return _DetailsLoadingState(title: widget.channelSerie.name ?? '');
             }
             if (!snapshot.hasData) {
-              return Container(
-                decoration: kDecorBackground,
-                child: const Center(
-                  child: Text("Could not load data", style: TextStyle(color: Colors.white)),
-                ),
+              return _DetailsErrorState(
+                onBack: Get.back,
+                onReload: _reload,
               );
             }
 
@@ -691,6 +714,187 @@ class _SideButton extends StatelessWidget {
             : [],
       ),
       child: Icon(icon, color: Colors.white, size: 16),
+    );
+  }
+}
+
+// ─── Shared loading / error states for details screens ────────────────────────
+
+class _DetailsLoadingState extends StatelessWidget {
+  const _DetailsLoadingState({required this.title});
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: kDecorBackground,
+      child: Column(
+        children: [
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 18),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: Get.back,
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.07),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
+                      ),
+                      child: const Icon(FontAwesomeIcons.chevronLeft, color: Colors.white, size: 14),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  if (title.isNotEmpty)
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white70, fontSize: 15, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const Expanded(
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: kColorPrimary, strokeWidth: 2),
+                  SizedBox(height: 20),
+                  Text(
+                    'Loading...',
+                    style: TextStyle(color: Colors.white38, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailsErrorState extends StatelessWidget {
+  const _DetailsErrorState({required this.onBack, required this.onReload});
+  final VoidCallback onBack;
+  final VoidCallback onReload;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: kDecorBackground,
+      child: Column(
+        children: [
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 18),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: onBack,
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.07),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
+                      ),
+                      child: const Icon(FontAwesomeIcons.chevronLeft, color: Colors.white, size: 14),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Expanded(
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                    ),
+                    child: const Icon(FontAwesomeIcons.circleExclamation, color: Colors.white38, size: 36),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Could not load content',
+                    style: TextStyle(color: Colors.white70, fontSize: 15, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Check your connection and try again',
+                    style: TextStyle(color: Colors.white38, fontSize: 12),
+                  ),
+                  const SizedBox(height: 28),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Back button
+                      GestureDetector(
+                        onTap: onBack,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.07),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(FontAwesomeIcons.chevronLeft, color: Colors.white70, size: 12),
+                              SizedBox(width: 8),
+                              Text('Go Back', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Reload button
+                      GestureDetector(
+                        onTap: onReload,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: kColorPrimary.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: kColorPrimary.withValues(alpha: 0.5)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(FontAwesomeIcons.arrowsRotate, color: kColorPrimary, size: 12),
+                              SizedBox(width: 8),
+                              Text('Try Again', style: TextStyle(color: kColorPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

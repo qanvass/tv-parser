@@ -40,6 +40,26 @@ class _MovieContentState extends State<MovieContent> {
     });
   }
 
+  void _reload() {
+    setState(() {
+      _movieDetail = null;
+      _selectedButton = -1;
+      _isBackFocused = false;
+      _future = IpTvApi.getMovieDetails(widget.videoId);
+      _future.then((detail) {
+        if (mounted && detail != null) {
+          setState(() {
+            _movieDetail = detail;
+            _hasTrailer =
+                detail.info?.youtubeTrailer != null &&
+                detail.info!.youtubeTrailer!.isNotEmpty;
+            _selectedButton = 0;
+          });
+        }
+      });
+    });
+  }
+
   @override
   void dispose() {
     _navFocus.dispose();
@@ -188,22 +208,12 @@ class _MovieContentState extends State<MovieContent> {
           future: _future,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return Container(
-                decoration: kDecorBackground,
-                child: const Center(
-                  child: CircularProgressIndicator(color: kColorPrimary),
-                ),
-              );
+              return _DetailsLoadingState(title: widget.channelMovie.name ?? '');
             }
             if (!snapshot.hasData) {
-              return Container(
-                decoration: kDecorBackground,
-                child: const Center(
-                  child: Text(
-                    "Could not load data",
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
+              return _DetailsErrorState(
+                onBack: Get.back,
+                onReload: _reload,
               );
             }
 
