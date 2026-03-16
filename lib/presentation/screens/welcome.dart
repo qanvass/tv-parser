@@ -119,53 +119,32 @@ class _HomeTvLayoutState extends State<_HomeTvLayout> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: BlocBuilder<LiveCatyBloc, LiveCatyState>(
-                        builder: (context, state) {
-                          final count = state is LiveCatySuccess
-                              ? state.categories.length
-                              : 0;
-                          return _TvCard(
-                            title: 'Live TV',
-                            subtitle: '$count Channels',
-                            icon: kIconLive,
-                            isFocused: _focused == 0,
-                            onTap: () => Get.toNamed(screenLiveCategories),
-                          );
-                        },
+                      child: _TvCard(
+                        title: 'Live TV',
+
+                        icon: kIconLive,
+                        isFocused: _focused == 0,
+                        onTap: () => Get.toNamed(screenLiveCategories),
                       ),
                     ),
                     const SizedBox(width: 20),
                     Expanded(
-                      child: BlocBuilder<MovieCatyBloc, MovieCatyState>(
-                        builder: (context, state) {
-                          final count = state is MovieCatySuccess
-                              ? state.categories.length
-                              : 0;
-                          return _TvCard(
-                            title: 'Movies',
-                            subtitle: '$count Movies',
-                            icon: kIconMovies,
-                            isFocused: _focused == 1,
-                            onTap: () => Get.toNamed(screenMovieCategories),
-                          );
-                        },
+                      child: _TvCard(
+                        title: 'Movies',
+
+                        icon: kIconMovies,
+                        isFocused: _focused == 1,
+                        onTap: () => Get.toNamed(screenMovieCategories),
                       ),
                     ),
                     const SizedBox(width: 20),
                     Expanded(
-                      child: BlocBuilder<SeriesCatyBloc, SeriesCatyState>(
-                        builder: (context, state) {
-                          final count = state is SeriesCatySuccess
-                              ? state.categories.length
-                              : 0;
-                          return _TvCard(
-                            title: 'Series',
-                            subtitle: '$count Series',
-                            icon: kIconSeries,
-                            isFocused: _focused == 2,
-                            onTap: () => Get.toNamed(screenSeriesCategories),
-                          );
-                        },
+                      child: _TvCard(
+                        title: 'Series',
+
+                        icon: kIconSeries,
+                        isFocused: _focused == 2,
+                        onTap: () => Get.toNamed(screenSeriesCategories),
                       ),
                     ),
                   ],
@@ -215,14 +194,14 @@ class _HomeTvLayoutState extends State<_HomeTvLayout> {
 class _TvCard extends StatelessWidget {
   const _TvCard({
     required this.title,
-    required this.subtitle,
+
     required this.icon,
     required this.isFocused,
     required this.onTap,
   });
 
   final String title;
-  final String subtitle;
+
   final String icon;
   final bool isFocused;
   final VoidCallback onTap;
@@ -268,11 +247,6 @@ class _TvCard extends StatelessWidget {
                 color: isFocused ? kColorFocus : Colors.white,
               ),
             ),
-            SizedBox(height: 1.h),
-            Text(
-              '◍ $subtitle',
-              style: Get.textTheme.titleSmall!.copyWith(color: Colors.white70),
-            ),
           ],
         ),
       ),
@@ -305,9 +279,7 @@ class _TvActionBtn extends StatelessWidget {
         decoration: BoxDecoration(
           color: isFocused ? kColorPrimary : kColorCardLight,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isFocused ? kColorFocus : kColorCardDark,
-          ),
+          border: Border.all(color: isFocused ? kColorFocus : kColorCardDark),
           boxShadow: isFocused
               ? [
                   BoxShadow(
@@ -446,9 +418,7 @@ class _HomeBottomNav extends StatelessWidget {
         fontWeight: FontWeight.bold,
         fontSize: 11.sp,
       ),
-      unselectedLabelStyle: Get.textTheme.bodySmall!.copyWith(
-        fontSize: 10.sp,
-      ),
+      unselectedLabelStyle: Get.textTheme.bodySmall!.copyWith(fontSize: 10.sp),
       items: const [
         BottomNavigationBarItem(
           icon: Icon(FontAwesomeIcons.tv, size: 20),
@@ -503,11 +473,11 @@ class _LiveCategoriesTab extends StatelessWidget {
 
             final items = searchKey.isNotEmpty
                 ? all
-                    .where(
-                      (c) =>
-                          c.categoryName!.toLowerCase().contains(searchKey),
-                    )
-                    .toList()
+                      .where(
+                        (c) =>
+                            c.categoryName!.toLowerCase().contains(searchKey),
+                      )
+                      .toList()
                 : all;
 
             if (items.isEmpty) return const _EmptyState(label: 'No channels');
@@ -568,11 +538,11 @@ class _MovieCategoriesTab extends StatelessWidget {
 
             final items = searchKey.isNotEmpty
                 ? all
-                    .where(
-                      (c) =>
-                          c.categoryName!.toLowerCase().contains(searchKey),
-                    )
-                    .toList()
+                      .where(
+                        (c) =>
+                            c.categoryName!.toLowerCase().contains(searchKey),
+                      )
+                      .toList()
                 : all;
 
             if (items.isEmpty) return const _EmptyState(label: 'No movies');
@@ -630,21 +600,16 @@ class _SeriesCategoriesTab extends StatelessWidget {
             final List<CategoryModel> all = state is SeriesCatySuccess
                 ? state.categories
                 : isDemo
-                ? [
-                    CategoryModel(
-                      categoryId: '1',
-                      categoryName: 'Demo Series',
-                    ),
-                  ]
+                ? [CategoryModel(categoryId: '1', categoryName: 'Demo Series')]
                 : [];
 
             final items = searchKey.isNotEmpty
                 ? all
-                    .where(
-                      (c) =>
-                          c.categoryName!.toLowerCase().contains(searchKey),
-                    )
-                    .toList()
+                      .where(
+                        (c) =>
+                            c.categoryName!.toLowerCase().contains(searchKey),
+                      )
+                      .toList()
                 : all;
 
             if (items.isEmpty) return const _EmptyState(label: 'No series');
@@ -671,9 +636,7 @@ class _SeriesCategoriesTab extends StatelessWidget {
                     );
                   } else {
                     Get.to(
-                      () => SeriesChannels(
-                        catyId: items[i].categoryId ?? '',
-                      ),
+                      () => SeriesChannels(catyId: items[i].categoryId ?? ''),
                     );
                   }
                 },
@@ -917,16 +880,16 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(FontAwesomeIcons.boxOpen, size: 40, color: kColorHint),
-            const SizedBox(height: 12),
-            Text(
-              label,
-              style: Get.textTheme.bodyMedium!.copyWith(color: kColorHint),
-            ),
-          ],
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(FontAwesomeIcons.boxOpen, size: 40, color: kColorHint),
+        const SizedBox(height: 12),
+        Text(
+          label,
+          style: Get.textTheme.bodyMedium!.copyWith(color: kColorHint),
         ),
-      );
+      ],
+    ),
+  );
 }
