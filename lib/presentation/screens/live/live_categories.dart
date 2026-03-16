@@ -700,9 +700,13 @@ class _LivePanelItem extends StatelessWidget {
 }
 
 // ─── Player + EPG Panel ───────────────────────────────────────────────────────
-// IMPORTANT: StreamPlayerPage (which contains VlcPlayer) is ALWAYS at index 0
-// of the Stack so Flutter never disposes/recreates it — avoiding "Already
-// Initialized". The EPG panel and placeholder are overlays on top.
+// Layout: Column with two equal halves:
+//   Top  (flex 11) — video player, ALWAYS in tree at this position
+//   Bottom (flex 9) — channel info + EPG (only when channel selected & not fullscreen)
+//
+// IMPORTANT: StreamPlayerPage (VlcPlayer) must never be removed from the tree.
+// It lives at Column → Expanded → ColoredBox → Stack → StreamPlayerPage.
+// That path is constant regardless of EPG visibility.
 
 class _PlayerPanel extends StatelessWidget {
   const _PlayerPanel({
@@ -717,110 +721,115 @@ class _PlayerPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            // ─ VlcPlayer — ALWAYS at tree-position index 0 ─────────────
-            ColoredBox(
-              color: Colors.black,
-              child: StreamPlayerPage(controller: player),
-            ),
+    final showEpg = channel != null && !isFullscreen;
 
-            // ─ No-channel placeholder ───────────────────────────────────
-            if (channel == null && !isFullscreen)
-              ColoredBox(
-                color: kColorBackDark,
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        FontAwesomeIcons.tv,
-                        size: 48,
-                        color: kColorHint,
-                      ),
-                      const SizedBox(height: 14),
-                      Text(
-                        'Select a channel to play',
-                        style: Get.textTheme.bodyMedium!.copyWith(
-                          color: kColorHint,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Press OK on a channel',
-                        style: Get.textTheme.bodySmall!.copyWith(
-                          color: kColorHint,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+    return Column(
+      children: [
+        // ── Video (top half) — VlcPlayer ALWAYS lives here ────────────
+        Expanded(
+          flex: 11,
+          child: ColoredBox(
+            color: Colors.black,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                StreamPlayerPage(controller: player),
 
-            // ─ Channel info bar + EPG (bottom ~45%) ────────────────────
-            if (channel != null && !isFullscreen)
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                height: constraints.maxHeight * 0.45,
-                child: Column(
-                  children: [
-                    Container(
-                      color: kColorCardDark,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      child: Row(
+                // No-channel placeholder overlaid on black bg
+                if (channel == null && !isFullscreen)
+                  ColoredBox(
+                    color: kColorBackDark,
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (channel!.streamIcon != null &&
-                              channel!.streamIcon!.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: CachedNetworkImage(
-                                imageUrl: channel!.streamIcon!,
-                                width: 22,
-                                height: 22,
-                                errorWidget: (_, __, ___) => const SizedBox(),
-                              ),
-                            ),
-                          Expanded(
-                            child: Text(
-                              channel!.name ?? '',
-                              style: Get.textTheme.bodyMedium!.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
                           const Icon(
-                            FontAwesomeIcons.expand,
-                            size: 11,
+                            FontAwesomeIcons.tv,
+                            size: 48,
                             color: kColorHint,
                           ),
-                          const SizedBox(width: 4),
+                          const SizedBox(height: 14),
                           Text(
-                            'tap again',
+                            'Select a channel to play',
+                            style: Get.textTheme.bodyMedium!.copyWith(
+                              color: kColorHint,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Press OK on a channel',
                             style: Get.textTheme.bodySmall!.copyWith(
                               color: kColorHint,
-                              fontSize: 10,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    Expanded(child: _EpgPanel(streamId: channel!.streamId)),
-                  ],
+                  ),
+              ],
+            ),
+          ),
+        ),
+
+        // ── EPG (bottom half) ─────────────────────────────────────────
+        if (showEpg) ...[
+          Container(height: 1, color: kColorCardLight),
+          Expanded(
+            flex: 9,
+            child: Column(
+              children: [
+                // Channel info bar
+                Container(
+                  color: kColorCardDark,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      if (channel!.streamIcon != null &&
+                          channel!.streamIcon!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: CachedNetworkImage(
+                            imageUrl: channel!.streamIcon!,
+                            width: 22,
+                            height: 22,
+                            errorWidget: (_, __, ___) => const SizedBox(),
+                          ),
+                        ),
+                      Expanded(
+                        child: Text(
+                          channel!.name ?? '',
+                          style: Get.textTheme.bodyMedium!.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(
+                        FontAwesomeIcons.expand,
+                        size: 11,
+                        color: kColorHint,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'tap again',
+                        style: Get.textTheme.bodySmall!.copyWith(
+                          color: kColorHint,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-          ],
-        );
-      },
+                Expanded(child: _EpgPanel(streamId: channel!.streamId)),
+              ],
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
