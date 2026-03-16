@@ -970,6 +970,10 @@ class _LiveFullscreenControls extends StatefulWidget {
 }
 
 class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
+  // Aspect ratios to cycle through
+  static const _kAspects = ['16:9', '4:3', '1:1', '21:9'];
+  int _aspectIdx = 0;
+
   bool _showControls = true;
   bool _isPlaying = false;
   bool _isBuffering = true;
@@ -1118,6 +1122,15 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
     _scheduleHide();
   }
 
+  Future<void> _cycleAspect() async {
+    final nextIdx = (_aspectIdx + 1) % _kAspects.length;
+    try {
+      await widget.controller.setVideoAspectRatio(_kAspects[nextIdx]);
+    } catch (_) {}
+    if (mounted) setState(() => _aspectIdx = nextIdx);
+    _scheduleHide();
+  }
+
   void _openTrackPanel(String type) {
     setState(() { _trackPanel = type; _trackPanelIdx = 0; });
     _hideTimer?.cancel();
@@ -1144,8 +1157,8 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
 
   // bottom col → logical action
   String _bottomAction(int col) {
-    if (_isLive) return col == 0 ? 'play' : 'exit';
-    return ['rewind', 'play', 'exit'][col];
+    if (_isLive) return col == 0 ? 'play' : 'aspect';
+    return ['rewind', 'play', 'aspect'][col];
   }
 
   void _activateFocused() {
@@ -1161,7 +1174,7 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
       switch (_bottomAction(_focusCol)) {
         case 'rewind': _rewind10s();
         case 'play': _togglePlay();
-        case 'exit': widget.onClose();
+        case 'aspect': _cycleAspect();
       }
     }
   }
@@ -1400,12 +1413,12 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
             ] else
               const Spacer(),
 
-            // Exit fullscreen
+            // Aspect ratio cycle
             _FsBtn(
-              icon: FontAwesomeIcons.compress,
-              label: 'Exit',
+              icon: FontAwesomeIcons.expand,
+              label: _kAspects[_aspectIdx],
               isFocused: _isFocused(1, _isLive ? 1 : 2),
-              onTap: widget.onClose,
+              onTap: _cycleAspect,
             ),
           ],
         ),
