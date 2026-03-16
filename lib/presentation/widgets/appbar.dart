@@ -144,17 +144,19 @@ class IptvAppBar extends StatelessWidget {
       Widget inputSection;
       if (isSearchEditing) {
         inputSection = SizedBox(
-          height: 38,
+          // height: 38,
           child: AndroidTVTextField(
             controller: searchController ?? NativeTextFieldController(),
             focusNode: searchFocus ?? FocusNode(),
-            height: 38,
+            height: 40,
             hint: searchHint,
             onSubmitted: onSearchSubmitted,
             backgroundColor: Colors.white.withValues(alpha: 0.06),
             textColor: Colors.white,
             focuesedBorderColor: kColorFocus,
             unFocuesedBorderColor: kColorPrimary.withValues(alpha: 0.5),
+            textSize: 10,
+            padding: EdgeInsets.only(left: 0, right: 0, top: 0, bottom: 0),
           ),
         );
       } else {
