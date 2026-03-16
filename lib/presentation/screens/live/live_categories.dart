@@ -144,6 +144,10 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     } else {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      // Return focus to the outer panel when exiting fullscreen
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _navFocus.requestFocus();
+      });
     }
     setState(() => _isFullscreen = going);
   }
@@ -1005,6 +1009,11 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
     _syncState();
     _scheduleHide();
     _loadTracks();
+    // Explicitly steal focus from the outer panel — autofocus alone won't
+    // win if the parent Focus node is already focused.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focusNode.requestFocus();
+    });
   }
 
   @override
