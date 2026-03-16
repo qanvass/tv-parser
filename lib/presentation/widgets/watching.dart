@@ -27,7 +27,7 @@ class ContinueWatchingMovies extends StatelessWidget {
                 onTap: () {
                   final watchingCubit = context.read<WatchingCubit>();
                   Get.to(
-                    () => FullVideoScreen(
+                    () => MoviePlayerScreen(
                       link: watching[i].stream,
                       title: watching[i].title,
                     ),
@@ -82,7 +82,7 @@ class ContinueWatchingSeries extends StatelessWidget {
                 onTap: () {
                   final watch = context.read<WatchingCubit>();
                   Get.to(
-                    () => FullVideoScreen(
+                    () => MoviePlayerScreen(
                       link: model.stream,
                       title: "Episode ${i + 1}: ${model.title}",
                     ),

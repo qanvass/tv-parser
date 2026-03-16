@@ -50,7 +50,6 @@ import '../widgets/widgets.dart';
 part 'live/live_categories.dart';
 part 'movie/movie_categories.dart';
 part 'movie/movie_details.dart';
-part 'player/full_video.dart';
 part 'player/player_video.dart';
 part 'player/movie_player.dart';
 part 'player/series_player.dart';

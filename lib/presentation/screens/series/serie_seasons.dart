@@ -172,7 +172,7 @@ class _SerieSeasonsState extends State<SerieSeasons> {
         "${userAuth.user.serverInfo!.serverUrl}/series/${userAuth.user.userInfo!.username}/${userAuth.user.userInfo!.password}/${model!.id}.${model.containerExtension}";
 
     debugPrint("Link: $link");
-    Get.to(() => FullVideoScreen(link: link, title: model.title ?? ""))!.then((
+    Get.to(() => MoviePlayerScreen(link: link, title: model.title ?? ""))!.then((
       slider,
     ) {
       debugPrint("DATA: $slider");
