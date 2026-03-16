@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:mbark_iptv/repository/api/api.dart';
 import 'package:responsive_sizer/responsive_sizer.dart';
 import 'helpers/helpers.dart';
@@ -24,9 +23,6 @@ void main() async {
   // await Wakelock.enable();
   await GetStorage.init();
   await GetStorage.init("favorites");
-  if (showAds) {
-    MobileAds.instance.initialize();
-  }
 
   runApp(
     MyApp(
@@ -94,12 +90,12 @@ class _MyAppState extends State<MyApp> {
             create: (BuildContext context) => SettingsCubit(),
           ),
           BlocProvider<WatchingCubit>(
-            create:
-                (BuildContext context) => WatchingCubit(widget.watchingLocale),
+            create: (BuildContext context) =>
+                WatchingCubit(widget.watchingLocale),
           ),
           BlocProvider<FavoritesCubit>(
-            create:
-                (BuildContext context) => FavoritesCubit(widget.favoriteLocale),
+            create: (BuildContext context) =>
+                FavoritesCubit(widget.favoriteLocale),
           ),
         ],
         child: ResponsiveSizer(
@@ -120,10 +116,6 @@ class _MyAppState extends State<MyApp> {
                 GetPage(
                   name: screenRegister,
                   page: () => const RegisterScreen(),
-                ),
-                GetPage(
-                  name: screenRegisterTv,
-                  page: () => const RegisterUserTv(),
                 ),
                 GetPage(
                   name: screenRegisterTv,

@@ -2,9 +2,6 @@ part of 'helpers.dart';
 
 const String kAppName = "AZUL IPTV";
 
-//TODO: SHow Ads ( true / false )
-const bool showAds = false;
-
 //TODO: Force TV mode for testing on mobile ( true / false )
 const bool kForceTvMode = false;
 
