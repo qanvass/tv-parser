@@ -282,6 +282,14 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
     _scheduleHide();
   }
 
+  Future<void> _forward10s() async {
+    try {
+      final t = _position + const Duration(seconds: 10);
+      await _ctrl.seekTo(t > _duration ? _duration : t);
+    } catch (_) {}
+    _scheduleHide();
+  }
+
   Future<void> _cycleAspect() async {
     final next = (_aspectIdx + 1) % _kVodAspects.length;
     try {
@@ -351,24 +359,17 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
     }
 
     if (k == LogicalKeyboardKey.arrowUp) {
-      if (_focusRow == 1)
-        setState(() {
-          _focusRow = 0;
-          _focusCol = _focusCol.clamp(0, 2);
-        });
+      if (_focusRow == 1) setState(() { _focusRow = 0; _focusCol = _focusCol.clamp(0, 2); });
       _scheduleHide();
     } else if (k == LogicalKeyboardKey.arrowDown) {
-      if (_focusRow == 0)
-        setState(() {
-          _focusRow = 1;
-          _focusCol = _focusCol.clamp(0, 2);
-        });
+      if (_focusRow == 0) setState(() { _focusRow = 1; _focusCol = _focusCol.clamp(0, 3); });
       _scheduleHide();
     } else if (k == LogicalKeyboardKey.arrowLeft) {
       if (_focusCol > 0) setState(() => _focusCol--);
       _scheduleHide();
     } else if (k == LogicalKeyboardKey.arrowRight) {
-      if (_focusCol < 2) setState(() => _focusCol++);
+      final maxCol = _focusRow == 0 ? 2 : 3;
+      if (_focusCol < maxCol) setState(() => _focusCol++);
       _scheduleHide();
     } else if (_isSelectKey(k)) {
       _activate();
@@ -390,12 +391,10 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
       }
     } else {
       switch (_focusCol) {
-        case 0:
-          _rewind10s();
-        case 1:
-          _togglePlay();
-        case 2:
-          _cycleAspect();
+        case 0: _rewind10s();
+        case 1: _togglePlay();
+        case 2: _forward10s();
+        case 3: _cycleAspect();
       }
     }
   }
@@ -565,65 +564,60 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
           children: [
             _FsBtn(
               icon: FontAwesomeIcons.rotateLeft,
-              label: '-10s',
+              label: '',
               isFocused: _isFocused(1, 0),
               onTap: _rewind10s,
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
             _FsBtn(
               icon: _isPlaying ? FontAwesomeIcons.pause : FontAwesomeIcons.play,
-              label: "",
+              label: '',
               isFocused: _isFocused(1, 1),
               isLarge: true,
               onTap: _togglePlay,
             ),
+            const SizedBox(width: 8),
+            _FsBtn(
+              icon: FontAwesomeIcons.rotateRight,
+              label: '',
+              isFocused: _isFocused(1, 2),
+              onTap: _forward10s,
+            ),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+              child: Row(
                 children: [
-                  SliderTheme(
-                    data: SliderTheme.of(context).copyWith(
-                      activeTrackColor: kColorPrimary,
-                      inactiveTrackColor: Colors.white24,
-                      thumbColor: kColorFocus,
-                      thumbShape: const RoundSliderThumbShape(
-                        enabledThumbRadius: 6,
+                  Text(
+                    _fmt(_position),
+                    style: const TextStyle(color: Colors.white70, fontSize: 11),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        activeTrackColor: kColorPrimary,
+                        inactiveTrackColor: Colors.white24,
+                        thumbColor: kColorFocus,
+                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 0),
+                        trackHeight: 3,
                       ),
-                      overlayShape: const RoundSliderOverlayShape(
-                        overlayRadius: 0,
+                      child: Slider(
+                        value: pos,
+                        onChanged: (v) async {
+                          try {
+                            await _ctrl.seekTo(
+                              Duration(milliseconds: (v * totalMs).round()),
+                            );
+                          } catch (_) {}
+                        },
                       ),
-                      trackHeight: 3,
-                    ),
-                    child: Slider(
-                      value: pos,
-                      onChanged: (v) async {
-                        try {
-                          await _ctrl.seekTo(
-                            Duration(milliseconds: (v * totalMs).round()),
-                          );
-                        } catch (_) {}
-                      },
                     ),
                   ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        _fmt(_position),
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 11,
-                        ),
-                      ),
-                      Text(
-                        _fmt(_duration),
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
+                  const SizedBox(width: 8),
+                  Text(
+                    _fmt(_duration),
+                    style: const TextStyle(color: Colors.white70, fontSize: 11),
                   ),
                 ],
               ),
@@ -632,7 +626,7 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
             _FsBtn(
               icon: FontAwesomeIcons.expand,
               label: _kVodAspects[_aspectIdx],
-              isFocused: _isFocused(1, 2),
+              isFocused: _isFocused(1, 3),
               onTap: _cycleAspect,
             ),
           ],
