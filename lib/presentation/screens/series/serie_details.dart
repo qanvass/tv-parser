@@ -113,7 +113,11 @@ class _SerieContentState extends State<SerieContent> {
 
   void _scrollPageToTop() {
     if (!_pageScroll.hasClients) return;
-    _pageScroll.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+    _pageScroll.animateTo(
+      0,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
   }
 
   void _scrollPageToBottom() {
@@ -128,15 +132,29 @@ class _SerieContentState extends State<SerieContent> {
   void _scrollSeasonTo(int idx) {
     if (!_seasonScroll.hasClients) return;
     const itemW = 130.0;
-    final target = (idx * itemW).clamp(0.0, _seasonScroll.position.maxScrollExtent);
-    _seasonScroll.animateTo(target, duration: const Duration(milliseconds: 150), curve: Curves.easeOut);
+    final target = (idx * itemW).clamp(
+      0.0,
+      _seasonScroll.position.maxScrollExtent,
+    );
+    _seasonScroll.animateTo(
+      target,
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOut,
+    );
   }
 
   void _scrollEpisodeTo(int idx) {
     if (!_episodeScroll.hasClients) return;
     const itemW = 162.0;
-    final target = (idx * itemW).clamp(0.0, _episodeScroll.position.maxScrollExtent);
-    _episodeScroll.animateTo(target, duration: const Duration(milliseconds: 150), curve: Curves.easeOut);
+    final target = (idx * itemW).clamp(
+      0.0,
+      _episodeScroll.position.maxScrollExtent,
+    );
+    _episodeScroll.animateTo(
+      target,
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOut,
+    );
   }
 
   // Layout:
@@ -162,12 +180,18 @@ class _SerieContentState extends State<SerieContent> {
         if (_selectedButton == favIdx && _hasTrailer) {
           setState(() => _selectedButton = 1);
         } else {
-          setState(() { _isBackFocused = true; _selectedButton = -1; });
+          setState(() {
+            _isBackFocused = true;
+            _selectedButton = -1;
+          });
           _scrollPageToTop();
         }
       } else if (_panel == 1) {
         // Seasons → left column (Fav)
-        setState(() { _panel = 0; _selectedButton = favIdx; });
+        setState(() {
+          _panel = 0;
+          _selectedButton = favIdx;
+        });
         _scrollPageToTop();
       } else if (_panel == 2) {
         // Episodes → Seasons
@@ -181,14 +205,21 @@ class _SerieContentState extends State<SerieContent> {
     if (k == LogicalKeyboardKey.arrowDown) {
       if (_isBackFocused) {
         // Back → first left column button (Trailer or Fav)
-        setState(() { _isBackFocused = false; _panel = 0; _selectedButton = 1; });
+        setState(() {
+          _isBackFocused = false;
+          _panel = 0;
+          _selectedButton = 1;
+        });
       } else if (_panel == 0) {
         if (_selectedButton == 1 && _hasTrailer) {
           // Trailer → Fav
           setState(() => _selectedButton = favIdx);
         } else {
           // Fav (bottom of left column) → seasons
-          setState(() { _panel = 1; _selectedButton = -1; });
+          setState(() {
+            _panel = 1;
+            _selectedButton = -1;
+          });
           _scrollPageToBottom();
           _scrollSeasonTo(_seasonIdx);
         }
@@ -217,14 +248,21 @@ class _SerieContentState extends State<SerieContent> {
     if (k == LogicalKeyboardKey.arrowRight) {
       if (_isBackFocused) {
         // Back → seasons
-        setState(() { _isBackFocused = false; _panel = 1; _selectedButton = -1; });
+        setState(() {
+          _isBackFocused = false;
+          _panel = 1;
+          _selectedButton = -1;
+        });
         _scrollPageToBottom();
         _scrollSeasonTo(_seasonIdx);
         return KeyEventResult.handled;
       }
       if (_panel == 0) {
         // Left column → seasons
-        setState(() { _panel = 1; _selectedButton = -1; });
+        setState(() {
+          _panel = 1;
+          _selectedButton = -1;
+        });
         _scrollPageToBottom();
         _scrollSeasonTo(_seasonIdx);
       } else if (_panel == 1 && _seasonIdx < _seasons.length - 1) {
@@ -264,7 +302,8 @@ class _SerieContentState extends State<SerieContent> {
       showDialog(
         context: context,
         builder: (_) => DialogTrailerYoutube(
-          thumb: _serieDetails!.info!.backdropPath != null &&
+          thumb:
+              _serieDetails!.info!.backdropPath != null &&
                   _serieDetails!.info!.backdropPath!.isNotEmpty
               ? _serieDetails!.info!.backdropPath!.first
               : null,
@@ -274,43 +313,49 @@ class _SerieContentState extends State<SerieContent> {
       );
     } else {
       final favState = context.read<FavoritesCubit>().state;
-      final isLiked = favState.series.any((s) => s.seriesId == widget.channelSerie.seriesId);
-      context.read<FavoritesCubit>().addSerie(widget.channelSerie, isAdd: !isLiked);
+      final isLiked = favState.series.any(
+        (s) => s.seriesId == widget.channelSerie.seriesId,
+      );
+      context.read<FavoritesCubit>().addSerie(
+        widget.channelSerie,
+        isAdd: !isLiked,
+      );
     }
   }
 
   void _playEpisode() {
     if (_episodes.isEmpty || _episodeIdx >= _episodes.length) return;
-    final model = _episodes[_episodeIdx];
     final authState = context.read<AuthBloc>().state;
     if (authState is! AuthSuccess) return;
 
-    final link =
-        "${authState.user.serverInfo!.serverUrl}/series/${authState.user.userInfo!.username}/${authState.user.userInfo!.password}/${model.id}.${model.containerExtension}";
-
-    Get.to(() => FullVideoScreen(link: link, title: model.title ?? ""))?.then((slider) {
-      if (slider != null) {
-        final watchModel = WatchingModel(
-          sliderValue: slider[0],
-          durationStrm: slider[1],
-          stream: link,
-          title: model.title ?? "",
-          image: model.info?.movieImage ?? _serieDetails?.info?.cover ?? "",
-          streamId: model.id.toString(),
-        );
-        context.read<WatchingCubit>().addSerie(watchModel);
-      }
-    });
+    Get.to(
+      () => SeriesPlayerScreen(
+        episodes: _episodes,
+        initialIdx: _episodeIdx,
+        serverUrl: authState.user.serverInfo!.serverUrl ?? "",
+        username: authState.user.userInfo!.username ?? "",
+        password: authState.user.userInfo!.password ?? "",
+        seriesCover: _serieDetails?.info?.cover ?? '',
+      ),
+    );
   }
 
-  Widget _buildInfoRow({required IconData icon, required String label, required String value}) {
+  Widget _buildInfoRow({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
     return Row(
       children: [
         Icon(icon, size: 14, color: kColorPrimary),
         const SizedBox(width: 8),
         Text(
           '$label: ',
-          style: const TextStyle(color: kColorHint, fontSize: 13, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            color: kColorHint,
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         Expanded(
           child: Text(
@@ -336,26 +381,32 @@ class _SerieContentState extends State<SerieContent> {
           future: _future,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return _DetailsLoadingState(title: widget.channelSerie.name ?? '');
+              return _DetailsLoadingState(
+                title: widget.channelSerie.name ?? '',
+              );
             }
             if (!snapshot.hasData) {
-              return _DetailsErrorState(
-                onBack: Get.back,
-                onReload: _reload,
-              );
+              return _DetailsErrorState(onBack: Get.back, onReload: _reload);
             }
 
             final serie = snapshot.data!;
 
             return Stack(
               children: [
-                CardMovieImagesBackground(listImages: serie.info!.backdropPath ?? []),
+                CardMovieImagesBackground(
+                  listImages: serie.info!.backdropPath ?? [],
+                ),
                 Container(
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
-                      colors: [Color(0xCC000000), Colors.transparent, Colors.transparent, Color(0xEE000000)],
+                      colors: [
+                        Color(0xCC000000),
+                        Colors.transparent,
+                        Colors.transparent,
+                        Color(0xEE000000),
+                      ],
                       stops: [0.0, 0.3, 0.6, 1.0],
                     ),
                   ),
@@ -378,14 +429,22 @@ class _SerieContentState extends State<SerieContent> {
                                 duration: const Duration(milliseconds: 150),
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: _isBackFocused ? kColorPrimary : Colors.black.withValues(alpha: 0.5),
+                                  color: _isBackFocused
+                                      ? kColorPrimary
+                                      : Colors.black.withValues(alpha: 0.5),
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
-                                    color: _isBackFocused ? kColorFocus : Colors.transparent,
+                                    color: _isBackFocused
+                                        ? kColorFocus
+                                        : Colors.transparent,
                                     width: 2,
                                   ),
                                 ),
-                                child: const Icon(FontAwesomeIcons.chevronLeft, color: Colors.white, size: 18),
+                                child: const Icon(
+                                  FontAwesomeIcons.chevronLeft,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
                               ),
                             ),
                             const Spacer(),
@@ -393,28 +452,41 @@ class _SerieContentState extends State<SerieContent> {
                             if (_hasTrailer)
                               GestureDetector(
                                 onTap: () {
-                                  setState(() { _panel = 0; _selectedButton = 1; });
+                                  setState(() {
+                                    _panel = 0;
+                                    _selectedButton = 1;
+                                  });
                                   _handleButtonPress();
                                 },
                                 child: _SideButton(
                                   icon: FontAwesomeIcons.youtube,
-                                  isSelected: _selectedButton == 1 && _panel == 0,
+                                  isSelected:
+                                      _selectedButton == 1 && _panel == 0,
                                 ),
                               ),
                             // Fav button
                             BlocBuilder<FavoritesCubit, FavoritesState>(
                               builder: (context, favState) {
                                 final isLiked = favState.series.any(
-                                  (s) => s.seriesId == widget.channelSerie.seriesId,
+                                  (s) =>
+                                      s.seriesId ==
+                                      widget.channelSerie.seriesId,
                                 );
                                 return GestureDetector(
                                   onTap: () {
-                                    setState(() { _panel = 0; _selectedButton = favIdx; });
+                                    setState(() {
+                                      _panel = 0;
+                                      _selectedButton = favIdx;
+                                    });
                                     _handleButtonPress();
                                   },
                                   child: _SideButton(
-                                    icon: isLiked ? FontAwesomeIcons.solidHeart : FontAwesomeIcons.heart,
-                                    isSelected: _selectedButton == favIdx && _panel == 0,
+                                    icon: isLiked
+                                        ? FontAwesomeIcons.solidHeart
+                                        : FontAwesomeIcons.heart,
+                                    isSelected:
+                                        _selectedButton == favIdx &&
+                                        _panel == 0,
                                     isFavorite: true,
                                   ),
                                 );
@@ -433,32 +505,43 @@ class _SerieContentState extends State<SerieContent> {
                               const SizedBox(height: 10),
                               // Cover + info + plot (padded)
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 20),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Row(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         ClipRRect(
-                                          borderRadius: BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
                                           child: CachedNetworkImage(
                                             imageUrl: serie.info!.cover ?? "",
                                             width: 140,
                                             height: 200,
                                             fit: BoxFit.cover,
-                                            errorWidget: (_, __, ___) => Container(
-                                              width: 140,
-                                              height: 200,
-                                              color: kColorCardLight,
-                                              child: const Icon(FontAwesomeIcons.tv, color: kColorHint, size: 40),
-                                            ),
+                                            errorWidget: (_, __, ___) =>
+                                                Container(
+                                                  width: 140,
+                                                  height: 200,
+                                                  color: kColorCardLight,
+                                                  child: const Icon(
+                                                    FontAwesomeIcons.tv,
+                                                    color: kColorHint,
+                                                    size: 40,
+                                                  ),
+                                                ),
                                           ),
                                         ),
                                         const SizedBox(width: 20),
                                         Expanded(
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               Text(
                                                 serie.info!.name ?? "",
@@ -469,11 +552,28 @@ class _SerieContentState extends State<SerieContent> {
                                                 ),
                                               ),
                                               const SizedBox(height: 16),
-                                              _buildInfoRow(icon: FontAwesomeIcons.clapperboard, label: 'Director', value: serie.info!.director ?? ""),
+                                              _buildInfoRow(
+                                                icon: FontAwesomeIcons
+                                                    .clapperboard,
+                                                label: 'Director',
+                                                value:
+                                                    serie.info!.director ?? "",
+                                              ),
                                               const SizedBox(height: 10),
-                                              _buildInfoRow(icon: FontAwesomeIcons.calendarDay, label: 'Release', value: serie.info!.releaseDate ?? ""),
+                                              _buildInfoRow(
+                                                icon: FontAwesomeIcons
+                                                    .calendarDay,
+                                                label: 'Release',
+                                                value:
+                                                    serie.info!.releaseDate ??
+                                                    "",
+                                              ),
                                               const SizedBox(height: 10),
-                                              _buildInfoRow(icon: FontAwesomeIcons.film, label: 'Genre', value: serie.info!.genre ?? ""),
+                                              _buildInfoRow(
+                                                icon: FontAwesomeIcons.film,
+                                                label: 'Genre',
+                                                value: serie.info!.genre ?? "",
+                                              ),
                                             ],
                                           ),
                                         ),
@@ -482,12 +582,21 @@ class _SerieContentState extends State<SerieContent> {
                                     const SizedBox(height: 20),
                                     const Text(
                                       'PLOT',
-                                      style: TextStyle(color: kColorHint, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.1),
+                                      style: TextStyle(
+                                        color: kColorHint,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 1.1,
+                                      ),
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
                                       serie.info!.plot ?? "",
-                                      style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 14,
+                                        height: 1.5,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -519,7 +628,12 @@ class _SerieContentState extends State<SerieContent> {
           padding: EdgeInsets.only(left: 20),
           child: Text(
             'SEASONS',
-            style: TextStyle(color: kColorHint, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.1),
+            style: TextStyle(
+              color: kColorHint,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.1,
+            ),
           ),
         ),
         const SizedBox(height: 10),
@@ -535,13 +649,20 @@ class _SerieContentState extends State<SerieContent> {
               final isFocused = isSelected && _panel == 1;
               return GestureDetector(
                 onTap: () {
-                  setState(() { _seasonIdx = idx; _panel = 1; _selectedButton = -1; });
+                  setState(() {
+                    _seasonIdx = idx;
+                    _panel = 1;
+                    _selectedButton = -1;
+                  });
                   _loadEpisodes(_seasons[idx]);
                 },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
                   margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: isFocused
                         ? kColorFocus
@@ -558,7 +679,13 @@ class _SerieContentState extends State<SerieContent> {
                       width: isFocused ? 2 : 1,
                     ),
                     boxShadow: isFocused
-                        ? [BoxShadow(color: kColorFocus.withValues(alpha: 0.45), blurRadius: 10, spreadRadius: 1)]
+                        ? [
+                            BoxShadow(
+                              color: kColorFocus.withValues(alpha: 0.45),
+                              blurRadius: 10,
+                              spreadRadius: 1,
+                            ),
+                          ]
                         : [],
                   ),
                   child: Text(
@@ -570,7 +697,9 @@ class _SerieContentState extends State<SerieContent> {
                           ? kColorPrimary
                           : Colors.white38,
                       fontSize: 13,
-                      fontWeight: isFocused || isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: isFocused || isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                     ),
                   ),
                 ),
@@ -583,14 +712,22 @@ class _SerieContentState extends State<SerieContent> {
           padding: EdgeInsets.only(left: 20),
           child: Text(
             'EPISODES',
-            style: TextStyle(color: kColorHint, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.1),
+            style: TextStyle(
+              color: kColorHint,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.1,
+            ),
           ),
         ),
         const SizedBox(height: 10),
         if (_episodes.isEmpty)
           const Padding(
             padding: EdgeInsets.only(left: 20, top: 12, bottom: 12),
-            child: Text("No episodes available", style: TextStyle(color: kColorHint, fontSize: 13)),
+            child: Text(
+              "No episodes available",
+              style: TextStyle(color: kColorHint, fontSize: 13),
+            ),
           )
         else
           SizedBox(
@@ -606,7 +743,11 @@ class _SerieContentState extends State<SerieContent> {
                 final isFocused = isSelected && _panel == 2;
                 return GestureDetector(
                   onTap: () {
-                    setState(() { _episodeIdx = idx; _panel = 2; _selectedButton = -1; });
+                    setState(() {
+                      _episodeIdx = idx;
+                      _panel = 2;
+                      _selectedButton = -1;
+                    });
                     _playEpisode();
                   },
                   child: AnimatedContainer(
@@ -625,16 +766,27 @@ class _SerieContentState extends State<SerieContent> {
                         width: 2,
                       ),
                       boxShadow: isFocused
-                          ? [BoxShadow(color: kColorFocus.withValues(alpha: 0.4), blurRadius: 12, spreadRadius: 2)]
+                          ? [
+                              BoxShadow(
+                                color: kColorFocus.withValues(alpha: 0.4),
+                                blurRadius: 12,
+                                spreadRadius: 2,
+                              ),
+                            ]
                           : [],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         ClipRRect(
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(8),
+                          ),
                           child: CachedNetworkImage(
-                            imageUrl: ep.info?.movieImage ?? _serieDetails?.info?.cover ?? "",
+                            imageUrl:
+                                ep.info?.movieImage ??
+                                _serieDetails?.info?.cover ??
+                                "",
                             width: 150,
                             height: 100,
                             fit: BoxFit.cover,
@@ -642,7 +794,10 @@ class _SerieContentState extends State<SerieContent> {
                               width: 150,
                               height: 100,
                               color: kColorCardDark,
-                              child: const Icon(FontAwesomeIcons.tv, color: kColorHint),
+                              child: const Icon(
+                                FontAwesomeIcons.tv,
+                                color: kColorHint,
+                              ),
                             ),
                           ),
                         ),
@@ -655,7 +810,9 @@ class _SerieContentState extends State<SerieContent> {
                                 Text(
                                   "E${idx + 1}",
                                   style: TextStyle(
-                                    color: isSelected ? kColorPrimary : Colors.white70,
+                                    color: isSelected
+                                        ? kColorPrimary
+                                        : Colors.white70,
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -663,7 +820,10 @@ class _SerieContentState extends State<SerieContent> {
                                 const SizedBox(height: 4),
                                 Text(
                                   ep.title ?? "Episode ${idx + 1}",
-                                  style: const TextStyle(color: Colors.white, fontSize: 11),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                  ),
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -703,15 +863,31 @@ class _SideButton extends StatelessWidget {
         gradient: isSelected
             ? const LinearGradient(colors: [kColorPrimary, kColorPrimaryDark])
             : isFavorite
-            ? LinearGradient(colors: [Colors.red.withValues(alpha: 0.25), Colors.red.withValues(alpha: 0.25)])
-            : LinearGradient(colors: [kColorPrimary.withValues(alpha: 0.2), kColorPrimaryDark.withValues(alpha: 0.2)]),
+            ? LinearGradient(
+                colors: [
+                  Colors.red.withValues(alpha: 0.25),
+                  Colors.red.withValues(alpha: 0.25),
+                ],
+              )
+            : LinearGradient(
+                colors: [
+                  kColorPrimary.withValues(alpha: 0.2),
+                  kColorPrimaryDark.withValues(alpha: 0.2),
+                ],
+              ),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: isSelected ? kColorFocus : Colors.transparent,
           width: 2,
         ),
         boxShadow: isSelected
-            ? [BoxShadow(color: kColorFocus.withValues(alpha: 0.4), blurRadius: 12, spreadRadius: 1)]
+            ? [
+                BoxShadow(
+                  color: kColorFocus.withValues(alpha: 0.4),
+                  blurRadius: 12,
+                  spreadRadius: 1,
+                ),
+              ]
             : [],
       ),
       child: Icon(icon, color: Colors.white, size: 16),
@@ -745,9 +921,15 @@ class _DetailsLoadingState extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.07),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.09),
+                        ),
                       ),
-                      child: const Icon(FontAwesomeIcons.chevronLeft, color: Colors.white, size: 14),
+                      child: const Icon(
+                        FontAwesomeIcons.chevronLeft,
+                        color: Colors.white,
+                        size: 14,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -757,7 +939,11 @@ class _DetailsLoadingState extends StatelessWidget {
                         title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.white70, fontSize: 15, fontWeight: FontWeight.w600),
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                 ],
@@ -769,7 +955,10 @@ class _DetailsLoadingState extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CircularProgressIndicator(color: kColorPrimary, strokeWidth: 2),
+                  CircularProgressIndicator(
+                    color: kColorPrimary,
+                    strokeWidth: 2,
+                  ),
                   SizedBox(height: 20),
                   Text(
                     'Loading...',
@@ -810,9 +999,15 @@ class _DetailsErrorState extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.07),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.09),
+                        ),
                       ),
-                      child: const Icon(FontAwesomeIcons.chevronLeft, color: Colors.white, size: 14),
+                      child: const Icon(
+                        FontAwesomeIcons.chevronLeft,
+                        color: Colors.white,
+                        size: 14,
+                      ),
                     ),
                   ),
                 ],
@@ -829,14 +1024,24 @@ class _DetailsErrorState extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.05),
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.08),
+                      ),
                     ),
-                    child: const Icon(FontAwesomeIcons.circleExclamation, color: Colors.white38, size: 36),
+                    child: const Icon(
+                      FontAwesomeIcons.circleExclamation,
+                      color: Colors.white38,
+                      size: 36,
+                    ),
                   ),
                   const SizedBox(height: 20),
                   const Text(
                     'Could not load content',
-                    style: TextStyle(color: Colors.white70, fontSize: 15, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   const Text(
@@ -851,18 +1056,33 @@ class _DetailsErrorState extends StatelessWidget {
                       GestureDetector(
                         onTap: onBack,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.07),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.12),
+                            ),
                           ),
                           child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(FontAwesomeIcons.chevronLeft, color: Colors.white70, size: 12),
+                              Icon(
+                                FontAwesomeIcons.chevronLeft,
+                                color: Colors.white70,
+                                size: 12,
+                              ),
                               SizedBox(width: 8),
-                              Text('Go Back', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                              Text(
+                                'Go Back',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 13,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -872,18 +1092,34 @@ class _DetailsErrorState extends StatelessWidget {
                       GestureDetector(
                         onTap: onReload,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
                           decoration: BoxDecoration(
                             color: kColorPrimary.withValues(alpha: 0.18),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: kColorPrimary.withValues(alpha: 0.5)),
+                            border: Border.all(
+                              color: kColorPrimary.withValues(alpha: 0.5),
+                            ),
                           ),
                           child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(FontAwesomeIcons.arrowsRotate, color: kColorPrimary, size: 12),
+                              Icon(
+                                FontAwesomeIcons.arrowsRotate,
+                                color: kColorPrimary,
+                                size: 12,
+                              ),
                               SizedBox(width: 8),
-                              Text('Try Again', style: TextStyle(color: kColorPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
+                              Text(
+                                'Try Again',
+                                style: TextStyle(
+                                  color: kColorPrimary,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ],
                           ),
                         ),

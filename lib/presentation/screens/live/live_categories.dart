@@ -100,8 +100,16 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
     // Reuse existing controller — swap stream in-place so VlcPlayer stays in tree
     if (_player != null && _player!.value.isInitialized) {
       try {
-        await _player!.setMediaFromNetwork(url, autoPlay: true, hwAcc: HwAcc.full);
-        if (mounted) setState(() { _selCh = ch; _chIdx = idx; });
+        await _player!.setMediaFromNetwork(
+          url,
+          autoPlay: true,
+          hwAcc: HwAcc.full,
+        );
+        if (mounted)
+          setState(() {
+            _selCh = ch;
+            _chIdx = idx;
+          });
         return;
       } catch (_) {}
     }
@@ -213,9 +221,13 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.arrowUp) {
-      final atTop = (_panel == 0 && _catIdx == 0) || (_panel == 1 && _chIdx == 0);
+      final atTop =
+          (_panel == 0 && _catIdx == 0) || (_panel == 1 && _chIdx == 0);
       if (atTop) {
-        setState(() { _appbarActive = true; _appbarIdx = 0; });
+        setState(() {
+          _appbarActive = true;
+          _appbarIdx = 0;
+        });
       } else {
         _dpadUp();
       }
@@ -235,10 +247,17 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
   }
 
   void _onAppbarSelect() {
-    if (_appbarIdx == 0) { Get.back(); return; }
+    if (_appbarIdx == 0) {
+      Get.back();
+      return;
+    }
     if (_showSearch) {
       _searchCtrl.clear();
-      setState(() { _chSearch = ''; _showSearch = false; _appbarActive = false; });
+      setState(() {
+        _chSearch = '';
+        _showSearch = false;
+        _appbarActive = false;
+      });
       _navFocus.requestFocus();
       return;
     }
@@ -247,7 +266,10 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
       final liked = favState.lives.any((l) => l.streamId == _selCh!.streamId);
       context.read<FavoritesCubit>().addLive(_selCh, isAdd: !liked);
     } else {
-      setState(() { _showSearch = true; _appbarActive = false; });
+      setState(() {
+        _showSearch = true;
+        _appbarActive = false;
+      });
     }
   }
 
@@ -529,19 +551,29 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
       onSearchToggle: () => setState(() => _showSearch = true),
       onSearchClose: () {
         _searchCtrl.clear();
-        setState(() { _chSearch = ''; _showSearch = false; });
+        setState(() {
+          _chSearch = '';
+          _showSearch = false;
+        });
         _navFocus.requestFocus();
       },
       trailing: [
         if (_selCh != null)
           BlocBuilder<FavoritesCubit, FavoritesState>(
             builder: (context, state) {
-              final liked = state.lives.any((l) => l.streamId == _selCh!.streamId);
+              final liked = state.lives.any(
+                (l) => l.streamId == _selCh!.streamId,
+              );
               return IptvAppBarAction(
-                icon: liked ? FontAwesomeIcons.solidHeart : FontAwesomeIcons.heart,
+                icon: liked
+                    ? FontAwesomeIcons.solidHeart
+                    : FontAwesomeIcons.heart,
                 color: liked ? kColorPrimary : Colors.white,
                 isFocused: _appbarActive && _appbarIdx == 1,
-                onTap: () => context.read<FavoritesCubit>().addLive(_selCh, isAdd: !liked),
+                onTap: () => context.read<FavoritesCubit>().addLive(
+                  _selCh,
+                  isAdd: !liked,
+                ),
               );
             },
           ),
@@ -966,7 +998,8 @@ class _LiveFullscreenControls extends StatefulWidget {
   final VoidCallback onClose;
 
   @override
-  State<_LiveFullscreenControls> createState() => _LiveFullscreenControlsState();
+  State<_LiveFullscreenControls> createState() =>
+      _LiveFullscreenControlsState();
 }
 
 class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
@@ -1117,7 +1150,9 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
   Future<void> _rewind10s() async {
     try {
       final target = _position - const Duration(seconds: 10);
-      await widget.controller.seekTo(target < Duration.zero ? Duration.zero : target);
+      await widget.controller.seekTo(
+        target < Duration.zero ? Duration.zero : target,
+      );
     } catch (_) {}
     _scheduleHide();
   }
@@ -1132,7 +1167,10 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
   }
 
   void _openTrackPanel(String type) {
-    setState(() { _trackPanel = type; _trackPanelIdx = 0; });
+    setState(() {
+      _trackPanel = type;
+      _trackPanelIdx = 0;
+    });
     _hideTimer?.cancel();
   }
 
@@ -1164,7 +1202,8 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
   void _activateFocused() {
     if (_focusRow == 0) {
       switch (_focusCol) {
-        case 0: widget.onClose();
+        case 0:
+          widget.onClose();
         case 1:
           if (_subtitleTracks.isNotEmpty) _openTrackPanel('sub');
         case 2:
@@ -1172,9 +1211,12 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
       }
     } else {
       switch (_bottomAction(_focusCol)) {
-        case 'rewind': _rewind10s();
-        case 'play': _togglePlay();
-        case 'aspect': _cycleAspect();
+        case 'rewind':
+          _rewind10s();
+        case 'play':
+          _togglePlay();
+        case 'aspect':
+          _cycleAspect();
       }
     }
   }
@@ -1188,12 +1230,14 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
       if (k == LogicalKeyboardKey.arrowUp) {
         if (_trackPanelIdx > 0) setState(() => _trackPanelIdx--);
       } else if (k == LogicalKeyboardKey.arrowDown) {
-        if (_trackPanelIdx < _trackList.length - 1) setState(() => _trackPanelIdx++);
+        if (_trackPanelIdx < _trackList.length - 1)
+          setState(() => _trackPanelIdx++);
       } else if (k == LogicalKeyboardKey.select ||
           k == LogicalKeyboardKey.enter ||
           k == LogicalKeyboardKey.gameButtonA) {
         if (_trackList.isNotEmpty) _selectTrack(_trackList[_trackPanelIdx].key);
-      } else if (k == LogicalKeyboardKey.escape || k == LogicalKeyboardKey.arrowLeft) {
+      } else if (k == LogicalKeyboardKey.escape ||
+          k == LogicalKeyboardKey.arrowLeft) {
         setState(() => _trackPanel = null);
         _scheduleHide();
       }
@@ -1207,10 +1251,18 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
     }
 
     if (k == LogicalKeyboardKey.arrowUp) {
-      if (_focusRow == 1) setState(() { _focusRow = 0; _focusCol = _focusCol.clamp(0, 2); });
+      if (_focusRow == 1)
+        setState(() {
+          _focusRow = 0;
+          _focusCol = _focusCol.clamp(0, 2);
+        });
       _scheduleHide();
     } else if (k == LogicalKeyboardKey.arrowDown) {
-      if (_focusRow == 0) setState(() { _focusRow = 1; _focusCol = _focusCol.clamp(0, _bottomMax); });
+      if (_focusRow == 0)
+        setState(() {
+          _focusRow = 1;
+          _focusCol = _focusCol.clamp(0, _bottomMax);
+        });
       _scheduleHide();
     } else if (k == LogicalKeyboardKey.arrowLeft) {
       if (_focusCol > 0) setState(() => _focusCol--);
@@ -1245,7 +1297,10 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
             // Buffering spinner
             if (_isBuffering)
               const Center(
-                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2.5,
+                ),
               ),
 
             // Controls overlay
@@ -1306,7 +1361,8 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
             const SizedBox(width: 8),
 
             // Channel icon
-            if (widget.channel.streamIcon != null && widget.channel.streamIcon!.isNotEmpty)
+            if (widget.channel.streamIcon != null &&
+                widget.channel.streamIcon!.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: CachedNetworkImage(
@@ -1354,7 +1410,9 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
             _FsBtn(
               icon: FontAwesomeIcons.closedCaptioning,
               label: 'SUB',
-              badge: _subtitleTracks.isNotEmpty ? '${_subtitleTracks.length}' : null,
+              badge: _subtitleTracks.isNotEmpty
+                  ? '${_subtitleTracks.length}'
+                  : null,
               isFocused: _isFocused(0, 1),
               isDisabled: _subtitleTracks.isEmpty,
               onTap: () => _openTrackPanel('sub'),
@@ -1428,7 +1486,9 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
 
   Widget _buildSlider() {
     final total = _duration.inMilliseconds;
-    final pos = total > 0 ? (_position.inMilliseconds / total).clamp(0.0, 1.0) : 0.0;
+    final pos = total > 0
+        ? (_position.inMilliseconds / total).clamp(0.0, 1.0)
+        : 0.0;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -1455,8 +1515,14 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(_fmt(_position), style: const TextStyle(color: Colors.white70, fontSize: 11)),
-            Text(_fmt(_duration), style: const TextStyle(color: Colors.white70, fontSize: 11)),
+            Text(
+              _fmt(_position),
+              style: const TextStyle(color: Colors.white70, fontSize: 11),
+            ),
+            Text(
+              _fmt(_duration),
+              style: const TextStyle(color: Colors.white70, fontSize: 11),
+            ),
           ],
         ),
       ],
@@ -1486,7 +1552,10 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
           boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.6), blurRadius: 20),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.6),
+              blurRadius: 20,
+            ),
           ],
         ),
         child: Column(
@@ -1531,8 +1600,14 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
                     onTap: () => _selectTrack(list[i].key),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 100),
-                      margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 9,
+                      ),
                       decoration: BoxDecoration(
                         color: focused
                             ? kColorPrimary.withValues(alpha: 0.2)
@@ -1550,8 +1625,9 @@ class _LiveFullscreenControlsState extends State<_LiveFullscreenControls> {
                         style: TextStyle(
                           color: focused ? Colors.white : Colors.white70,
                           fontSize: 12,
-                          fontWeight:
-                              focused ? FontWeight.w600 : FontWeight.normal,
+                          fontWeight: focused
+                              ? FontWeight.w600
+                              : FontWeight.normal,
                         ),
                       ),
                     ),
@@ -1618,7 +1694,12 @@ class _FsBtn extends StatelessWidget {
                 width: isFocused ? 1.5 : 1,
               ),
               boxShadow: isFocused
-                  ? [BoxShadow(color: kColorFocus.withValues(alpha: 0.35), blurRadius: 10)]
+                  ? [
+                      BoxShadow(
+                        color: kColorFocus.withValues(alpha: 0.35),
+                        blurRadius: 10,
+                      ),
+                    ]
                   : [],
             ),
             child: Row(
@@ -1626,15 +1707,17 @@ class _FsBtn extends StatelessWidget {
               spacing: 6,
               children: [
                 Icon(icon, size: isLarge ? 18 : 14, color: baseColor),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: baseColor,
-                    fontSize: isLarge ? 13 : 11,
-                    fontWeight:
-                        isFocused ? FontWeight.bold : FontWeight.normal,
+                if (label.isNotEmpty)
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: baseColor,
+                      fontSize: isLarge ? 13 : 11,
+                      fontWeight: isFocused
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                    ),
                   ),
-                ),
               ],
             ),
           ),

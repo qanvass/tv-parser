@@ -166,15 +166,15 @@ class _MovieContentState extends State<MovieContent> {
       final link =
           "${userAuth.serverInfo!.serverUrl}/movie/${userAuth.userInfo!.username}/${userAuth.userInfo!.password}/${_movieDetail!.movieData!.streamId}.${_movieDetail!.movieData!.containerExtension}";
       Get.to(
-        () => FullVideoScreen(
+        () => MoviePlayerScreen(
           link: link,
           title: _movieDetail!.movieData!.name ?? "",
         ),
-      )?.then((slider) {
-        if (slider != null) {
+      )?.then((result) {
+        if (result != null) {
           final model = WatchingModel(
-            sliderValue: slider[0],
-            durationStrm: slider[1],
+            sliderValue: result[0],
+            durationStrm: result[1],
             stream: link,
             title: widget.channelMovie.name ?? "",
             image: widget.channelMovie.streamIcon ?? "",

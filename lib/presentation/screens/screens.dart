@@ -53,6 +53,8 @@ part 'movie/movie_channels.dart';
 part 'movie/movie_details.dart';
 part 'player/full_video.dart';
 part 'player/player_video.dart';
+part 'player/movie_player.dart';
+part 'player/series_player.dart';
 part 'series/serie_details.dart';
 part 'series/serie_seasons.dart';
 part 'series/series_categories.dart';
