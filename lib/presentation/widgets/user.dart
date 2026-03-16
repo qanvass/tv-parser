@@ -144,20 +144,10 @@ class _IntroImageAnimatedState extends State<IntroImageAnimated> {
             ),
           ),
         ),
-        if (!widget.isTv)
-          Column(
-            children: [
-              Image.asset(kIconSplash, width: 40.w, height: 40.w),
-              Text(
-                kAppName.toUpperCase(),
-                textAlign: TextAlign.center,
-                style: Get.textTheme.headlineLarge!.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
+        // Centered app branding
+        Center(
+          child: Image.asset(kIconSplash, width: 35.w, height: 35.w),
+        ),
       ],
     );
   }

@@ -22,7 +22,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  void _showM3uDialog() {
+  void _showXtremeDialog() {
     final style = Get.textTheme.bodyMedium!.copyWith(
       color: Colors.white,
       fontWeight: FontWeight.bold,
@@ -30,7 +30,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     showDialog(
       context: context,
       builder: (_) => CupertinoAlertDialog(
-        title: const Text('Import M3U API Link'),
+        title: const Text('Import Xtreme API Link'),
         content: Material(
           color: Colors.transparent,
           child: Padding(
@@ -186,10 +186,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 children: [
                                   Text(
                                     'Sign In',
-                                    style:
-                                        Get.textTheme.headlineMedium!.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                    style: Get.textTheme.headlineMedium!
+                                        .copyWith(fontWeight: FontWeight.bold),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
@@ -227,23 +225,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     style: fieldStyle,
                                   ),
 
-                                  // M3U import
+                                  // Xtreme import
                                   Align(
                                     alignment: Alignment.centerRight,
                                     child: TextButton.icon(
-                                      onPressed: _showM3uDialog,
+                                      onPressed: _showXtremeDialog,
                                       icon: const Icon(
                                         FontAwesomeIcons.link,
                                         size: 13,
                                         color: kColorPrimary,
                                       ),
                                       label: Text(
-                                        'Import M3U Link',
-                                        style:
-                                            Get.textTheme.bodySmall!.copyWith(
-                                          color: kColorPrimary,
-                                          fontWeight: FontWeight.bold,
-                                        ),
+                                        'Import Xtreme Link',
+                                        style: Get.textTheme.bodySmall!
+                                            .copyWith(
+                                              color: kColorPrimary,
+                                              fontWeight: FontWeight.bold,
+                                            ),
                                       ),
                                     ),
                                   ),
@@ -262,10 +260,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     children: [
                                       Text(
                                         'By signing in, you agree to our ',
-                                        style:
-                                            Get.textTheme.bodySmall!.copyWith(
-                                          color: Colors.white54,
-                                        ),
+                                        style: Get.textTheme.bodySmall!
+                                            .copyWith(color: Colors.white54),
                                       ),
                                       InkWell(
                                         onTap: () async => await launchUrl(
@@ -274,13 +270,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         ),
                                         child: Text(
                                           'privacy policy.',
-                                          style:
-                                              Get.textTheme.bodySmall!.copyWith(
-                                            color: kColorPrimary.withValues(
-                                              alpha: .85,
-                                            ),
-                                            fontWeight: FontWeight.bold,
-                                          ),
+                                          style: Get.textTheme.bodySmall!
+                                              .copyWith(
+                                                color: kColorPrimary.withValues(
+                                                  alpha: .85,
+                                                ),
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                         ),
                                       ),
                                     ],
@@ -327,12 +323,15 @@ class _LoginFieldMobile extends StatelessWidget {
         color: kColorCardLight,
         borderRadius: BorderRadius.circular(12),
       ),
+
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       child: TextField(
         controller: controller,
         obscureText: obscure,
         style: style,
+
         decoration: InputDecoration(
+          contentPadding: const EdgeInsets.only(top: 12),
           hintText: hint,
           hintStyle: Get.textTheme.bodyMedium!.copyWith(color: kColorHint),
           suffixIcon: Icon(icon, size: 16, color: kColorPrimary),
