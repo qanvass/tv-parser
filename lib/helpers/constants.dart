@@ -6,7 +6,7 @@ const String kAppName = "AZUL IPTV";
 const bool showAds = false;
 
 //TODO: Force TV mode for testing on mobile ( true / false )
-const bool kForceTvMode = true;
+const bool kForceTvMode = false;
 
 const String kIconLive = "assets/images/live-stream.png";
 const String kIconSeries = "assets/images/clapperboard.png";

@@ -53,7 +53,6 @@ class _SplashScreenState extends State<SplashScreen> {
                 if (isTv(context)) {
                   goScreen(screenRegisterTv);
                 } else {
-                  //goScreen(screenRegisterTv);
                   goScreen(screenIntro);
                 }
               }
