@@ -154,28 +154,40 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
 
   void _handleSelect() {
     final state = context.read<WatchingCubit>().state;
+    final watchingCubit = context.read<WatchingCubit>();
+
     if (_tabIdx == 0) {
       final items = state.movies;
       if (_movieIdx >= items.length) return;
       final model = items[_movieIdx];
-      final watchingCubit = context.read<WatchingCubit>();
-      Get.to(() => FullVideoScreen(link: model.stream, title: model.title))?.then((slider) {
-        if (slider != null) {
-          var newMod = model;
-          newMod.sliderValue = slider[0];
-          watchingCubit.addMovie(newMod);
+      Get.to(() => MoviePlayerScreen(link: model.stream, title: model.title))
+          ?.then((result) {
+        if (result != null) {
+          watchingCubit.addMovie(WatchingModel(
+            streamId: model.streamId,
+            image: model.image,
+            title: model.title,
+            stream: model.stream,
+            sliderValue: result[0],
+            durationStrm: result[1],
+          ));
         }
       });
     } else {
       final items = state.series;
       if (_serieIdx >= items.length) return;
       final model = items[_serieIdx];
-      final watchingCubit = context.read<WatchingCubit>();
-      Get.to(() => FullVideoScreen(link: model.stream, title: model.title))?.then((slider) {
-        if (slider != null) {
-          var newMod = model;
-          newMod.sliderValue = slider;
-          watchingCubit.addSerie(newMod);
+      Get.to(() => MoviePlayerScreen(link: model.stream, title: model.title))
+          ?.then((result) {
+        if (result != null) {
+          watchingCubit.addSerie(WatchingModel(
+            streamId: model.streamId,
+            image: model.image,
+            title: model.title,
+            stream: model.stream,
+            sliderValue: result[0],
+            durationStrm: result[1],
+          ));
         }
       });
     }
