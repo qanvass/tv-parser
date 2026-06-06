@@ -1,0 +1,25 @@
+{
+  "name": "flutter-spatial-nav",
+  "description": "Enforces hardware D-pad spatial navigation, virtualized focus trees, and overscan paddings for Flutter TV environments.",
+  "version": "1.0.0",
+  "activation": {
+    "triggerPhrases": [
+      "build tv layout",
+      "fix d-pad navigation",
+      "add focus state",
+      "generate tv grid",
+      "leanback layout",
+      "focus node traversal"
+    ],
+    "fileFilters": [
+      "lib/presentation/screens/**/*.dart",
+      "lib/presentation/widgets/**/*.dart",
+      "lib/views/**/*.dart",
+      "lib/widgets/**/*.dart"
+    ]
+  },
+  "constraints": {
+    "frameworks": ["flutter"],
+    "platforms": ["android-tv", "fire-tv", "apple-tv"]
+  }
+}

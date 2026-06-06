@@ -16,6 +16,25 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthRegister>((event, emit) async {
       emit(AuthLoading());
 
+      if (gatewayService.isReviewMode) {
+        final mockUser = UserModel(
+          userInfo: UserInfo(
+            username: event.username,
+            password: event.password,
+            status: "Active",
+            expDate: "2099-12-31",
+          ),
+          serverInfo: ServerInfo(
+            serverUrl: event.domain,
+            timezone: "UTC",
+          ),
+        );
+        changeDeviceOrient();
+        await Future.delayed(const Duration(milliseconds: 300));
+        emit(AuthSuccess(mockUser));
+        return;
+      }
+
       final user = await authApi.registerUser(
         event.username,
         event.password,
@@ -24,9 +43,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
 
       if (user != null) {
-        changeDeviceOrient();
-        await Future.delayed(const Duration(milliseconds: 300));
-        emit(AuthSuccess(user));
+        final status = user.userInfo?.status?.trim().toLowerCase();
+        if (status == 'active') {
+          changeDeviceOrient();
+          await Future.delayed(const Duration(milliseconds: 300));
+          emit(AuthSuccess(user));
+        } else {
+          emit(AuthFailed("Account is inactive or expired. Status: ${user.userInfo?.status ?? 'Unknown'}"));
+        }
       } else {
         emit(AuthFailed("could not login!!"));
       }
@@ -38,8 +62,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final localeUser = await LocaleApi.getUser();
 
       if (localeUser != null) {
-        changeDeviceOrient();
-        emit(AuthSuccess(localeUser));
+        final status = localeUser.userInfo?.status?.trim().toLowerCase();
+        if (status == 'active') {
+          changeDeviceOrient();
+          emit(AuthSuccess(localeUser));
+        } else {
+          await LocaleApi.logOut();
+          emit(AuthFailed("Account is inactive or expired."));
+        }
       } else {
         emit(AuthFailed("could not login!!"));
       }

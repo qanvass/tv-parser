@@ -280,8 +280,7 @@ class _MovieContentState extends State<MovieContent> {
                                     width: 2,
                                   ),
                                 ),
-                                child: const Icon(
-                                  FontAwesomeIcons.chevronLeft,
+                                child: Icon(FontAwesomeIcons.chevronLeft.data,
                                   color: Colors.white,
                                   size: 18,
                                 ),
@@ -291,7 +290,7 @@ class _MovieContentState extends State<MovieContent> {
                             if (movie.info!.youtubeTrailer != null &&
                                 movie.info!.youtubeTrailer!.isNotEmpty) ...[
                               _FocusableButton(
-                                icon: FontAwesomeIcons.youtube,
+                                icon: FontAwesomeIcons.youtube.data,
                                 isSelected: _selectedButton == 1,
                                 onTap: () {
                                   setState(() => _selectedButton = 1);
@@ -309,8 +308,8 @@ class _MovieContentState extends State<MovieContent> {
                                 );
                                 return _FocusableButton(
                                   icon: isLiked
-                                      ? FontAwesomeIcons.solidHeart
-                                      : FontAwesomeIcons.heart,
+                                      ? FontAwesomeIcons.solidHeart.data
+                                      : FontAwesomeIcons.heart.data,
                                   isSelected:
                                       _selectedButton == (_hasTrailer ? 2 : 1),
                                   isFavorite: true,
@@ -355,14 +354,14 @@ class _MovieContentState extends State<MovieContent> {
                                                 movie.info!.movieImage ?? "",
                                             width: 140,
                                             height: 200,
+                                            memCacheWidth: 300,
                                             fit: BoxFit.cover,
                                             errorWidget: (_, __, ___) =>
                                                 Container(
                                                   width: 140,
                                                   height: 200,
                                                   color: kColorCardLight,
-                                                  child: const Icon(
-                                                    FontAwesomeIcons.film,
+                                                  child: Icon(FontAwesomeIcons.film.data,
                                                     color: kColorHint,
                                                     size: 40,
                                                   ),
@@ -385,40 +384,38 @@ class _MovieContentState extends State<MovieContent> {
                                               ),
                                               const SizedBox(height: 16),
                                               _buildInfoRow(
-                                                icon: FontAwesomeIcons
-                                                    .clapperboard,
+                                                icon: FontAwesomeIcons.clapperboard.data,
                                                 label: 'Director',
                                                 value:
                                                     movie.info!.director ?? "",
                                               ),
                                               const SizedBox(height: 10),
                                               _buildInfoRow(
-                                                icon: FontAwesomeIcons
-                                                    .calendarDay,
+                                                icon: FontAwesomeIcons.calendarDay.data,
                                                 label: 'Release',
                                                 value: expirationDate(
                                                   movie.info!.releasedate,
                                                 ),
                                               ),
-                                              const SizedBox(height: 10),
+                                              SizedBox(height: 10),
                                               _buildInfoRow(
-                                                icon: FontAwesomeIcons.clock,
+                                                icon: FontAwesomeIcons.clock.data,
                                                 label: 'Duration',
                                                 value:
                                                     movie.info!.duration ?? "",
                                               ),
-                                              const SizedBox(height: 10),
+                                              SizedBox(height: 10),
                                               _buildInfoRow(
-                                                icon: FontAwesomeIcons.film,
+                                                icon: FontAwesomeIcons.film.data,
                                                 label: 'Genre',
                                                 value: movie.info!.genre ?? "",
                                               ),
-                                              const SizedBox(height: 12),
+                                              SizedBox(height: 12),
                                               SizedBox(
                                                 width: 130,
                                                 child: _FocusableButton(
                                                   label: "PLAY",
-                                                  icon: FontAwesomeIcons.play,
+                                                  icon: FontAwesomeIcons.play.data,
                                                   isSelected:
                                                       _selectedButton == 0,
                                                   onTap: () {
@@ -446,7 +443,13 @@ class _MovieContentState extends State<MovieContent> {
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
-                                      movie.info!.plot ?? "",
+                                      (movie.info!.plot != null &&
+                                       movie.info!.plot!.isNotEmpty &&
+                                       movie.info!.plot != "null" &&
+                                       !movie.info!.plot!.toLowerCase().contains("iptv") &&
+                                       !movie.info!.plot!.toLowerCase().contains("servicer"))
+                                          ? movie.info!.plot!
+                                          : "No description available for this title.",
                                       style: const TextStyle(
                                         color: Colors.white70,
                                         fontSize: 14,

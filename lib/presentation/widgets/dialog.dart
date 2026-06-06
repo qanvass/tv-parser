@@ -142,8 +142,8 @@ class _DialogTrailerYoutubeState extends State<DialogTrailerYoutube> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(
-                              FontAwesomeIcons.youtube,
+                            Icon(
+                              FontAwesomeIcons.youtube.data,
                               size: 12,
                               color: kColorPrimary,
                             ),
@@ -186,8 +186,8 @@ class _DialogTrailerYoutubeState extends State<DialogTrailerYoutube> {
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
                           ),
-                          child: const Icon(
-                            FontAwesomeIcons.xmark,
+                          child: Icon(
+                            FontAwesomeIcons.xmark.data,
                             color: Colors.white54,
                             size: 13,
                           ),
@@ -205,10 +205,7 @@ class _DialogTrailerYoutubeState extends State<DialogTrailerYoutube> {
                     alwaysShowProgressBar: false,
                     onToggleFullScreen: (value) async {
                       if (!value) {
-                        SystemChrome.setPreferredOrientations([
-                          DeviceOrientation.landscapeLeft,
-                          DeviceOrientation.landscapeRight,
-                        ]);
+                        OrientationGuard.applyPlayerExitOrientation();
                       }
                     },
                     podProgressBarConfig: const PodProgressBarConfig(
@@ -241,17 +238,17 @@ class _DialogTrailerYoutubeState extends State<DialogTrailerYoutube> {
                       // Play / Pause
                       _DialogBtn(
                         icon: isPlaying
-                            ? FontAwesomeIcons.pause
-                            : FontAwesomeIcons.play,
+                            ? FontAwesomeIcons.pause.data
+                            : FontAwesomeIcons.play.data,
                         label: isPlaying ? 'Pause' : 'Play',
                         isFocused: _focusedBtn == 0,
                         isPrimary: true,
                         onTap: _togglePlay,
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: 12),
                       // Close
                       _DialogBtn(
-                        icon: FontAwesomeIcons.xmark,
+                        icon: FontAwesomeIcons.xmark.data,
                         label: 'Close',
                         isFocused: _focusedBtn == 1,
                         isPrimary: false,

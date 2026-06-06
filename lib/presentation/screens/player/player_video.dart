@@ -107,8 +107,7 @@ class _StreamPlayerPageState extends State<StreamPlayerPage> {
                                               .changeUrlVideo(false);
                                           //Get.back();
                                         },
-                                        icon: const Icon(
-                                            FontAwesomeIcons.chevronRight),
+                                        icon: Icon(FontAwesomeIcons.chevronRight.data),
                                       ),
                                     ),
                                   ],
@@ -127,8 +126,8 @@ class _StreamPlayerPageState extends State<StreamPlayerPage> {
                                   },
                                   icon: Icon(
                                     isPlayed
-                                        ? FontAwesomeIcons.pause
-                                        : FontAwesomeIcons.play,
+                                        ? FontAwesomeIcons.pause.data
+                                        : FontAwesomeIcons.play.data,
                                     size: 24.sp,
                                   ),
                                 ),

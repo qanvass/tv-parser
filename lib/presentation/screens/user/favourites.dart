@@ -201,7 +201,19 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
     } else if (_tabIdx == 1) {
       if (_movieIdx >= favState.movies.length) return;
       final m = favState.movies[_movieIdx];
-      Get.to(() => MovieContent(channelMovie: m, videoId: m.streamId ?? ''));
+      if (isTv(context)) {
+        Get.to(() => MovieContent(channelMovie: m, videoId: m.streamId ?? ''));
+      } else {
+        Get.to(
+          () => MobileDetailScreen(
+            movie: m,
+            onPlayTap: () {
+              Get.back();
+              _playMovieMobile(m);
+            },
+          ),
+        );
+      }
     } else {
       if (_serieIdx >= favState.series.length) return;
       final s = favState.series[_serieIdx];
@@ -226,7 +238,7 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
                   height: 56,
                   child: IptvAppBar(
                     title: 'Favourites',
-                    icon: FontAwesomeIcons.heart,
+                    icon: FontAwesomeIcons.heart.data,
                     onBack: Get.back,
                     focusedIndex: _appbarActive ? _appbarIdx : null,
                   ),
@@ -258,11 +270,11 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
   }
 
   Widget _buildSidebar() {
-    const labels = ['Live TV', 'Movies', 'Series'];
-    const icons = [
-      FontAwesomeIcons.tv,
-      FontAwesomeIcons.film,
-      FontAwesomeIcons.clapperboard,
+    final labels = ['Live TV', 'Movies', 'Series'];
+    final icons = [
+      FontAwesomeIcons.tv.data,
+      FontAwesomeIcons.film.data,
+      FontAwesomeIcons.clapperboard.data,
     ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -354,18 +366,19 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
   Widget _buildContent() {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, authState) {
-        if (authState is! AuthSuccess) return const SizedBox();
+        if (authState is! AuthSuccess) return SizedBox();
         return BlocBuilder<FavoritesCubit, FavoritesState>(
           builder: (context, favState) {
             if (_tabIdx == 0) {
               final items = favState.lives;
               if (items.isEmpty)
                 return _emptyState(
-                  FontAwesomeIcons.tv,
+                  FontAwesomeIcons.tv.data,
                   'No favourite channels yet',
                 );
               return ListView.builder(
                 controller: _liveScroll,
+                cacheExtent: 350.0,
                 padding: const EdgeInsets.all(10),
                 itemCount: items.length,
                 itemBuilder: (_, i) {
@@ -418,8 +431,8 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
                         children: [
                           Icon(
                             isFocused
-                                ? FontAwesomeIcons.play
-                                : FontAwesomeIcons.tv,
+                                ? FontAwesomeIcons.play.data
+                                : FontAwesomeIcons.tv.data,
                             size: 13,
                             color: isSelected ? kColorPrimary : Colors.white38,
                           ),
@@ -451,11 +464,12 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
               final items = favState.movies;
               if (items.isEmpty)
                 return _emptyState(
-                  FontAwesomeIcons.film,
+                  FontAwesomeIcons.film.data,
                   'No favourite movies yet',
                 );
               return GridView.builder(
                 controller: _movieScroll,
+                cacheExtent: 350.0,
                 padding: const EdgeInsets.all(10),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 5,
@@ -473,19 +487,31 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
                         _movieIdx = i;
                         _panel = 2;
                       });
-                      Get.to(
-                        () => MovieContent(
-                          channelMovie: items[i],
-                          videoId: items[i].streamId ?? '',
-                        ),
-                      );
+                      if (isTv(context)) {
+                        Get.to(
+                          () => MovieContent(
+                            channelMovie: items[i],
+                            videoId: items[i].streamId ?? '',
+                          ),
+                        );
+                      } else {
+                        Get.to(
+                          () => MobileDetailScreen(
+                            movie: items[i],
+                            onPlayTap: () {
+                              Get.back();
+                              _playMovieMobile(items[i]);
+                            },
+                          ),
+                        );
+                      }
                     },
                     child: _FavPosterItem(
                       image: items[i].streamIcon,
                       title: items[i].name ?? '',
                       isSelected: isSelected,
                       isFocused: isFocused,
-                      fallbackIcon: FontAwesomeIcons.film,
+                      fallbackIcon: FontAwesomeIcons.film.data,
                     ),
                   );
                 },
@@ -496,11 +522,12 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
             final items = favState.series;
             if (items.isEmpty)
               return _emptyState(
-                FontAwesomeIcons.clapperboard,
+                FontAwesomeIcons.clapperboard.data,
                 'No favourite series yet',
               );
             return GridView.builder(
               controller: _serieScroll,
+              cacheExtent: 350.0,
               padding: const EdgeInsets.all(10),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 5,
@@ -530,7 +557,7 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
                     title: items[i].name ?? '',
                     isSelected: isSelected,
                     isFocused: isFocused,
-                    fallbackIcon: FontAwesomeIcons.clapperboard,
+                    fallbackIcon: FontAwesomeIcons.clapperboard.data,
                   ),
                 );
               },
@@ -569,6 +596,19 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  void _playMovieMobile(ChannelMovie movie) {
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! AuthSuccess) return;
+    final user = authState.user;
+    final streamUrl =
+        "${user.serverInfo?.serverUrl}/movie/${user.userInfo?.username}/${user.userInfo?.password}/${movie.streamId}.${movie.containerExtension ?? 'mp4'}";
+    StreamLauncher.openStreamWithBrandedLoading(
+      context: context,
+      streamUrl: streamUrl,
+      playerBuilder: () => MoviePlayerScreen(link: streamUrl, title: movie.name ?? 'Stream'),
     );
   }
 }
@@ -623,6 +663,7 @@ class _FavPosterItem extends StatelessWidget {
             CachedNetworkImage(
               imageUrl: image ?? '',
               fit: BoxFit.cover,
+              memCacheWidth: 300,
               placeholder: (_, __) => Container(
                 color: kColorCardDark,
                 child: const Center(
@@ -680,8 +721,7 @@ class _FavPosterItem extends StatelessWidget {
                     color: kColorFocus,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    FontAwesomeIcons.play,
+                  child: Icon(FontAwesomeIcons.play.data,
                     color: Colors.white,
                     size: 9,
                   ),

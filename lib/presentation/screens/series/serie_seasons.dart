@@ -169,9 +169,8 @@ class _SerieSeasonsState extends State<SerieSeasons> {
     if (userAuth is! AuthSuccess) return;
 
     final link =
-        "${userAuth.user.serverInfo!.serverUrl}/series/${userAuth.user.userInfo!.username}/${userAuth.user.userInfo!.password}/${model!.id}.${model.containerExtension}";
+        "${userAuth.user.serverInfo!.serverUrl}/series/${userAuth.user.userInfo!.username}/${userAuth.user.userInfo!.password}/${model.id}.${model.containerExtension}";
 
-    debugPrint("Link: $link");
     Get.to(() => MoviePlayerScreen(link: link, title: model.title ?? ""))!.then((
       slider,
     ) {
@@ -282,8 +281,7 @@ class _SerieSeasonsState extends State<SerieSeasons> {
                   width: 2,
                 ),
               ),
-              child: const Icon(
-                FontAwesomeIcons.chevronLeft,
+              child: Icon(FontAwesomeIcons.chevronLeft.data,
                 color: Colors.white,
                 size: 20,
               ),
@@ -315,13 +313,13 @@ class _SerieSeasonsState extends State<SerieSeasons> {
               imageUrl: _serieDetails.info!.cover ?? "",
               width: 60,
               height: 80,
+              memCacheWidth: 300,
               fit: BoxFit.cover,
               errorWidget: (_, __, ___) => Container(
                 width: 60,
                 height: 80,
                 color: kColorCardLight,
-                child: const Icon(
-                  FontAwesomeIcons.tv,
+                child: Icon(FontAwesomeIcons.tv.data,
                   color: kColorHint,
                   size: 20,
                 ),
@@ -351,6 +349,7 @@ class _SerieSeasonsState extends State<SerieSeasons> {
       height: 50,
       child: ListView.builder(
         controller: _seasonScroll,
+        cacheExtent: 350.0,
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         itemCount: _seasons.length,
@@ -432,6 +431,7 @@ class _SerieSeasonsState extends State<SerieSeasons> {
           Expanded(
             child: ListView.builder(
               controller: _episodeScroll,
+              cacheExtent: 350.0,
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 20),
               itemCount: _episodes.length,
@@ -489,13 +489,13 @@ class _SerieSeasonsState extends State<SerieSeasons> {
                                     "",
                                 width: 150,
                                 height: 100,
+                                memCacheWidth: 300,
                                 fit: BoxFit.cover,
                                 errorWidget: (_, __, ___) => Container(
                                   width: 150,
                                   height: 100,
                                   color: kColorCardDark,
-                                  child: const Icon(
-                                    FontAwesomeIcons.tv,
+                                  child: Icon(FontAwesomeIcons.tv.data,
                                     color: kColorHint,
                                   ),
                                 ),
@@ -543,8 +543,7 @@ class _SerieSeasonsState extends State<SerieSeasons> {
                                 color: kColorFocus,
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(
-                                FontAwesomeIcons.play,
+                              child: Icon(FontAwesomeIcons.play.data,
                                 color: Colors.white,
                                 size: 10,
                               ),

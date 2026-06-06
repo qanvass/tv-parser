@@ -71,17 +71,17 @@ class IntroScreen extends StatelessWidget {
                     Row(
                       children: [
                         _FeaturePill(
-                          icon: FontAwesomeIcons.tv,
+                          icon: FontAwesomeIcons.tv.data,
                           label: 'Live TV',
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         _FeaturePill(
-                          icon: FontAwesomeIcons.film,
+                          icon: FontAwesomeIcons.film.data,
                           label: 'Movies',
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         _FeaturePill(
-                          icon: FontAwesomeIcons.clapperboard,
+                          icon: FontAwesomeIcons.clapperboard.data,
                           label: 'Series',
                         ),
                       ],
@@ -131,7 +131,7 @@ class IntroScreen extends StatelessWidget {
                             ),
                           ],
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
@@ -145,7 +145,7 @@ class IntroScreen extends StatelessWidget {
                             ),
                             SizedBox(width: 10),
                             Icon(
-                              FontAwesomeIcons.arrowRight,
+                              FontAwesomeIcons.arrowRight.data,
                               color: Colors.white,
                               size: 13,
                             ),

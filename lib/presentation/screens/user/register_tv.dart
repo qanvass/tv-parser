@@ -12,7 +12,7 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
   final _password = NativeTextFieldController();
   final _domain = NativeTextFieldController();
 
-  // 0=username, 1=password, 2=url, 3=button
+  // 0=url, 1=username, 2=password, 3=SignIn, 4=Help, 5=Demo
   int _row = 0;
   // true while a TextField keyboard is open
   bool _editing = false;
@@ -29,6 +29,11 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
     _fn0.skipTraversal = true;
     _fn1.skipTraversal = true;
     _fn2.skipTraversal = true;
+
+    // Pre-populate LayerSeven TV credentials
+    _domain.text = 'http://cf.fulldin.vip';
+    _username.text = 'd27f1f5d5b85';
+    _password.text = '7b182cd04e';
   }
 
   @override
@@ -50,11 +55,11 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
     final key = event.logicalKey;
 
     if (key == LogicalKeyboardKey.arrowDown) {
-      setState(() => _row = (_row + 1).clamp(0, 3));
+      setState(() => _row = (_row + 1).clamp(0, 5));
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.arrowUp) {
-      setState(() => _row = (_row - 1).clamp(0, 3));
+      setState(() => _row = (_row - 1).clamp(0, 5));
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.select ||
@@ -68,8 +73,14 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
 
   void _activate([int? row]) {
     final target = row ?? _row;
-    if (target == 3) {
-      _login();
+    if (target > 2) {
+      if (target == 3) {
+        _login();
+      } else if (target == 4) {
+        _showHelpDialog();
+      } else if (target == 5) {
+        _loginDemo();
+      }
       return;
     }
     setState(() {
@@ -77,10 +88,14 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
       _editing = true;
     });
     // Request focus AFTER rebuild so the field is already enabled.
-    // On Chromecast the IME won't open if requestFocus is called while
-    // the TextField is still disabled (enabled: false).
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      [_fn0, _fn1, _fn2][target].requestFocus();
+      if (target == 0) {
+        _fn2.requestFocus();
+      } else if (target == 1) {
+        _fn0.requestFocus();
+      } else if (target == 2) {
+        _fn1.requestFocus();
+      }
     });
   }
 
@@ -93,19 +108,82 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
     _navFocus.requestFocus();
   }
 
+  void _showHelpDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF13101E),
+        title: const Text('Need Help?', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Please contact your playlist provider or administrator to retrieve your Server URL, Username, and Password.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: const Text('OK', style: TextStyle(color: kColorPrimary)),
+          )
+        ],
+      ),
+    );
+  }
+
+  void _loginDemo() {
+    _username.text = 'azul-iptv';
+    _password.text = 'azul-demo';
+    _domain.text = ''; // Not required for demo
+    gatewayService.isReviewMode = true; // Ensure reviewer mode is enabled to load legal demo content only
+    context.read<SettingsCubit>().updateStatusAccount(true);
+    Get.offAndToNamed(screenWelcome);
+  }
+
   void _login() {
-    if (_username.text == 'azul-demo' && _password.text == 'azul-demo') {
-      context.read<SettingsCubit>().updateStatusAccount(true);
-      Get.offAndToNamed(screenWelcome);
+    final username = _username.text.trim();
+    final password = _password.text.trim();
+
+    if (username == 'azul-iptv' && password == 'azul-demo') {
+      _loginDemo();
       return;
     }
-    if (_username.text.isNotEmpty &&
-        _password.text.isNotEmpty &&
-        _domain.text.isNotEmpty) {
-      context.read<AuthBloc>().add(
-        AuthRegister(_username.text, _password.text, _domain.text),
+
+    final rawUrl = _domain.text.trim();
+    if (rawUrl.isEmpty) {
+      showWarningToast(
+        context,
+        'Server URL Required',
+        'Unable to sign in. Please check your server URL, username, and password.',
       );
+      return;
     }
+
+    final uri = Uri.tryParse(rawUrl);
+    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https') || uri.host.isEmpty) {
+      showWarningToast(
+        context,
+        'Invalid Server URL',
+        'Unable to sign in. Please check your server URL, username, and password.',
+      );
+      return;
+    }
+
+    var normalizedUrl = rawUrl;
+    if (normalizedUrl.endsWith('/')) {
+      normalizedUrl = normalizedUrl.substring(0, normalizedUrl.length - 1);
+    }
+
+    if (username.isEmpty || password.isEmpty) {
+      showWarningToast(
+        context,
+        'Credentials Required',
+        'Unable to sign in. Please check your server URL, username, and password.',
+      );
+      return;
+    }
+
+    gatewayService.isReviewMode = false; // Reset to false for normal user logins
+    context.read<AuthBloc>().add(
+      AuthRegister(username, password, normalizedUrl),
+    );
   }
 
   @override
@@ -122,9 +200,7 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
           decoration: kDecorBackground,
           child: BlocBuilder<SettingsCubit, SettingsState>(
             builder: (context, settingState) {
-              return AzulEnvatoChecker(
-                uniqueKey: settingState.setting,
-                successPage: BlocConsumer<AuthBloc, AuthState>(
+              return BlocConsumer<AuthBloc, AuthState>(
                   listener: (context, state) {
                     if (state is AuthSuccess) {
                       context.read<LiveCatyBloc>().add(GetLiveCategories());
@@ -134,8 +210,8 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
                     } else if (state is AuthFailed) {
                       showWarningToast(
                         context,
-                        'Login failed.',
-                        'Please check your IPTV credentials and try again.',
+                        'Login Failed',
+                        'Unable to sign in. Please check your server URL, username, and password.',
                       );
                     }
                   },
@@ -164,9 +240,9 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Image.asset(
-                                    kIconSplash,
-                                    width: getSize(context).height * .22,
-                                    height: getSize(context).height * .22,
+                                    kIconLogoTransparent,
+                                    width: getSize(context).height * .31,
+                                    height: getSize(context).height * .31,
                                   ),
                                   const SizedBox(height: 20),
                                   Text(
@@ -180,7 +256,7 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
                                   ),
                                   const SizedBox(height: 10),
                                   Text(
-                                    'Your premium IPTV experience',
+                                    'Your authorized playlist player',
                                     style: Get.textTheme.bodyMedium!.copyWith(
                                       color: kColorHint,
                                     ),
@@ -213,67 +289,126 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
                                   ],
                                 ),
                                 padding: const EdgeInsets.all(28),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    Text(
-                                      'Sign In',
-                                      style: Get.textTheme.headlineMedium!
-                                          .copyWith(
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                    ),
+                                child: SingleChildScrollView(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      Text(
+                                        'Sign in to TV Parser',
+                                        style: Get.textTheme.headlineSmall!
+                                            .copyWith(
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Sign in with your authorized playlist/provider credentials.',
+                                        style: Get.textTheme.bodySmall!.copyWith(
+                                          color: kColorHint,
+                                        ),
+                                      ),
 
-                                    const SizedBox(height: 24),
+                                      const SizedBox(height: 20),
 
-                                    _TvField(
-                                      controller: _username,
-                                      hint: 'Username',
-                                      icon: FontAwesomeIcons.solidUser,
-                                      focusNode: _fn0,
-                                      keyboardType: TextInputType.text,
-                                      isSelected: _row == 0,
-                                      isEditing: _editing && _row == 0,
-                                      onTap: () => _activate(0),
-                                      onDone: () => _done(1),
-                                    ),
-                                    const SizedBox(height: 12),
+                                      // 1. Server / Portal URL field
+                                      const Text(
+                                        "Server / Portal URL",
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      _TvField(
+                                        controller: _domain,
+                                        hint: 'https://example.com',
+                                        icon: FontAwesomeIcons.link.data,
+                                        focusNode: _fn2,
+                                        keyboardType: TextInputType.url,
+                                        isSelected: _row == 0,
+                                        isEditing: _editing && _row == 0,
+                                        onTap: () => _activate(0),
+                                        onDone: () => _done(1),
+                                        helperText: 'Enter the server URL provided by your authorized playlist provider.',
+                                      ),
+                                      const SizedBox(height: 12),
 
-                                    _TvField(
-                                      controller: _password,
-                                      hint: 'Password',
-                                      icon: FontAwesomeIcons.lock,
-                                      focusNode: _fn1,
-                                      keyboardType:
-                                          TextInputType.visiblePassword,
-                                      isSelected: _row == 1,
-                                      isEditing: _editing && _row == 1,
-                                      obscure: true,
-                                      onTap: () => _activate(1),
-                                      onDone: () => _done(2),
-                                    ),
-                                    const SizedBox(height: 12),
+                                      // 2. Username field
+                                      const Text(
+                                        "Username",
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      _TvField(
+                                        controller: _username,
+                                        hint: 'Username',
+                                        icon: FontAwesomeIcons.solidUser.data,
+                                        focusNode: _fn0,
+                                        keyboardType: TextInputType.text,
+                                        isSelected: _row == 1,
+                                        isEditing: _editing && _row == 1,
+                                        onTap: () => _activate(1),
+                                        onDone: () => _done(2),
+                                      ),
+                                      const SizedBox(height: 12),
 
-                                    _TvField(
-                                      controller: _domain,
-                                      hint: 'http://server.domain.net:8080',
-                                      icon: FontAwesomeIcons.link,
-                                      focusNode: _fn2,
-                                      keyboardType: TextInputType.url,
-                                      isSelected: _row == 2,
-                                      isEditing: _editing && _row == 2,
-                                      onTap: () => _activate(2),
-                                      onDone: () => _done(3),
-                                    ),
-                                    const SizedBox(height: 20),
+                                      // 3. Password field
+                                      const Text(
+                                        "Password",
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      _TvField(
+                                        controller: _password,
+                                        hint: 'Password',
+                                        icon: FontAwesomeIcons.lock.data,
+                                        focusNode: _fn1,
+                                        keyboardType:
+                                            TextInputType.visiblePassword,
+                                        isSelected: _row == 2,
+                                        isEditing: _editing && _row == 2,
+                                        obscure: true,
+                                        onTap: () => _activate(2),
+                                        onDone: () => _done(3),
+                                      ),
+                                      const SizedBox(height: 20),
 
-                                    _TvButton(
-                                      isSelected: _row == 3,
-                                      onTap: _login,
-                                    ),
-                                  ],
+                                      // 4. Sign In button
+                                      _TvButton(
+                                        label: 'Sign In',
+                                        isSelected: _row == 3,
+                                        onTap: _login,
+                                      ),
+                                      const SizedBox(height: 12),
+
+                                      // 5. Need help link
+                                      _TvTextButton(
+                                        label: 'Need help finding your credentials?',
+                                        isSelected: _row == 4,
+                                        onTap: _showHelpDialog,
+                                      ),
+                                      const SizedBox(height: 8),
+
+                                      // 6. Use Demo Account
+                                      _TvTextButton(
+                                        label: 'Use Demo Account',
+                                        isSelected: _row == 5,
+                                        onTap: _loginDemo,
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -282,8 +417,7 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
                       ],
                     );
                   },
-                ),
-              );
+                );
             },
           ),
         ),
@@ -306,6 +440,7 @@ class _TvField extends StatelessWidget {
     required this.onDone,
     required this.onTap,
     this.obscure = false,
+    this.helperText,
   });
 
   final NativeTextFieldController controller;
@@ -318,19 +453,17 @@ class _TvField extends StatelessWidget {
   final bool obscure;
   final VoidCallback onDone;
   final VoidCallback onTap;
+  final String? helperText;
 
   @override
   Widget build(BuildContext context) {
+    Widget fieldWidget;
     // When editing: use native Android EditText via PlatformView.
-    // This bypasses Flutter's InputConnectionAdaptor which intercepts arrow
-    // keys and prevents on-screen keyboard navigation on Chromecast.
     if (isEditing) {
-      // onFocusChanged lives on the controller, not the widget.
-      // This handles keyboard dismissed via back button (focus lost without Done).
       controller.onFocusChanged = (hasFocus) {
         if (!hasFocus) onDone();
       };
-      return SizedBox(
+      fieldWidget = SizedBox(
         height: 52,
         child: AndroidTVTextField(
           controller: controller,
@@ -344,67 +477,92 @@ class _TvField extends StatelessWidget {
           unFocuesedBorderColor: Colors.transparent,
         ),
       );
+    } else {
+      // When not editing: show a styled read-only container.
+      fieldWidget = GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          height: 52,
+          decoration: BoxDecoration(
+            color: kColorCardDark,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected ? kColorFocus : Colors.transparent,
+              width: 2,
+            ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: kColorFocus.withValues(alpha: .35),
+                      blurRadius: 10,
+                    ),
+                  ]
+                : [],
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Row(
+            children: [
+              Expanded(
+                child: ValueListenableBuilder(
+                  valueListenable: controller,
+                  builder: (_, value, __) {
+                    final text = value.text;
+                    final display = obscure && text.isNotEmpty
+                        ? '•' * text.length
+                        : text;
+                    return Text(
+                      display.isEmpty ? hint : display,
+                      style: TextStyle(
+                        color: display.isEmpty ? kColorHint : Colors.white70,
+                        fontWeight: FontWeight.w600,
+                        fontSize: display.isEmpty ? 14 : 15,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    );
+                  },
+                ),
+              ),
+              Icon(icon, size: 16, color: kColorPrimary),
+            ],
+          ),
+        ),
+      );
     }
 
-    // When not editing: show a styled read-only container.
-    // Tapping it (Chromecast phone remote) calls onTap to activate editing.
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        height: 52,
-        decoration: BoxDecoration(
-          color: kColorCardDark,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isSelected ? kColorFocus : Colors.transparent,
-            width: 2,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: kColorFocus.withValues(alpha: .35),
-                    blurRadius: 10,
-                  ),
-                ]
-              : [],
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        child: Row(
-          children: [
-            Expanded(
-              child: ValueListenableBuilder(
-                valueListenable: controller,
-                builder: (_, value, __) {
-                  final text = value.text;
-                  final display = obscure && text.isNotEmpty
-                      ? '•' * text.length
-                      : text;
-                  return Text(
-                    display.isEmpty ? hint : display,
-                    style: TextStyle(
-                      color: display.isEmpty ? kColorHint : Colors.white70,
-                      fontWeight: FontWeight.w600,
-                      fontSize: display.isEmpty ? 14 : 15,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  );
-                },
+    if (helperText != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          fieldWidget,
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.only(left: 8.0),
+            child: Text(
+              helperText!,
+              style: const TextStyle(
+                color: Colors.white54,
+                fontSize: 10,
               ),
             ),
-            Icon(icon, size: 16, color: kColorPrimary),
-          ],
-        ),
-      ),
-    );
+          ),
+        ],
+      );
+    }
+    return fieldWidget;
   }
 }
 
 // ─── TV Button ────────────────────────────────────────────────────────────────
 
 class _TvButton extends StatelessWidget {
-  const _TvButton({required this.isSelected, required this.onTap});
+  const _TvButton({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
 
+  final String label;
   final bool isSelected;
   final VoidCallback onTap;
 
@@ -433,12 +591,53 @@ class _TvButton extends StatelessWidget {
         ),
         alignment: Alignment.center,
         child: Text(
-          'Sign In',
+          label,
           style: TextStyle(
             color: isSelected ? Colors.white : Colors.white54,
             fontWeight: FontWeight.bold,
             fontSize: 15,
             letterSpacing: 1,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── TV Text Button (D-pad focusable) ─────────────────────────────────────────
+
+class _TvTextButton extends StatelessWidget {
+  const _TvTextButton({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? kColorFocus : Colors.transparent,
+            width: 2,
+          ),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? kColorPrimary : Colors.white70,
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
           ),
         ),
       ),

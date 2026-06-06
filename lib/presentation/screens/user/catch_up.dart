@@ -210,7 +210,7 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
                   height: 56,
                   child: IptvAppBar(
                     title: 'Catch Up',
-                    icon: FontAwesomeIcons.rotate,
+                    icon: FontAwesomeIcons.rotate.data,
                     onBack: Get.back,
                     focusedIndex: _appbarActive ? _appbarIdx : null,
                   ),
@@ -234,8 +234,8 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
   }
 
   Widget _buildSidebar() {
-    const labels = ['Movies', 'Series'];
-    const icons = [FontAwesomeIcons.film, FontAwesomeIcons.clapperboard];
+    final labels = ['Movies', 'Series'];
+    final icons = [FontAwesomeIcons.film.data, FontAwesomeIcons.clapperboard.data];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -331,7 +331,7 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
                     border: Border.all(color: kColorPrimary.withValues(alpha: 0.2)),
                   ),
                   child: Icon(
-                    _tabIdx == 0 ? FontAwesomeIcons.film : FontAwesomeIcons.clapperboard,
+                    _tabIdx == 0 ? FontAwesomeIcons.film.data : FontAwesomeIcons.clapperboard.data,
                     size: 32,
                     color: kColorPrimary.withValues(alpha: 0.5),
                   ),
@@ -356,6 +356,7 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
 
         return GridView.builder(
           controller: sc,
+          cacheExtent: 350.0,
           padding: const EdgeInsets.all(12),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: _gridCols,
@@ -434,6 +435,7 @@ class _CatchUpItem extends StatelessWidget {
             CachedNetworkImage(
               imageUrl: model.image,
               fit: BoxFit.cover,
+              memCacheWidth: 300,
               placeholder: (_, __) => Container(
                 color: kColorCardDark,
                 child: const Center(
@@ -471,7 +473,7 @@ class _CatchUpItem extends StatelessWidget {
                     shape: BoxShape.circle,
                     boxShadow: [BoxShadow(color: kColorFocus.withValues(alpha: .5), blurRadius: 12)],
                   ),
-                  child: const Icon(FontAwesomeIcons.play, color: Colors.white, size: 16),
+                  child: Icon(FontAwesomeIcons.play.data, color: Colors.white, size: 16),
                 ),
               ),
             // Title + progress bar at bottom

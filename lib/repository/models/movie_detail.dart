@@ -1,8 +1,9 @@
 class MovieDetail {
   final Info? info;
   final MovieData? movieData;
+  final String? youtubeTrailer;
 
-  MovieDetail({this.info, this.movieData});
+  MovieDetail({this.info, this.movieData, this.youtubeTrailer});
 
   MovieDetail.fromJson(Map<String, dynamic> json)
     : info = json['info'] == null
@@ -12,11 +13,17 @@ class MovieDetail {
           : null,
       movieData = (json['movie_data'] as Map<String, dynamic>?) != null
           ? MovieData.fromJson(json['movie_data'] as Map<String, dynamic>)
-          : null;
+          : null,
+      youtubeTrailer = json['youtube_trailer']?.toString() ??
+                       json['youtubeTrailer']?.toString() ??
+                       json['trailer']?.toString() ??
+                       json['youtube_id']?.toString() ??
+                       json['video']?.toString();
 
   Map<String, dynamic> toJson() => {
     'info': info?.toJson(),
     'movie_data': movieData?.toJson(),
+    'youtube_trailer': youtubeTrailer,
   };
 }
 
@@ -60,7 +67,11 @@ class Info {
     : movieImage = json['movie_image']?.toString(),
       tmdbId = json['tmdb_id']?.toString(),
       backdrop = json['backdrop']?.toString(),
-      youtubeTrailer = json['youtube_trailer']?.toString(),
+      youtubeTrailer = json['youtube_trailer']?.toString() ??
+                       json['youtubeTrailer']?.toString() ??
+                       json['trailer']?.toString() ??
+                       json['youtube_id']?.toString() ??
+                       json['video']?.toString(),
       genre = json['genre']?.toString(),
       plot = json['plot']?.toString(),
       cast = json['cast']?.toString(),
@@ -284,6 +295,7 @@ class MovieData {
   final String? containerExtension;
   final String? customSid;
   final String? directSource;
+  final String? youtubeTrailer;
 
   MovieData({
     this.streamId,
@@ -293,6 +305,7 @@ class MovieData {
     this.containerExtension,
     this.customSid,
     this.directSource,
+    this.youtubeTrailer,
   });
 
   MovieData.fromJson(Map<String, dynamic> json)
@@ -302,7 +315,12 @@ class MovieData {
       categoryId = json['category_id']?.toString(),
       containerExtension = json['container_extension']?.toString(),
       customSid = json['custom_sid']?.toString(),
-      directSource = json['direct_source']?.toString();
+      directSource = json['direct_source']?.toString(),
+      youtubeTrailer = json['youtube_trailer']?.toString() ??
+                       json['youtubeTrailer']?.toString() ??
+                       json['trailer']?.toString() ??
+                       json['youtube_id']?.toString() ??
+                       json['video']?.toString();
 
   Map<String, dynamic> toJson() => {
     'stream_id': streamId,
@@ -312,5 +330,6 @@ class MovieData {
     'container_extension': containerExtension,
     'custom_sid': customSid,
     'direct_source': directSource,
+    'youtube_trailer': youtubeTrailer,
   };
 }

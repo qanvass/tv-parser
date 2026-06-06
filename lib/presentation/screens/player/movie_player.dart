@@ -52,8 +52,8 @@ class _VodTrackPanel extends StatelessWidget {
                 children: [
                   Icon(
                     isSub
-                        ? FontAwesomeIcons.closedCaptioning
-                        : FontAwesomeIcons.volumeHigh,
+                        ? FontAwesomeIcons.closedCaptioning.data
+                        : FontAwesomeIcons.volumeHigh.data,
                     size: 12,
                     color: kColorPrimary,
                   ),
@@ -150,9 +150,14 @@ class LivePlayerScreen extends StatefulWidget {
 
 class _LivePlayerScreenState extends State<LivePlayerScreen> {
   late VlcPlayerController _ctrl;
+  bool _ctrlInitialized = false;
+  bool _isCheckingHealth = true;
+  bool _isDeadStream = false;
 
   bool _isPlaying = false;
   bool _isBuffering = true;
+  String? _castDevice;
+  bool _isCastPlaying = true;
 
   bool _showControls = true;
   Timer? _hideTimer;
@@ -169,6 +174,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
   int _focusRow = 1;
   int _focusCol = 0;
   final _focusNode = FocusNode();
+  final Stopwatch _stopwatch = Stopwatch();
 
   List<MapEntry<int, String>> get _trackList =>
       (_trackPanel == 'sub' ? _subtitleTracks : _audioTracks).entries.toList();
@@ -176,17 +182,35 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
   @override
   void initState() {
     super.initState();
+    _initPlayer();
+  }
+
+  Future<void> _initPlayer() async {
+    debugPrint("[TV_PARSER_PERF] LivePlayerScreen: _initPlayer started for ${widget.title}");
+    _stopwatch.reset();
+    _stopwatch.start();
+
+    final buffers = getStreamQualityBuffers(isLive: true);
     _ctrl = VlcPlayerController.network(
       widget.link,
-      hwAcc: HwAcc.full,
+      hwAcc: HwAcc.auto,
       autoPlay: true,
       options: VlcPlayerOptions(
-        advanced: VlcAdvancedOptions([VlcAdvancedOptions.networkCaching(2000)]),
+        advanced: VlcAdvancedOptions([
+          VlcAdvancedOptions.networkCaching(buffers["network"]!),
+          VlcAdvancedOptions.liveCaching(buffers["live"]!),
+          VlcAdvancedOptions.fileCaching(buffers["file"]!),
+        ]),
       ),
     );
     _ctrl.addListener(_onVlc);
+    OrientationGuard.applyPlayerOrientation();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     _scheduleHide();
+    setState(() {
+      _ctrlInitialized = true;
+      // [TV_PARSER_PERF] Keep checking health active until the stream starts playing
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _focusNode.requestFocus();
     });
@@ -194,21 +218,32 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
 
   @override
   void deactivate() {
-    try {
-      _ctrl.pause();
-      _ctrl.stop();
-    } catch (_) {}
+    if (_ctrlInitialized) {
+      try {
+        if (_ctrl.value.isInitialized) {
+          _ctrl.pause().catchError((_) {});
+          _ctrl.stop().catchError((_) {});
+        }
+      } catch (_) {}
+    }
     super.deactivate();
   }
 
   @override
   void dispose() {
-    _ctrl.removeListener(_onVlc);
+    if (_ctrlInitialized) {
+      try {
+        _ctrl.removeListener(_onVlc);
+      } catch (_) {}
+      _ctrl.stopRendererScanning().catchError((_) {});
+      try {
+        _ctrl.dispose().catchError((_) {});
+      } catch (_) {}
+    }
     _hideTimer?.cancel();
     _focusNode.dispose();
+    OrientationGuard.applyPlayerExitOrientation();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    _ctrl.stopRendererScanning().catchError((_) {});
-    _ctrl.dispose();
     super.dispose();
   }
 
@@ -219,6 +254,22 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
       _isPlaying = v.isPlaying;
       _isBuffering = !v.isInitialized || v.isBuffering;
     });
+    if (v.isInitialized && _stopwatch.isRunning) {
+      _stopwatch.stop();
+      debugPrint("[TV_PARSER_PERF] LivePlayerScreen: player initialized in ${_stopwatch.elapsedMilliseconds}ms");
+    }
+    if (v.isInitialized && _isCheckingHealth && !v.isBuffering) {
+      setState(() {
+        _isCheckingHealth = false;
+      });
+    }
+    if (v.hasError && !_isDeadStream) {
+      debugPrint("[TV_PARSER_PERF] LivePlayerScreen: Player error detected");
+      setState(() {
+        _isDeadStream = true;
+        _isCheckingHealth = false;
+      });
+    }
     if (v.isInitialized && !_tracksLoaded) {
       _tracksLoaded = true;
       _loadTracks();
@@ -326,7 +377,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
       if (_focusRow == 1)
         setState(() {
           _focusRow = 0;
-          _focusCol = _focusCol.clamp(0, 2);
+          _focusCol = _focusCol.clamp(0, 3);
         });
       _scheduleHide();
     } else if (k == LogicalKeyboardKey.arrowDown) {
@@ -340,7 +391,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
       if (_focusCol > 0) setState(() => _focusCol--);
       _scheduleHide();
     } else if (k == LogicalKeyboardKey.arrowRight) {
-      final maxCol = _focusRow == 0 ? 2 : 1;
+      final maxCol = _focusRow == 0 ? 3 : 1;
       if (_focusCol < maxCol) setState(() => _focusCol++);
       _scheduleHide();
     } else if (_isSelectKey(k)) {
@@ -351,14 +402,32 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
     return KeyEventResult.handled;
   }
 
+  void _openCastDialog() {
+    _hideTimer?.cancel();
+    showDialog(
+      context: context,
+      builder: (context) => CastSelectionDialog(
+        controller: _ctrl,
+        currentCastDevice: _castDevice,
+        onCastSelected: (device) {
+          setState(() {
+            _castDevice = device;
+          });
+        },
+      ),
+    ).then((_) => _scheduleHide());
+  }
+
   void _activate() {
     if (_focusRow == 0) {
       switch (_focusCol) {
         case 0:
           Get.back();
         case 1:
-          if (_subtitleTracks.isNotEmpty) _openTrackPanel('sub');
+          _openCastDialog();
         case 2:
+          if (_subtitleTracks.isNotEmpty) _openTrackPanel('sub');
+        case 3:
           if (_audioTracks.isNotEmpty) _openTrackPanel('audio');
       }
     } else {
@@ -369,6 +438,83 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
           _cycleAspect();
       }
     }
+  }
+
+  Widget _buildCastOverlay(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F0F10),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Theme.of(context).primaryColor.withOpacity(0.1),
+                border: Border.all(color: Theme.of(context).primaryColor.withOpacity(0.3), width: 1.5),
+              ),
+              child: Icon(
+                Icons.cast_connected_rounded,
+                size: 56,
+                color: Theme.of(context).primaryColor,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              "Casting to $_castDevice",
+              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "Use your phone as a remote controller",
+              style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+            ),
+            const SizedBox(height: 36),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  iconSize: 48,
+                  icon: Icon(
+                    _isCastPlaying ? Icons.pause_circle_filled_rounded : Icons.play_circle_filled_rounded,
+                    color: Colors.white,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _isCastPlaying = !_isCastPlaying;
+                    });
+                    if (_isCastPlaying) {
+                      CastMediaService().play();
+                    } else {
+                      CastMediaService().pause();
+                    }
+                  },
+                ),
+                const SizedBox(width: 24),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red.shade900,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
+                  onPressed: () async {
+                    await CastMediaService().disconnect();
+                    setState(() {
+                      _castDevice = null;
+                    });
+                    _ctrl.play();
+                  },
+                  icon: const Icon(Icons.link_off_rounded, size: 18),
+                  label: const Text("Disconnect", style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -387,39 +533,188 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
           body: LayoutBuilder(
             builder: (context, constraints) {
               final ratio = constraints.maxWidth / constraints.maxHeight;
+
               return Stack(
                 children: [
-                  VlcPlayer(
-                    controller: _ctrl,
-                    aspectRatio: ratio,
-                    placeholder: const SizedBox(),
-                  ),
-                  GestureDetector(
-                    onTap: _toggleControls,
-                    behavior: HitTestBehavior.opaque,
-                    child: const SizedBox.expand(),
-                  ),
-                  if (_isBuffering)
+                  // 1. The Video Player (Always in tree if initialized)
+                  if (_ctrlInitialized)
+                    VlcPlayer(
+                      controller: _ctrl,
+                      aspectRatio: ratio,
+                      placeholder: const SizedBox(),
+                    ),
+
+                  // 2. Gesture Detector to toggle controls
+                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null)
+                    GestureDetector(
+                      onTap: _toggleControls,
+                      behavior: HitTestBehavior.opaque,
+                      child: const SizedBox.expand(),
+                    ),
+
+                  // 3. Buffering Indicator
+                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null && _isBuffering)
                     const Center(
                       child: CircularProgressIndicator(
                         color: Colors.white,
                         strokeWidth: 2.5,
                       ),
                     ),
-                  AnimatedOpacity(
-                    opacity: _showControls ? 1.0 : 0.0,
-                    duration: const Duration(milliseconds: 250),
-                    child: IgnorePointer(
-                      ignoring: !_showControls,
-                      child: _buildOverlay(),
+
+                  // 4. Controls Overlay
+                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null)
+                    AnimatedOpacity(
+                      opacity: _showControls ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 250),
+                      child: IgnorePointer(
+                        ignoring: !_showControls,
+                        child: _buildOverlay(),
+                      ),
                     ),
-                  ),
-                  if (_trackPanel != null)
+
+                  // 5. Track Selector Panel
+                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null && _trackPanel != null)
                     _VodTrackPanel(
                       isSub: _trackPanel == 'sub',
                       list: _trackList,
                       focusedIdx: _trackPanelIdx,
                       onSelect: _selectTrack,
+                    ),
+
+                  // 6. Loading screen overlay
+                  if (_isCheckingHealth)
+                    Positioned.fill(
+                      child: Container(
+                        color: Colors.black,
+                        child: Stack(
+                          children: [
+                            Positioned.fill(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  gradient: RadialGradient(
+                                    center: Alignment.topCenter,
+                                    radius: 1.3,
+                                    colors: [
+                                      const Color(0xFF25112F).withValues(alpha: 0.4),
+                                      const Color(0xFF08070C),
+                                      const Color(0xFF030305),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Image.asset(
+                                    'assets/images/tv_parser_logo_transparent.png',
+                                    height: 96,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => const Icon(Icons.live_tv_rounded, size: 72, color: Colors.amber),
+                                  ),
+                                  const SizedBox(height: 28),
+                                  const SandTimeclock(size: 36),
+                                  const SizedBox(height: 24),
+                                  const Text(
+                                    "Hold please...",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: -0.4,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    "Loading your provider's stream...",
+                                    style: TextStyle(
+                                      color: Colors.white60,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                  // 7. Dead Stream Overlay
+                  if (!_isCheckingHealth && _isDeadStream)
+                    Positioned.fill(
+                      child: Container(
+                        color: Colors.black.withOpacity(0.9),
+                        child: Center(
+                          child: SingleChildScrollView(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.error_outline_rounded, color: Color(0xFFC62828), size: 54),
+                                const SizedBox(height: 16),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 24),
+                                  child: Text(
+                                    "This stream is temporarily unavailable. Try another source or run Connection Test.",
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+                                ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    foregroundColor: Colors.black,
+                                    minimumSize: const Size(180, 40),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _isDeadStream = false;
+                                      _isCheckingHealth = true;
+                                      _ctrlInitialized = false;
+                                    });
+                                    _initPlayer();
+                                  },
+                                  icon: const Icon(Icons.refresh_rounded, size: 16),
+                                  label: const Text("Try Again", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                ),
+                                const SizedBox(height: 10),
+                                OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.white,
+                                    minimumSize: const Size(180, 40),
+                                    side: const BorderSide(color: Colors.white24),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                  ),
+                                  onPressed: () {
+                                    Get.to(() => const ConnectionTestScreen());
+                                  },
+                                  icon: const Icon(Icons.network_check_rounded, size: 16),
+                                  label: const Text("Connection Test", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                ),
+                                const SizedBox(height: 10),
+                                TextButton(
+                                  onPressed: () => Get.back(),
+                                  child: const Text("Go Back", style: TextStyle(color: Colors.white38, fontSize: 12, fontWeight: FontWeight.bold)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  // 8. Chromecast Overlay
+                  if (!_isCheckingHealth && !_isDeadStream && _castDevice != null)
+                    Positioned.fill(
+                      child: _buildCastOverlay(context),
                     ),
                 ],
               );
@@ -459,7 +754,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
         child: Row(
           children: [
             _FsBtn(
-              icon: FontAwesomeIcons.chevronLeft,
+              icon: FontAwesomeIcons.chevronLeft.data,
               label: 'Back',
               isFocused: _isFocused(0, 0),
               onTap: Get.back,
@@ -472,6 +767,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
                   imageUrl: widget.streamIcon!,
                   width: 28,
                   height: 28,
+                  memCacheWidth: 300,
                   fit: BoxFit.contain,
                   errorWidget: (_, __, ___) => const SizedBox(),
                 ),
@@ -504,22 +800,30 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
                 ),
               ),
             ),
+            // Chromecast
             _FsBtn(
-              icon: FontAwesomeIcons.closedCaptioning,
+              icon: FontAwesomeIcons.chromecast.data,
+              label: 'Cast',
+              isFocused: _isFocused(0, 1),
+              onTap: _openCastDialog,
+            ),
+            const SizedBox(width: 8),
+            _FsBtn(
+              icon: FontAwesomeIcons.closedCaptioning.data,
               label: 'SUB',
               badge: _subtitleTracks.isNotEmpty
                   ? '${_subtitleTracks.length}'
                   : null,
-              isFocused: _isFocused(0, 1),
+              isFocused: _isFocused(0, 2),
               isDisabled: _subtitleTracks.isEmpty,
               onTap: () => _openTrackPanel('sub'),
             ),
             const SizedBox(width: 8),
             _FsBtn(
-              icon: FontAwesomeIcons.volumeHigh,
+              icon: FontAwesomeIcons.volumeHigh.data,
               label: 'AUD',
               badge: _audioTracks.isNotEmpty ? '${_audioTracks.length}' : null,
-              isFocused: _isFocused(0, 2),
+              isFocused: _isFocused(0, 3),
               isDisabled: _audioTracks.isEmpty,
               onTap: () => _openTrackPanel('audio'),
             ),
@@ -537,7 +841,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
         child: Row(
           children: [
             _FsBtn(
-              icon: _isPlaying ? FontAwesomeIcons.pause : FontAwesomeIcons.play,
+              icon: _isPlaying ? FontAwesomeIcons.pause.data : FontAwesomeIcons.play.data,
               label: _isPlaying ? 'Pause' : 'Play',
               isFocused: _isFocused(1, 0),
               isLarge: true,
@@ -545,7 +849,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
             ),
             const Spacer(),
             _FsBtn(
-              icon: FontAwesomeIcons.expand,
+              icon: FontAwesomeIcons.expand.data,
               label: _kVodAspects[_aspectIdx],
               isFocused: _isFocused(1, 1),
               onTap: _cycleAspect,
@@ -577,12 +881,17 @@ class MoviePlayerScreen extends StatefulWidget {
 
 class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
   late VlcPlayerController _ctrl;
+  bool _ctrlInitialized = false;
+  bool _isCheckingHealth = true;
+  bool _isDeadStream = false;
 
   // Playback state
   bool _isPlaying = false;
   bool _isBuffering = true;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
+  String? _castDevice;
+  bool _isCastPlaying = true;
 
   // Controls visibility
   bool _showControls = true;
@@ -604,6 +913,7 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
   int _focusRow = 1;
   int _focusCol = 1; // default: Play/Pause
   final _focusNode = FocusNode();
+  final Stopwatch _stopwatch = Stopwatch();
 
   List<MapEntry<int, String>> get _trackList =>
       (_trackPanel == 'sub' ? _subtitleTracks : _audioTracks).entries.toList();
@@ -613,17 +923,34 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
   @override
   void initState() {
     super.initState();
+    _initPlayer();
+  }
+
+  Future<void> _initPlayer() async {
+    debugPrint("[TV_PARSER_PERF] MoviePlayerScreen: _initPlayer started for ${widget.title}");
+    _stopwatch.reset();
+    _stopwatch.start();
+
+    final buffers = getStreamQualityBuffers(isLive: false);
     _ctrl = VlcPlayerController.network(
       widget.link,
-      hwAcc: HwAcc.full,
+      hwAcc: HwAcc.auto,
       autoPlay: true,
       options: VlcPlayerOptions(
-        advanced: VlcAdvancedOptions([VlcAdvancedOptions.networkCaching(2000)]),
+        advanced: VlcAdvancedOptions([
+          VlcAdvancedOptions.networkCaching(buffers["network"]!),
+          VlcAdvancedOptions.liveCaching(buffers["live"]!),
+          VlcAdvancedOptions.fileCaching(buffers["file"]!),
+        ]),
       ),
     );
     _ctrl.addListener(_onVlc);
+    OrientationGuard.applyPlayerOrientation();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     _scheduleHide();
+    setState(() {
+      _ctrlInitialized = true;
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _focusNode.requestFocus();
     });
@@ -631,21 +958,32 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
 
   @override
   void deactivate() {
-    try {
-      _ctrl.pause();
-      _ctrl.stop();
-    } catch (_) {}
+    if (_ctrlInitialized) {
+      try {
+        if (_ctrl.value.isInitialized) {
+          _ctrl.pause().catchError((_) {});
+          _ctrl.stop().catchError((_) {});
+        }
+      } catch (_) {}
+    }
     super.deactivate();
   }
 
   @override
   void dispose() {
-    _ctrl.removeListener(_onVlc);
+    if (_ctrlInitialized) {
+      try {
+        _ctrl.removeListener(_onVlc);
+      } catch (_) {}
+      _ctrl.stopRendererScanning().catchError((_) {});
+      try {
+        _ctrl.dispose().catchError((_) {});
+      } catch (_) {}
+    }
     _hideTimer?.cancel();
     _focusNode.dispose();
+    OrientationGuard.applyPlayerExitOrientation();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    _ctrl.stopRendererScanning().catchError((_) {});
-    _ctrl.dispose();
     super.dispose();
   }
 
@@ -660,6 +998,22 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
       _position = v.position;
       _duration = v.duration;
     });
+    if (v.isInitialized && _stopwatch.isRunning) {
+      _stopwatch.stop();
+      debugPrint("[TV_PARSER_PERF] MoviePlayerScreen: player initialized in ${_stopwatch.elapsedMilliseconds}ms");
+    }
+    if (v.isInitialized && _isCheckingHealth && !v.isBuffering) {
+      setState(() {
+        _isCheckingHealth = false;
+      });
+    }
+    if (v.hasError && !_isDeadStream) {
+      debugPrint("[TV_PARSER_PERF] MoviePlayerScreen: Player error detected");
+      setState(() {
+        _isDeadStream = true;
+        _isCheckingHealth = false;
+      });
+    }
     if (v.isInitialized && !_tracksLoaded) {
       _tracksLoaded = true;
       _loadTracks();
@@ -795,7 +1149,7 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
       if (_focusRow == 1)
         setState(() {
           _focusRow = 0;
-          _focusCol = _focusCol.clamp(0, 2);
+          _focusCol = _focusCol.clamp(0, 3);
         });
       _scheduleHide();
     } else if (k == LogicalKeyboardKey.arrowDown) {
@@ -809,7 +1163,7 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
       if (_focusCol > 0) setState(() => _focusCol--);
       _scheduleHide();
     } else if (k == LogicalKeyboardKey.arrowRight) {
-      final maxCol = _focusRow == 0 ? 2 : 3;
+      final maxCol = _focusRow == 0 ? 3 : 3;
       if (_focusCol < maxCol) setState(() => _focusCol++);
       _scheduleHide();
     } else if (_isSelectKey(k)) {
@@ -820,14 +1174,32 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
     return KeyEventResult.handled;
   }
 
+  void _openCastDialog() {
+    _hideTimer?.cancel();
+    showDialog(
+      context: context,
+      builder: (context) => CastSelectionDialog(
+        controller: _ctrl,
+        currentCastDevice: _castDevice,
+        onCastSelected: (device) {
+          setState(() {
+            _castDevice = device;
+          });
+        },
+      ),
+    ).then((_) => _scheduleHide());
+  }
+
   void _activate() {
     if (_focusRow == 0) {
       switch (_focusCol) {
         case 0:
           _goBack();
         case 1:
-          if (_subtitleTracks.isNotEmpty) _openTrackPanel('sub');
+          _openCastDialog();
         case 2:
+          if (_subtitleTracks.isNotEmpty) _openTrackPanel('sub');
+        case 3:
           if (_audioTracks.isNotEmpty) _openTrackPanel('audio');
       }
     } else {
@@ -855,6 +1227,83 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
 
   // ── Build ─────────────────────────────────────────────────────────────────
 
+  Widget _buildCastOverlay(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F0F10),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Theme.of(context).primaryColor.withOpacity(0.1),
+                border: Border.all(color: Theme.of(context).primaryColor.withOpacity(0.3), width: 1.5),
+              ),
+              child: Icon(
+                Icons.cast_connected_rounded,
+                size: 56,
+                color: Theme.of(context).primaryColor,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              "Casting to $_castDevice",
+              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "Use your phone as a remote controller",
+              style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+            ),
+            const SizedBox(height: 36),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  iconSize: 48,
+                  icon: Icon(
+                    _isCastPlaying ? Icons.pause_circle_filled_rounded : Icons.play_circle_filled_rounded,
+                    color: Colors.white,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _isCastPlaying = !_isCastPlaying;
+                    });
+                    if (_isCastPlaying) {
+                      CastMediaService().play();
+                    } else {
+                      CastMediaService().pause();
+                    }
+                  },
+                ),
+                const SizedBox(width: 24),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red.shade900,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
+                  onPressed: () async {
+                    await CastMediaService().disconnect();
+                    setState(() {
+                      _castDevice = null;
+                    });
+                    _ctrl.play();
+                  },
+                  icon: const Icon(Icons.link_off_rounded, size: 18),
+                  label: const Text("Disconnect", style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -871,24 +1320,27 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
           body: LayoutBuilder(
             builder: (context, constraints) {
               final ratio = constraints.maxWidth / constraints.maxHeight;
+
               return Stack(
                 children: [
-                  // ── Video ────────────────────────────────────────────
-                  VlcPlayer(
-                    controller: _ctrl,
-                    aspectRatio: ratio,
-                    placeholder: const SizedBox(),
-                  ),
+                  // 1. The Video Player (Always in tree if initialized)
+                  if (_ctrlInitialized)
+                    VlcPlayer(
+                      controller: _ctrl,
+                      aspectRatio: ratio,
+                      placeholder: const SizedBox(),
+                    ),
 
-                  // ── Tap toggle ───────────────────────────────────────
-                  GestureDetector(
-                    onTap: _toggleControls,
-                    behavior: HitTestBehavior.opaque,
-                    child: const SizedBox.expand(),
-                  ),
+                  // 2. Gesture Detector to toggle controls
+                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null)
+                    GestureDetector(
+                      onTap: _toggleControls,
+                      behavior: HitTestBehavior.opaque,
+                      child: const SizedBox.expand(),
+                    ),
 
-                  // ── Buffering ────────────────────────────────────────
-                  if (_isBuffering)
+                  // 3. Buffering Indicator
+                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null && _isBuffering)
                     const Center(
                       child: CircularProgressIndicator(
                         color: Colors.white,
@@ -896,23 +1348,160 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
                       ),
                     ),
 
-                  // ── Controls overlay ─────────────────────────────────
-                  AnimatedOpacity(
-                    opacity: _showControls ? 1.0 : 0.0,
-                    duration: const Duration(milliseconds: 250),
-                    child: IgnorePointer(
-                      ignoring: !_showControls,
-                      child: _buildOverlay(),
+                  // 4. Controls Overlay
+                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null)
+                    AnimatedOpacity(
+                      opacity: _showControls ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 250),
+                      child: IgnorePointer(
+                        ignoring: !_showControls,
+                        child: _buildOverlay(),
+                      ),
                     ),
-                  ),
 
-                  // ── Track panel ──────────────────────────────────────
-                  if (_trackPanel != null)
+                  // 5. Track Selector Panel
+                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null && _trackPanel != null)
                     _VodTrackPanel(
                       isSub: _trackPanel == 'sub',
                       list: _trackList,
                       focusedIdx: _trackPanelIdx,
                       onSelect: _selectTrack,
+                    ),
+
+                  // 6. Loading screen overlay
+                  if (_isCheckingHealth)
+                    Positioned.fill(
+                      child: Container(
+                        color: Colors.black,
+                        child: Stack(
+                          children: [
+                            Positioned.fill(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  gradient: RadialGradient(
+                                    center: Alignment.topCenter,
+                                    radius: 1.3,
+                                    colors: [
+                                      const Color(0xFF25112F).withValues(alpha: 0.4),
+                                      const Color(0xFF08070C),
+                                      const Color(0xFF030305),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Image.asset(
+                                    'assets/images/tv_parser_logo_transparent.png',
+                                    height: 96,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => const Icon(Icons.live_tv_rounded, size: 72, color: Colors.amber),
+                                  ),
+                                  const SizedBox(height: 28),
+                                  const SandTimeclock(size: 36),
+                                  const SizedBox(height: 24),
+                                  const Text(
+                                    "Hold please...",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: -0.4,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    "Loading your provider's stream...",
+                                    style: TextStyle(
+                                      color: Colors.white60,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                  // 7. Dead Stream Overlay
+                  if (!_isCheckingHealth && _isDeadStream)
+                    Positioned.fill(
+                      child: Container(
+                        color: Colors.black.withOpacity(0.9),
+                        child: Center(
+                          child: SingleChildScrollView(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.error_outline_rounded, color: Color(0xFFC62828), size: 54),
+                                const SizedBox(height: 16),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 24),
+                                  child: Text(
+                                    "This stream is temporarily unavailable. Try another source or run Connection Test.",
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+                                ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    foregroundColor: Colors.black,
+                                    minimumSize: const Size(180, 40),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _isDeadStream = false;
+                                      _isCheckingHealth = true;
+                                      _ctrlInitialized = false;
+                                    });
+                                    _initPlayer();
+                                  },
+                                  icon: const Icon(Icons.refresh_rounded, size: 16),
+                                  label: const Text("Try Again", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                ),
+                                const SizedBox(height: 10),
+                                OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.white,
+                                    minimumSize: const Size(180, 40),
+                                    side: const BorderSide(color: Colors.white24),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                  ),
+                                  onPressed: () {
+                                    Get.to(() => const ConnectionTestScreen());
+                                  },
+                                  icon: const Icon(Icons.network_check_rounded, size: 16),
+                                  label: const Text("Connection Test", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                ),
+                                const SizedBox(height: 10),
+                                TextButton(
+                                  onPressed: () => Get.back(),
+                                  child: const Text("Go Back", style: TextStyle(color: Colors.white38, fontSize: 12, fontWeight: FontWeight.bold)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  // 8. Chromecast Overlay
+                  if (!_isCheckingHealth && !_isDeadStream && _castDevice != null)
+                    Positioned.fill(
+                      child: _buildCastOverlay(context),
                     ),
                 ],
               );
@@ -952,7 +1541,7 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
         child: Row(
           children: [
             _FsBtn(
-              icon: FontAwesomeIcons.chevronLeft,
+              icon: FontAwesomeIcons.chevronLeft.data,
               label: 'Back',
               isFocused: _isFocused(0, 0),
               onTap: _goBack,
@@ -969,23 +1558,31 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
+            // Chromecast
             _FsBtn(
-              icon: FontAwesomeIcons.closedCaptioning,
+              icon: FontAwesomeIcons.chromecast.data,
+              label: 'Cast',
+              isFocused: _isFocused(0, 1),
+              onTap: _openCastDialog,
+            ),
+            const SizedBox(width: 8),
+            _FsBtn(
+              icon: FontAwesomeIcons.closedCaptioning.data,
               label: 'SUB',
               badge: _subtitleTracks.isNotEmpty
                   ? '${_subtitleTracks.length}'
                   : null,
-              isFocused: _isFocused(0, 1),
+              isFocused: _isFocused(0, 2),
               isDisabled: _subtitleTracks.isEmpty,
               onTap: () => _openTrackPanel('sub'),
             ),
             const SizedBox(width: 8),
             _FsBtn(
-              icon: FontAwesomeIcons.volumeHigh,
+              icon: FontAwesomeIcons.volumeHigh.data,
               label: 'AUD',
               badge: _audioTracks.isNotEmpty ? '${_audioTracks.length}' : null,
-              isFocused: _isFocused(0, 2),
+              isFocused: _isFocused(0, 3),
               isDisabled: _audioTracks.isEmpty,
               onTap: () => _openTrackPanel('audio'),
             ),
@@ -1008,22 +1605,22 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
         child: Row(
           children: [
             _FsBtn(
-              icon: FontAwesomeIcons.rotateLeft,
+              icon: FontAwesomeIcons.rotateLeft.data,
               label: '',
               isFocused: _isFocused(1, 0),
               onTap: _rewind10s,
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             _FsBtn(
-              icon: _isPlaying ? FontAwesomeIcons.pause : FontAwesomeIcons.play,
+              icon: _isPlaying ? FontAwesomeIcons.pause.data : FontAwesomeIcons.play.data,
               label: '',
               isFocused: _isFocused(1, 1),
               isLarge: true,
               onTap: _togglePlay,
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             _FsBtn(
-              icon: FontAwesomeIcons.rotateRight,
+              icon: FontAwesomeIcons.rotateRight.data,
               label: '',
               isFocused: _isFocused(1, 2),
               onTap: _forward10s,
@@ -1071,15 +1668,119 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
                 ],
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             _FsBtn(
-              icon: FontAwesomeIcons.expand,
+              icon: FontAwesomeIcons.expand.data,
               label: _kVodAspects[_aspectIdx],
               isFocused: _isFocused(1, 3),
               onTap: _cycleAspect,
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _FsBtn extends StatelessWidget {
+  const _FsBtn({
+    required this.icon,
+    required this.label,
+    required this.isFocused,
+    required this.onTap,
+    this.badge,
+    this.isDisabled = false,
+    this.isLarge = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool isFocused;
+  final VoidCallback onTap;
+  final String? badge;
+  final bool isDisabled;
+  final bool isLarge;
+
+  @override
+  Widget build(BuildContext context) {
+    final baseColor = isDisabled
+        ? Colors.white24
+        : isFocused
+        ? Colors.white
+        : Colors.white70;
+
+    return GestureDetector(
+      onTap: isDisabled ? null : onTap,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: EdgeInsets.symmetric(
+              horizontal: isLarge ? 16 : 12,
+              vertical: isLarge ? 10 : 8,
+            ),
+            decoration: BoxDecoration(
+              color: isFocused
+                  ? kColorPrimary.withValues(alpha: 0.35)
+                  : Colors.black.withValues(alpha: 0.45),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isFocused
+                    ? kColorFocus
+                    : Colors.white.withValues(alpha: isDisabled ? 0.1 : 0.2),
+                width: isFocused ? 1.5 : 1,
+              ),
+              boxShadow: isFocused
+                  ? [
+                      BoxShadow(
+                        color: kColorFocus.withValues(alpha: 0.35),
+                        blurRadius: 10,
+                      ),
+                    ]
+                  : [],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 6,
+              children: [
+                Icon(icon, size: isLarge ? 18 : 14, color: baseColor),
+                if (label.isNotEmpty)
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: baseColor,
+                      fontSize: isLarge ? 13 : 11,
+                      fontWeight: isFocused
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (badge != null)
+            Positioned(
+              top: -7,
+              right: -7,
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: kColorPrimary,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.black, width: 1.5),
+                ),
+                child: Text(
+                  badge!,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

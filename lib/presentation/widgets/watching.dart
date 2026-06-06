@@ -17,6 +17,7 @@ class ContinueWatchingMovies extends StatelessWidget {
           height: 60.h,
           child: ListView.separated(
             shrinkWrap: true,
+            cacheExtent: 350.0,
             physics: const ScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 10),
             scrollDirection: Axis.horizontal,
@@ -70,6 +71,7 @@ class ContinueWatchingSeries extends StatelessWidget {
           height: 60.h,
           child: ListView.separated(
             shrinkWrap: true,
+            cacheExtent: 350.0,
             physics: const ScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 10),
             scrollDirection: Axis.horizontal,
@@ -141,6 +143,7 @@ class CardMovieContinueWatch extends StatelessWidget {
                           imageUrl: model.image,
                           width: double.infinity,
                           height: double.infinity,
+                          memCacheWidth: 300,
                           fit: BoxFit.cover,
                           placeholder: (_, i) {
                             return const CardNoImage();
@@ -164,7 +167,7 @@ class CardMovieContinueWatch extends StatelessWidget {
                           onTap: onTap,
                           child: Center(
                             child: Icon(
-                              FontAwesomeIcons.circlePlay,
+                              FontAwesomeIcons.circlePlay.data,
                               size: 26.sp,
                               color: Colors.white,
                             ),
@@ -195,10 +198,14 @@ class CardMovieContinueWatch extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 5),
-        Text(
-          model.title,
-          maxLines: 1,
-          style: Get.textTheme.bodyLarge!.copyWith(color: Colors.white),
+        SizedBox(
+          width: 50.w,
+          child: Text(
+            model.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Get.textTheme.bodyLarge!.copyWith(color: Colors.white),
+          ),
         ),
       ],
     );

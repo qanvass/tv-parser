@@ -440,8 +440,7 @@ class _SerieContentState extends State<SerieContent> {
                                     width: 2,
                                   ),
                                 ),
-                                child: const Icon(
-                                  FontAwesomeIcons.chevronLeft,
+                                child: Icon(FontAwesomeIcons.chevronLeft.data,
                                   color: Colors.white,
                                   size: 18,
                                 ),
@@ -459,7 +458,7 @@ class _SerieContentState extends State<SerieContent> {
                                   _handleButtonPress();
                                 },
                                 child: _SideButton(
-                                  icon: FontAwesomeIcons.youtube,
+                                  icon: FontAwesomeIcons.youtube.data,
                                   isSelected:
                                       _selectedButton == 1 && _panel == 0,
                                 ),
@@ -482,8 +481,8 @@ class _SerieContentState extends State<SerieContent> {
                                   },
                                   child: _SideButton(
                                     icon: isLiked
-                                        ? FontAwesomeIcons.solidHeart
-                                        : FontAwesomeIcons.heart,
+                                        ? FontAwesomeIcons.solidHeart.data
+                                        : FontAwesomeIcons.heart.data,
                                     isSelected:
                                         _selectedButton == favIdx &&
                                         _panel == 0,
@@ -523,14 +522,14 @@ class _SerieContentState extends State<SerieContent> {
                                             imageUrl: serie.info!.cover ?? "",
                                             width: 140,
                                             height: 200,
+                                            memCacheWidth: 300,
                                             fit: BoxFit.cover,
                                             errorWidget: (_, __, ___) =>
                                                 Container(
                                                   width: 140,
                                                   height: 200,
                                                   color: kColorCardLight,
-                                                  child: const Icon(
-                                                    FontAwesomeIcons.tv,
+                                                  child: Icon(FontAwesomeIcons.tv.data,
                                                     color: kColorHint,
                                                     size: 40,
                                                   ),
@@ -553,24 +552,22 @@ class _SerieContentState extends State<SerieContent> {
                                               ),
                                               const SizedBox(height: 16),
                                               _buildInfoRow(
-                                                icon: FontAwesomeIcons
-                                                    .clapperboard,
+                                                icon: FontAwesomeIcons.clapperboard.data,
                                                 label: 'Director',
                                                 value:
                                                     serie.info!.director ?? "",
                                               ),
                                               const SizedBox(height: 10),
                                               _buildInfoRow(
-                                                icon: FontAwesomeIcons
-                                                    .calendarDay,
+                                                icon: FontAwesomeIcons.calendarDay.data,
                                                 label: 'Release',
                                                 value:
                                                     serie.info!.releaseDate ??
                                                     "",
                                               ),
-                                              const SizedBox(height: 10),
+                                              SizedBox(height: 10),
                                               _buildInfoRow(
-                                                icon: FontAwesomeIcons.film,
+                                                icon: FontAwesomeIcons.film.data,
                                                 label: 'Genre',
                                                 value: serie.info!.genre ?? "",
                                               ),
@@ -591,7 +588,13 @@ class _SerieContentState extends State<SerieContent> {
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
-                                      serie.info!.plot ?? "",
+                                      (serie.info!.plot != null &&
+                                       serie.info!.plot!.isNotEmpty &&
+                                       serie.info!.plot != "null" &&
+                                       !serie.info!.plot!.toLowerCase().contains("iptv") &&
+                                       !serie.info!.plot!.toLowerCase().contains("servicer"))
+                                          ? serie.info!.plot!
+                                          : "No description available for this title.",
                                       style: const TextStyle(
                                         color: Colors.white70,
                                         fontSize: 14,
@@ -641,6 +644,7 @@ class _SerieContentState extends State<SerieContent> {
           height: 36,
           child: ListView.builder(
             controller: _seasonScroll,
+            cacheExtent: 350.0,
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.only(left: 20),
             itemCount: _seasons.length,
@@ -734,6 +738,7 @@ class _SerieContentState extends State<SerieContent> {
             height: 180,
             child: ListView.builder(
               controller: _episodeScroll,
+              cacheExtent: 350.0,
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.only(left: 20),
               itemCount: _episodes.length,
@@ -789,13 +794,13 @@ class _SerieContentState extends State<SerieContent> {
                                 "",
                             width: 150,
                             height: 100,
+                            memCacheWidth: 300,
                             fit: BoxFit.cover,
                             errorWidget: (_, __, ___) => Container(
                               width: 150,
                               height: 100,
                               color: kColorCardDark,
-                              child: const Icon(
-                                FontAwesomeIcons.tv,
+                              child: Icon(FontAwesomeIcons.tv.data,
                                 color: kColorHint,
                               ),
                             ),
@@ -925,8 +930,7 @@ class _DetailsLoadingState extends StatelessWidget {
                           color: Colors.white.withValues(alpha: 0.09),
                         ),
                       ),
-                      child: const Icon(
-                        FontAwesomeIcons.chevronLeft,
+                      child: Icon(FontAwesomeIcons.chevronLeft.data,
                         color: Colors.white,
                         size: 14,
                       ),
@@ -1003,8 +1007,7 @@ class _DetailsErrorState extends StatelessWidget {
                           color: Colors.white.withValues(alpha: 0.09),
                         ),
                       ),
-                      child: const Icon(
-                        FontAwesomeIcons.chevronLeft,
+                      child: Icon(FontAwesomeIcons.chevronLeft.data,
                         color: Colors.white,
                         size: 14,
                       ),
@@ -1028,8 +1031,7 @@ class _DetailsErrorState extends StatelessWidget {
                         color: Colors.white.withValues(alpha: 0.08),
                       ),
                     ),
-                    child: const Icon(
-                      FontAwesomeIcons.circleExclamation,
+                    child: Icon(FontAwesomeIcons.circleExclamation.data,
                       color: Colors.white38,
                       size: 36,
                     ),
@@ -1067,11 +1069,11 @@ class _DetailsErrorState extends StatelessWidget {
                               color: Colors.white.withValues(alpha: 0.12),
                             ),
                           ),
-                          child: const Row(
+                          child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                FontAwesomeIcons.chevronLeft,
+                                FontAwesomeIcons.chevronLeft.data,
                                 color: Colors.white70,
                                 size: 12,
                               ),
@@ -1103,11 +1105,11 @@ class _DetailsErrorState extends StatelessWidget {
                               color: kColorPrimary.withValues(alpha: 0.5),
                             ),
                           ),
-                          child: const Row(
+                          child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                FontAwesomeIcons.arrowsRotate,
+                                FontAwesomeIcons.arrowsRotate.data,
                                 color: kColorPrimary,
                                 size: 12,
                               ),

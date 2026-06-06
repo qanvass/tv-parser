@@ -320,7 +320,7 @@ class _SeriesCategoriesScreenState extends State<SeriesCategoriesScreen> {
                             scroll: _catScroll,
                             itemCount: _cats.length,
                             itemBuilder: (i) => _SeriePanelItem(
-                              icon: FontAwesomeIcons.list,
+                              icon: FontAwesomeIcons.list.data,
                               label: _cats[i].categoryName ?? '',
                               isSelected: i == _catIdx,
                               isHighlighted: i == _catIdx && _panel == 0,
@@ -367,7 +367,7 @@ class _SeriesCategoriesScreenState extends State<SeriesCategoriesScreen> {
   Widget _buildBar() {
     return IptvAppBar(
       title: 'Series',
-      icon: FontAwesomeIcons.tv,
+      icon: FontAwesomeIcons.tv.data,
       onBack: Get.back,
       focusedIndex: _appbarActive ? _appbarIdx : null,
       showSearch: _showSearch,
@@ -436,6 +436,7 @@ class _SeriePanel extends StatelessWidget {
                 )
               : ListView.builder(
                   controller: scroll,
+                  cacheExtent: 350.0,
                   padding: const EdgeInsets.only(bottom: 12),
                   itemCount: itemCount,
                   itemBuilder: (_, i) => itemBuilder(i),
@@ -570,7 +571,7 @@ class _SerieGridPanel extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(FontAwesomeIcons.tv, size: 48, color: kColorHint),
+              Icon(FontAwesomeIcons.tv.data, size: 48, color: kColorHint),
               const SizedBox(height: 14),
               Text(
                 'No series found',
@@ -587,6 +588,7 @@ class _SerieGridPanel extends StatelessWidget {
       child: GridView.builder(
         padding: const EdgeInsets.all(12),
         controller: scrollController,
+        cacheExtent: 350.0,
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: _columns,
           crossAxisSpacing: _spacing,
@@ -659,6 +661,7 @@ class _SerieGridItem extends StatelessWidget {
               CachedNetworkImage(
                 imageUrl: serie.cover ?? '',
                 fit: BoxFit.cover,
+                memCacheWidth: 300,
                 placeholder: (_, __) => Container(
                   color: kColorCardDark,
                   child: const Center(
@@ -670,9 +673,9 @@ class _SerieGridItem extends StatelessWidget {
                 ),
                 errorWidget: (_, __, ___) => Container(
                   color: kColorCardDark,
-                  child: const Center(
+                  child: Center(
                     child: Icon(
-                      FontAwesomeIcons.tv,
+                      FontAwesomeIcons.tv.data,
                       color: kColorHint,
                       size: 32,
                     ),
@@ -721,8 +724,7 @@ class _SerieGridItem extends StatelessWidget {
                       color: kColorFocus,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
-                      FontAwesomeIcons.play,
+                    child: Icon(FontAwesomeIcons.play.data,
                       color: Colors.white,
                       size: 10,
                     ),

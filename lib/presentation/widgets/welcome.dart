@@ -34,7 +34,7 @@ class WelcomeAppBar extends StatelessWidget {
                 Image(
                   width: 18,
                   height: 18,
-                  image: const AssetImage(kIconSplash),
+                  image: const AssetImage(kIconLogoTransparent),
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -81,10 +81,10 @@ class WelcomeAppBar extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(width: 10),
+                    SizedBox(width: 10),
                   ],
                   _AppBarBtn(
-                    icon: FontAwesomeIcons.gear,
+                    icon: FontAwesomeIcons.gear.data,
                     onTap: () => Get.toNamed(screenSettings),
                   ),
                 ],
@@ -126,15 +126,15 @@ class HomeSearchBar extends StatelessWidget {
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: Get.textTheme.bodyMedium!.copyWith(color: kColorHint),
-          prefixIcon: const Icon(
-            FontAwesomeIcons.magnifyingGlass,
+          prefixIcon: Icon(
+            FontAwesomeIcons.magnifyingGlass.data,
             size: 16,
             color: kColorHint,
           ),
           suffixIcon: controller.text.isNotEmpty
               ? IconButton(
-                  icon: const Icon(
-                    FontAwesomeIcons.xmark,
+                  icon: Icon(
+                    FontAwesomeIcons.xmark.data,
                     size: 14,
                     color: kColorHint,
                   ),

@@ -146,7 +146,7 @@ class _IntroImageAnimatedState extends State<IntroImageAnimated> {
         ),
         // Centered app branding
         Center(
-          child: Image.asset(kIconSplash, width: 35.w, height: 35.w),
+          child: Image.asset(kIconLogoTransparent, width: 69.w, height: 69.w),
         ),
       ],
     );

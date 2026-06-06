@@ -333,7 +333,7 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
                             scroll: _catScroll,
                             itemCount: _cats.length,
                             itemBuilder: (i) => _MoviePanelItem(
-                              icon: FontAwesomeIcons.list,
+                              icon: FontAwesomeIcons.list.data,
                               label: _cats[i].categoryName ?? '',
                               isSelected: i == _catIdx,
                               isHighlighted: i == _catIdx && _panel == 0,
@@ -380,7 +380,7 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
   Widget _buildBar() {
     return IptvAppBar(
       title: 'Movies',
-      icon: FontAwesomeIcons.film,
+      icon: FontAwesomeIcons.film.data,
       onBack: Get.back,
       focusedIndex: _appbarActive ? _appbarIdx : null,
       showSearch: _showSearch,
@@ -412,7 +412,6 @@ class _MoviePanel extends StatelessWidget {
     required this.scroll,
     required this.itemCount,
     required this.itemBuilder,
-    this.emptyLabel = '',
   });
 
   final String label;
@@ -420,7 +419,6 @@ class _MoviePanel extends StatelessWidget {
   final ScrollController scroll;
   final int itemCount;
   final Widget Function(int) itemBuilder;
-  final String emptyLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -447,14 +445,10 @@ class _MoviePanel extends StatelessWidget {
                   child: CircularProgressIndicator(color: kColorPrimary),
                 )
               : itemCount == 0
-              ? Center(
-                  child: Text(
-                    emptyLabel,
-                    style: Get.textTheme.bodySmall!.copyWith(color: kColorHint),
-                  ),
-                )
+              ? const SizedBox.shrink()
               : ListView.builder(
                   controller: scroll,
+                  cacheExtent: 350.0,
                   padding: const EdgeInsets.only(bottom: 12),
                   itemCount: itemCount,
                   itemBuilder: (_, i) => itemBuilder(i),
@@ -472,7 +466,6 @@ class _MoviePanelItem extends StatelessWidget {
     required this.isSelected,
     required this.isHighlighted,
     required this.onTap,
-    this.iconWidget,
   });
 
   final IconData icon;
@@ -480,7 +473,6 @@ class _MoviePanelItem extends StatelessWidget {
   final bool isSelected;
   final bool isHighlighted;
   final VoidCallback onTap;
-  final Widget? iconWidget;
 
   @override
   Widget build(BuildContext context) {
@@ -518,13 +510,11 @@ class _MoviePanelItem extends StatelessWidget {
             SizedBox(
               width: 22,
               height: 22,
-              child:
-                  iconWidget ??
-                  Icon(
-                    icon,
-                    size: 13,
-                    color: isSelected ? kColorPrimary : Colors.white38,
-                  ),
+              child: Icon(
+                icon,
+                size: 13,
+                color: isSelected ? kColorPrimary : Colors.white38,
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -593,7 +583,7 @@ class _MovieGridPanel extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(FontAwesomeIcons.film, size: 48, color: kColorHint),
+              Icon(FontAwesomeIcons.film.data, size: 48, color: kColorHint),
               const SizedBox(height: 14),
               Text(
                 'No movies found',
@@ -610,6 +600,7 @@ class _MovieGridPanel extends StatelessWidget {
       child: GridView.builder(
         padding: const EdgeInsets.all(12),
         controller: scrollController,
+        cacheExtent: 350.0,
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: _columns,
           crossAxisSpacing: _spacing,
@@ -682,6 +673,7 @@ class _MovieGridItem extends StatelessWidget {
               CachedNetworkImage(
                 imageUrl: movie.streamIcon ?? '',
                 fit: BoxFit.cover,
+                memCacheWidth: 300,
                 placeholder: (_, __) => Container(
                   color: kColorCardDark,
                   child: const Center(
@@ -693,9 +685,9 @@ class _MovieGridItem extends StatelessWidget {
                 ),
                 errorWidget: (_, __, ___) => Container(
                   color: kColorCardDark,
-                  child: const Center(
+                  child: Center(
                     child: Icon(
-                      FontAwesomeIcons.film,
+                      FontAwesomeIcons.film.data,
                       color: kColorHint,
                       size: 32,
                     ),
@@ -745,8 +737,7 @@ class _MovieGridItem extends StatelessWidget {
                       color: kColorFocus,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
-                      FontAwesomeIcons.play,
+                    child: Icon(FontAwesomeIcons.play.data,
                       color: Colors.white,
                       size: 10,
                     ),

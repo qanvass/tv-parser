@@ -71,52 +71,58 @@ class IptvAppBar extends StatelessWidget {
     return Row(
       children: [
         _AppBarBtn(
-          icon: FontAwesomeIcons.chevronLeft,
+          icon: FontAwesomeIcons.chevronLeft.data,
           onTap: onBack ?? Get.back,
           isFocused: focusedIndex == 0,
         ),
         const SizedBox(width: 12),
         // Title pill
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                kColorPrimary.withValues(alpha: 0.18),
-                kColorPrimaryDark.withValues(alpha: 0.08),
+        Flexible(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  kColorPrimary.withValues(alpha: 0.18),
+                  kColorPrimaryDark.withValues(alpha: 0.08),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: kColorPrimary.withValues(alpha: 0.35),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 14, color: kColorPrimary),
+                const SizedBox(width: 7),
+                Flexible(
+                  child: Text(
+                    title.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                ),
               ],
             ),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: kColorPrimary.withValues(alpha: 0.35),
-              width: 1,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 14, color: kColorPrimary),
-              const SizedBox(width: 7),
-              Text(
-                title.toUpperCase(),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.0,
-                ),
-              ),
-            ],
           ),
         ),
         const Spacer(),
         // Trailing actions (each passes its own isFocused)
         ...trailing,
-        if (trailing.isNotEmpty) const SizedBox(width: 4),
+        if (trailing.isNotEmpty) SizedBox(width: 4),
         // Search toggle
         if (onSearchToggle != null)
           _AppBarBtn(
-            icon: FontAwesomeIcons.magnifyingGlass,
+            icon: FontAwesomeIcons.magnifyingGlass.data,
             onTap: onSearchToggle!,
             isFocused: focusedIndex == searchIdx,
           ),
@@ -126,6 +132,7 @@ class IptvAppBar extends StatelessWidget {
 
   Widget _buildSearchMode(BuildContext context) {
     final tv = isTv(context);
+    final activeFocusColor = tv ? const Color(0xFFFFC107) : kColorFocus;
 
     // Bridge native→Flutter focus so back-key keyboard dismiss
     // triggers the screen's _onSearchFocusChange.
@@ -154,7 +161,7 @@ class IptvAppBar extends StatelessWidget {
             onSubmitted: onSearchSubmitted,
             backgroundColor: Colors.white.withValues(alpha: 0.06),
             textColor: Colors.white,
-            focuesedBorderColor: kColorFocus,
+            focuesedBorderColor: activeFocusColor,
             unFocuesedBorderColor: kColorPrimary.withValues(alpha: 0.5),
             textSize: 12,
             padding: EdgeInsets.only(left: 0, right: 0, top: 0, bottom: 0),
@@ -171,14 +178,14 @@ class IptvAppBar extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: inputFocused
-                    ? kColorFocus
+                    ? activeFocusColor
                     : kColorPrimary.withValues(alpha: 0.5),
                 width: inputFocused ? 2.0 : 1.0,
               ),
               boxShadow: inputFocused
                   ? [
                       BoxShadow(
-                        color: kColorFocus.withValues(alpha: .25),
+                        color: activeFocusColor.withValues(alpha: .25),
                         blurRadius: 8,
                       ),
                     ]
@@ -188,7 +195,7 @@ class IptvAppBar extends StatelessWidget {
             child: Row(
               children: [
                 Icon(
-                  FontAwesomeIcons.magnifyingGlass,
+                  FontAwesomeIcons.magnifyingGlass.data,
                   size: 13,
                   color: kColorPrimary,
                 ),
@@ -224,7 +231,7 @@ class IptvAppBar extends StatelessWidget {
           spacing: 10,
           children: [
             _AppBarBtn(
-              icon: FontAwesomeIcons.chevronLeft,
+              icon: FontAwesomeIcons.chevronLeft.data,
               onTap: onBack ?? Get.back,
               isFocused: focusedIndex == 0,
             ),
@@ -233,7 +240,7 @@ class IptvAppBar extends StatelessWidget {
             SizedBox(width: context.width * .3, child: inputSection),
 
             _AppBarBtn(
-              icon: FontAwesomeIcons.xmark,
+              icon: FontAwesomeIcons.xmark.data,
               onTap: onSearchClose ?? () {},
               isFocused: focusedIndex == 2,
             ),
@@ -246,7 +253,7 @@ class IptvAppBar extends StatelessWidget {
     return Row(
       children: [
         _AppBarBtn(
-          icon: FontAwesomeIcons.chevronLeft,
+          icon: FontAwesomeIcons.chevronLeft.data,
           onTap: onBack ?? Get.back,
           isFocused: focusedIndex == 0,
         ),
@@ -266,7 +273,7 @@ class IptvAppBar extends StatelessWidget {
             child: Row(
               children: [
                 Icon(
-                  FontAwesomeIcons.magnifyingGlass,
+                  FontAwesomeIcons.magnifyingGlass.data,
                   size: 13,
                   color: kColorPrimary,
                 ),
@@ -295,9 +302,9 @@ class IptvAppBar extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         _AppBarBtn(
-          icon: FontAwesomeIcons.xmark,
+          icon: FontAwesomeIcons.xmark.data,
           onTap: onSearchClose ?? () {},
           isFocused: focusedIndex == 1,
         ),
@@ -319,6 +326,7 @@ class _AppBarBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final activeFocusColor = isTv(context) ? const Color(0xFFFFC107) : kColorFocus;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -332,14 +340,14 @@ class _AppBarBtn extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isFocused
-                ? kColorFocus
+                ? activeFocusColor
                 : Colors.white.withValues(alpha: 0.09),
             width: isFocused ? 2 : 1,
           ),
           boxShadow: isFocused
               ? [
                   BoxShadow(
-                    color: kColorFocus.withValues(alpha: 0.35),
+                    color: activeFocusColor.withValues(alpha: 0.35),
                     blurRadius: 8,
                     spreadRadius: 1,
                   ),
@@ -370,6 +378,7 @@ class IptvAppBarAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final activeFocusColor = isTv(context) ? const Color(0xFFFFC107) : kColorFocus;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -383,14 +392,14 @@ class IptvAppBarAction extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isFocused
-                ? kColorFocus
+                ? activeFocusColor
                 : Colors.white.withValues(alpha: 0.09),
             width: isFocused ? 2 : 1,
           ),
           boxShadow: isFocused
               ? [
                   BoxShadow(
-                    color: kColorFocus.withValues(alpha: 0.35),
+                    color: activeFocusColor.withValues(alpha: 0.35),
                     blurRadius: 8,
                     spreadRadius: 1,
                   ),

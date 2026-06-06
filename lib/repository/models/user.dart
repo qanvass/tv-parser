@@ -8,10 +8,10 @@ class UserModel {
   });
 
   UserModel.fromJson(Map<String, dynamic> json, String domain)
-      : userInfo = (json['user_info'] as Map<String, dynamic>?) != null
+      : userInfo = json['user_info'] is Map<String, dynamic>
             ? UserInfo.fromJson(json['user_info'] as Map<String, dynamic>)
             : null,
-        serverInfo = (json['server_info'] as Map<String, dynamic>?) != null
+        serverInfo = json['server_info'] is Map<String, dynamic>
             ? ServerInfo.fromJson(
                 json['server_info'] as Map<String, dynamic>, domain)
             : null;
@@ -55,7 +55,7 @@ class UserInfo {
         message = json['message'].toString(),
         auth = json['auth'].toString(),
         status = json['status'].toString(),
-        expDate = json['exp_date'] as String?,
+        expDate = json['exp_date']?.toString(),
         isTrial = json['is_trial'].toString(),
         activeCons = json['active_cons'].toString(),
         createdAt = json['created_at'].toString(),

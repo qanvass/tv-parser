@@ -1,6 +1,6 @@
 part of 'helpers.dart';
 
-const String kAppName = "AZUL IPTV";
+const String kAppName = "TV Parser";
 
 //TODO: Force TV mode for testing on mobile ( true / false )
 const bool kForceTvMode = false;
@@ -8,11 +8,12 @@ const bool kForceTvMode = false;
 const String kIconLive = "assets/images/live-stream.png";
 const String kIconSeries = "assets/images/clapperboard.png";
 const String kIconMovies = "assets/images/film-reel.png";
-const String kIconSplash = "assets/images/icon.png";
+const String kIconSplash = "assets/images/app_icon.png";
+const String kIconLogoTransparent = "assets/images/tv_parser_logo_transparent.png";
 const String kImageIntro = "assets/images/intro h.jpeg";
 
-const String kPrivacy = "https://www.whmcssmarters.com/terms-of-service/";
-const String kContact = "https://mouadzizi.me";
+const String kPrivacy = "https://tvparser.com/privacy";
+const String kContact = "support@gopaygent.com";
 
 const String kDemoUrl =
     "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";

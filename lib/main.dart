@@ -16,13 +16,30 @@ import 'logic/cubits/settings/settings_cubit.dart';
 import 'logic/cubits/video/video_cubit.dart';
 import 'logic/cubits/watch/watching_cubit.dart';
 import 'presentation/screens/screens.dart';
+import 'presentation/mobile/adult_content_screen.dart';
 
-//test
 void main() async {
+  // Ensure Flutter engine bindings are initialized prior to loading services
   WidgetsFlutterBinding.ensureInitialized();
-  // await Wakelock.enable();
+  
+  // Initialize local GetStorage instances for state and favorites
   await GetStorage.init();
   await GetStorage.init("favorites");
+  await GetStorage.init("preferences");
+  await GetStorage.init("youtube_trailer_cache");
+  
+  final prefs = GetStorage("preferences");
+  prefs.writeIfNull("allowMobileLandscape", false);
+  
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+  ]);
+  
+  // Initialize device orientation
+  await OrientationGuard.init();
+  
+  // Initialize streaming Gateway/decoders 
+  await gatewayService.initializeGateway();
 
   runApp(
     MyApp(
@@ -39,6 +56,7 @@ class MyApp extends StatefulWidget {
   final AuthApi authApi;
   final WatchingLocale watchingLocale;
   final FavoriteLocale favoriteLocale;
+  
   const MyApp({
     super.key,
     required this.iptv,
@@ -55,13 +73,22 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    //Enable FullScreen
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
+    _configureSystemUI();
+  }
+
+  /// Configures system UI overlays for an immersive, distraction-free playback experience.
+  void _configureSystemUI() {
+    // ImmersiveSticky hides the status and navigation bars, making them only reveal 
+    // on a swipe gesture without shifting the layout underneath. Ideal for media players.
+    SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.immersiveSticky,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Shortcuts(
+      // Map standard keyboard/remote control keys to native ActivateIntents for TV focus grids
       shortcuts: <LogicalKeySet, Intent>{
         LogicalKeySet(LogicalKeyboardKey.select): const ActivateIntent(),
         LogicalKeySet(LogicalKeyboardKey.enter): const ActivateIntent(),
@@ -69,33 +96,31 @@ class _MyAppState extends State<MyApp> {
       child: MultiBlocProvider(
         providers: [
           BlocProvider<AuthBloc>(
-            create: (BuildContext context) => AuthBloc(widget.authApi),
+            create: (context) => AuthBloc(widget.authApi),
           ),
           BlocProvider<LiveCatyBloc>(
-            create: (BuildContext context) => LiveCatyBloc(widget.iptv),
+            create: (context) => LiveCatyBloc(widget.iptv),
           ),
           BlocProvider<ChannelsBloc>(
-            create: (BuildContext context) => ChannelsBloc(widget.iptv),
+            create: (context) => ChannelsBloc(widget.iptv),
           ),
           BlocProvider<MovieCatyBloc>(
-            create: (BuildContext context) => MovieCatyBloc(widget.iptv),
+            create: (context) => MovieCatyBloc(widget.iptv),
           ),
           BlocProvider<SeriesCatyBloc>(
-            create: (BuildContext context) => SeriesCatyBloc(widget.iptv),
+            create: (context) => SeriesCatyBloc(widget.iptv),
           ),
           BlocProvider<VideoCubit>(
-            create: (BuildContext context) => VideoCubit(),
+            create: (context) => VideoCubit(),
           ),
           BlocProvider<SettingsCubit>(
-            create: (BuildContext context) => SettingsCubit(),
+            create: (context) => SettingsCubit(),
           ),
           BlocProvider<WatchingCubit>(
-            create: (BuildContext context) =>
-                WatchingCubit(widget.watchingLocale),
+            create: (context) => WatchingCubit(widget.watchingLocale),
           ),
           BlocProvider<FavoritesCubit>(
-            create: (BuildContext context) =>
-                FavoritesCubit(widget.favoriteLocale),
+            create: (context) => FavoritesCubit(widget.favoriteLocale),
           ),
         ],
         child: ResponsiveSizer(
@@ -134,10 +159,15 @@ class _MyAppState extends State<MyApp> {
                   page: () => const SettingsScreen(),
                 ),
                 GetPage(
+                  name: screenConnectionTest,
+                  page: () => const ConnectionTestScreen(),
+                ),
+                GetPage(
                   name: screenFavourite,
                   page: () => const FavouriteScreen(),
                 ),
                 GetPage(name: screenCatchUp, page: () => const CatchUpScreen()),
+                GetPage(name: screenAdultContent, page: () => const AdultContentScreen()),
               ],
             );
           },

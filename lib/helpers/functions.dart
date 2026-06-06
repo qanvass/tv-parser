@@ -1,17 +1,13 @@
 part of 'helpers.dart';
 
+bool isTvDevice() {
+  return OrientationGuard.isTv;
+}
+
 void changeDeviceOrient() {
-  //change portrait mobile
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-  ]);
+  OrientationGuard.applyDeviceOrientation();
 }
 
 void changeDeviceOrientBack() {
-  //change portrait mobile
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitDown,
-    DeviceOrientation.portraitUp,
-  ]);
+  OrientationGuard.applyDeviceOrientation();
 }
