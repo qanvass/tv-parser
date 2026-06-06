@@ -1,0 +1,35 @@
+name: Upload Project to Supabase
+
+on:
+  push:
+    branches:
+      - master
+  #workflow_dispatch:
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install zip
+        run: sudo apt-get install zip
+
+      - name: Set repository name
+        id: repo-name
+        run: echo "REPO_NAME=${GITHUB_REPOSITORY#*/}" >> $GITHUB_ENV
+
+      - name: Create project zip
+        run: zip -r "${{ env.REPO_NAME }}.zip" . -x "*.git*" -x "*.github*"
+
+      - name: Upload to Supabase Storage
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          curl -X POST "${SUPABASE_URL}/storage/v1/object/downloads/${{ env.REPO_NAME }}.zip" \
+            -H "Authorization: Bearer ${SUPABASE_KEY}" \
+            -H "x-upsert: true" \
+            -F "file=@${{ env.REPO_NAME }}.zip"
