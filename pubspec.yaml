@@ -80,8 +80,8 @@ flutter_launcher_icons:
   adaptive_icon_foreground: "assets/images/desktop_shortcut_icon_foreground.png"
 
 flutter_native_splash:
-  color: "#121212"
-  image: "assets/images/splash_logo.png"
+  # Solid black native chrome only — Flutter splash video owns branding.
+  # Do not set `image` / android_12.image or regenerating will restore the boxed logo flash.
+  color: "#000000"
   android_12:
-    image: "assets/images/splash_logo.png"
-    color: "#121212"
+    color: "#000000"
