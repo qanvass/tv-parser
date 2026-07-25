@@ -75,3 +75,21 @@ android/.kotlin/
 .cxx/
 android/app/.cxx/
 
+# Local temporary build backups and scratch
+build_old/
+build_old3/
+scratch/
+watcher_*
+_design_backups/
+preferences.bak
+youtube_trailer_cache.bak
+*.png
+*.aab
+*.apk
+store_release_package/*.aab
+store_release_package/*.apk
+store_release_package/PLAY_CONSOLE_UPLOAD_KIT/*.aab
+store_release_package/PLAY_CONSOLE_UPLOAD_KIT/*.apk
+
+
+

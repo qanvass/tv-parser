@@ -58,6 +58,22 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
     sc.animateTo(target, duration: const Duration(milliseconds: 150), curve: Curves.easeOut);
   }
 
+  /// Android TV remotes send [LogicalKeyboardKey.goBack]; emulators/desktop often
+  /// send [LogicalKeyboardKey.escape]. Both must pop this route — returning
+  /// [KeyEventResult.handled] for goBack without [Get.back] swallows Back and
+  /// can finish the Activity (Google TV Home) instead of returning to the shell.
+  bool _isBackKey(LogicalKeyboardKey k) =>
+      k == LogicalKeyboardKey.escape || k == LogicalKeyboardKey.goBack;
+
+  void _popToShell() {
+    // Guard against double-pop (Focus goBack + system Back in one frame)
+    // which finishes MainActivity → Google TV Home.
+    if (!mounted) return;
+    if (Navigator.of(context).canPop()) {
+      Get.back();
+    }
+  }
+
   KeyEventResult _onKey(FocusNode _, KeyEvent e) {
     if (e is! KeyDownEvent) return KeyEventResult.ignored;
     final k = e.logicalKey;
@@ -73,9 +89,9 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
       } else if (k == LogicalKeyboardKey.select ||
           k == LogicalKeyboardKey.enter ||
           k == LogicalKeyboardKey.gameButtonA) {
-        if (_appbarIdx == 0) Get.back();
-      } else if (k == LogicalKeyboardKey.escape) {
-        Get.back();
+        if (_appbarIdx == 0) _popToShell();
+      } else if (_isBackKey(k)) {
+        _popToShell();
       }
       return KeyEventResult.handled;
     }
@@ -95,8 +111,8 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
           k == LogicalKeyboardKey.enter ||
           k == LogicalKeyboardKey.gameButtonA) {
         setState(() => _panel = 2);
-      } else if (k == LogicalKeyboardKey.escape) {
-        Get.back();
+      } else if (_isBackKey(k)) {
+        _popToShell();
       }
       return KeyEventResult.handled;
     }
@@ -144,11 +160,17 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
         _handleSelect();
         return KeyEventResult.handled;
       }
-      if (k == LogicalKeyboardKey.escape) { Get.back(); return KeyEventResult.handled; }
+      if (_isBackKey(k)) {
+        _popToShell();
+        return KeyEventResult.handled;
+      }
       return KeyEventResult.handled;
     }
 
-    if (k == LogicalKeyboardKey.escape) { Get.back(); return KeyEventResult.handled; }
+    if (_isBackKey(k)) {
+      _popToShell();
+      return KeyEventResult.handled;
+    }
     return KeyEventResult.ignored;
   }
 
@@ -194,7 +216,17 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _navFocus.requestFocus();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Match Settings: Focus-only Back (no PopScope). PopScope(canPop:false)
+    // + Focus goBack both calling Get.back() double-popped → Google TV Home.
     return Focus(
       focusNode: _navFocus,
       autofocus: true,
@@ -211,7 +243,7 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
                   child: IptvAppBar(
                     title: 'Catch Up',
                     icon: FontAwesomeIcons.rotate.data,
-                    onBack: Get.back,
+                    onBack: _popToShell,
                     focusedIndex: _appbarActive ? _appbarIdx : null,
                   ),
                 ),

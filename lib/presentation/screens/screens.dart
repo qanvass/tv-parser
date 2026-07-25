@@ -19,8 +19,6 @@ import 'package:get_storage/get_storage.dart';
 import 'package:responsive_sizer/responsive_sizer.dart';
 import 'package:cast/cast.dart';
 
-import 'package:url_launcher/url_launcher.dart';
-import 'package:url_launcher/url_launcher_string.dart';
 import 'package:video_player/video_player.dart';
 
 //import 'package:wakelock/wakelock.dart';
@@ -43,6 +41,7 @@ import '../../repository/api/cast_compatibility_service.dart';
 import '../../repository/api/cast_media_service.dart';
 import '../../repository/api/search_index_service.dart';
 import '../../repository/api/ai_intent_mapper.dart';
+import '../../repository/api/saved_accounts_service.dart';
 
 import '../../repository/models/category.dart';
 import '../../repository/models/channel_live.dart';
@@ -56,6 +55,7 @@ import '../widgets/widgets.dart';
 import '../widgets/premium_channel_card.dart';
 import '../shared/widgets/stream_launcher.dart';
 import '../tv/tv_dashboard_shell.dart';
+import '../tv/widgets/tv_epg_peek.dart';
 import '../mobile/mobile_watch_screen.dart';
 import '../mobile/mobile_detail_screen.dart';
 
@@ -120,7 +120,8 @@ class SandTimeclock extends StatefulWidget {
   State<SandTimeclock> createState() => _SandTimeclockState();
 }
 
-class _SandTimeclockState extends State<SandTimeclock> with SingleTickerProviderStateMixin {
+class _SandTimeclockState extends State<SandTimeclock>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
 
   @override

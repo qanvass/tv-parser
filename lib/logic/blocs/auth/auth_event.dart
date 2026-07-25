@@ -14,3 +14,9 @@ class AuthRegister extends AuthEvent {
 class AuthGetUser extends AuthEvent {}
 
 class AuthLogOut extends AuthEvent {}
+
+class AuthLoadM3u extends AuthEvent {
+  final String playlistUrl;
+
+  AuthLoadM3u(this.playlistUrl);
+}

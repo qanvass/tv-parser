@@ -77,6 +77,20 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
     );
   }
 
+  /// Same TV Back contract as CatchUp/Settings: handle goBack + escape, never
+  /// swallow goBack with [KeyEventResult.handled] without popping to the shell.
+  bool _isBackKey(LogicalKeyboardKey k) =>
+      k == LogicalKeyboardKey.escape || k == LogicalKeyboardKey.goBack;
+
+  void _popToShell() {
+    // Guard against double-pop (Focus goBack + system Back in one frame)
+    // which finishes MainActivity → Google TV Home.
+    if (!mounted) return;
+    if (Navigator.of(context).canPop()) {
+      Get.back();
+    }
+  }
+
   KeyEventResult _onKey(FocusNode _, KeyEvent e) {
     if (e is! KeyDownEvent) return KeyEventResult.ignored;
     final k = e.logicalKey;
@@ -92,9 +106,9 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
       } else if (k == LogicalKeyboardKey.select ||
           k == LogicalKeyboardKey.enter ||
           k == LogicalKeyboardKey.gameButtonA) {
-        if (_appbarIdx == 0) Get.back();
-      } else if (k == LogicalKeyboardKey.escape) {
-        Get.back();
+        if (_appbarIdx == 0) _popToShell();
+      } else if (_isBackKey(k)) {
+        _popToShell();
       }
       return KeyEventResult.handled;
     }
@@ -117,8 +131,8 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
           k == LogicalKeyboardKey.enter ||
           k == LogicalKeyboardKey.gameButtonA) {
         setState(() => _panel = 2);
-      } else if (k == LogicalKeyboardKey.escape) {
-        Get.back();
+      } else if (_isBackKey(k)) {
+        _popToShell();
       }
       return KeyEventResult.handled;
     }
@@ -167,15 +181,15 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
         _handleSelect();
         return KeyEventResult.handled;
       }
-      if (k == LogicalKeyboardKey.escape) {
-        Get.back();
+      if (_isBackKey(k)) {
+        _popToShell();
         return KeyEventResult.handled;
       }
       return KeyEventResult.handled;
     }
 
-    if (k == LogicalKeyboardKey.escape) {
-      Get.back();
+    if (_isBackKey(k)) {
+      _popToShell();
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
@@ -222,7 +236,17 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _navFocus.requestFocus();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Match Settings: Focus-only Back (no PopScope). PopScope(canPop:false)
+    // + Focus goBack both calling Get.back() double-popped → Google TV Home.
     return Focus(
       focusNode: _navFocus,
       autofocus: true,
@@ -239,7 +263,7 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
                   child: IptvAppBar(
                     title: 'Favourites',
                     icon: FontAwesomeIcons.heart.data,
-                    onBack: Get.back,
+                    onBack: _popToShell,
                     focusedIndex: _appbarActive ? _appbarIdx : null,
                   ),
                 ),
@@ -248,16 +272,8 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // ── Left sidebar ────────────────────────────────────
-                    // SafeArea(
-                    //   right: false,
-                    //   bottom: false,
-                    //   top: false,
-                    //   child: SizedBox(width: 190, child: _buildSidebar()),
-                    // ),
                     SizedBox(width: 190, child: _buildSidebar()),
                     Container(width: 1, color: kColorCardLight),
-                    // ── Content panel ───────────────────────────────────
                     Expanded(child: _buildContent()),
                   ],
                 ),

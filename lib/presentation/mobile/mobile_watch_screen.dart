@@ -96,7 +96,8 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
   Future<void> _syncLocationSilently() async {
     final profile = UserPreferenceProfile.load();
     if (profile.locationFeatureEnabled) {
-      final status = await LocationPreferenceService.checkPermissionStatusSilently();
+      final status =
+          await LocationPreferenceService.checkPermissionStatusSilently();
       if (status == 'granted') {
         await LocationPreferenceService.requestLocationPersonalization();
         _loadAllCuration();
@@ -122,21 +123,36 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
               Container(
                 width: 48,
                 height: 4,
-                decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
               const SizedBox(height: 24),
-              const Icon(Icons.location_on_rounded, size: 56, color: Colors.amber),
+              const Icon(
+                Icons.location_on_rounded,
+                size: 56,
+                color: Colors.amber,
+              ),
               const SizedBox(height: 18),
               const Text(
                 "Show Local Channels?",
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
               const SizedBox(height: 8),
               const Text(
                 "TV Parser uses your approximate location to help surface local channels and region-relevant live events from your available playlist.",
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white60, fontSize: 12, height: 1.4),
+                style: TextStyle(
+                  color: Colors.white60,
+                  fontSize: 12,
+                  height: 1.4,
+                ),
               ),
               const SizedBox(height: 28),
               ElevatedButton(
@@ -144,14 +160,19 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                   backgroundColor: Colors.white,
                   foregroundColor: Colors.black,
                   minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(25),
+                  ),
                 ),
                 onPressed: () async {
                   Get.back();
                   await LocationPreferenceService.requestLocationPersonalization();
                   _loadAllCuration();
                 },
-                child: const Text("Allow Local Suggestions", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                child: const Text(
+                  "Allow Local Suggestions",
+                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                ),
               ),
               const SizedBox(height: 12),
               OutlinedButton(
@@ -159,13 +180,18 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                   foregroundColor: Colors.white,
                   minimumSize: const Size(double.infinity, 50),
                   side: const BorderSide(color: Colors.white12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(25),
+                  ),
                 ),
                 onPressed: () async {
                   Get.back();
                   await LocationPreferenceService.markExplainerSeen(false);
                 },
-                child: const Text("Not Now", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                child: const Text(
+                  "Not Now",
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                ),
               ),
             ],
           ),
@@ -192,21 +218,36 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
               Container(
                 width: 48,
                 height: 4,
-                decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
               const SizedBox(height: 24),
-              const Icon(Icons.travel_explore_rounded, size: 56, color: Colors.amber),
+              const Icon(
+                Icons.travel_explore_rounded,
+                size: 56,
+                color: Colors.amber,
+              ),
               const SizedBox(height: 18),
               const Text(
                 "Help TV Parser organize channels?",
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
               const SizedBox(height: 8),
               const Text(
                 "We will personalize your homepage by prioritizing news, sports, and live categories relevant to your language and location. No precise GPS is tracked.",
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white60, fontSize: 12, height: 1.4),
+                style: TextStyle(
+                  color: Colors.white60,
+                  fontSize: 12,
+                  height: 1.4,
+                ),
               ),
               const SizedBox(height: 28),
 
@@ -216,12 +257,14 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                   backgroundColor: Colors.white,
                   foregroundColor: Colors.black,
                   minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(25),
+                  ),
                 ),
                 onPressed: () async {
                   final profile = UserPreferenceProfile.load();
                   final updated = profile.copyWith(
-                    country: "USA", 
+                    country: "USA",
                     language: "English",
                     prefersSports: true,
                     prefersNews: true,
@@ -231,8 +274,15 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                   _loadAllCuration();
                   _showSuccessToast("Organized for USA & English!");
                 },
-                icon: const Icon(Icons.my_location_rounded, color: Colors.black, size: 18),
-                label: const Text("Use Approximate Location", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                icon: const Icon(
+                  Icons.my_location_rounded,
+                  color: Colors.black,
+                  size: 18,
+                ),
+                label: const Text(
+                  "Use Approximate Location",
+                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                ),
               ),
               const SizedBox(height: 12),
 
@@ -242,21 +292,37 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                   foregroundColor: Colors.white,
                   minimumSize: const Size(double.infinity, 50),
                   side: const BorderSide(color: Colors.white12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(25),
+                  ),
                 ),
                 onPressed: () {
                   Get.back();
                   _showManualSelectionSheet();
                 },
-                icon: const Icon(Icons.map_rounded, color: Colors.white, size: 18),
-                label: const Text("Choose Country & Language", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                icon: const Icon(
+                  Icons.map_rounded,
+                  color: Colors.white,
+                  size: 18,
+                ),
+                label: const Text(
+                  "Choose Country & Language",
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                ),
               ),
               const SizedBox(height: 12),
 
               // Button: Skip
               TextButton(
                 onPressed: () => Get.back(),
-                child: const Text("Skip", style: TextStyle(color: Colors.white38, fontSize: 12, fontWeight: FontWeight.bold)),
+                child: const Text(
+                  "Skip",
+                  style: TextStyle(
+                    color: Colors.white38,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ],
           ),
@@ -298,16 +364,30 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                 children: [
                   const Text(
                     "Intelligent Personalization Setup",
-                    style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                   const SizedBox(height: 18),
 
                   // Country Selection
-                  const Text("Country / Region", style: TextStyle(color: Colors.white60, fontSize: 11, fontWeight: FontWeight.bold)),
+                  const Text(
+                    "Country / Region",
+                    style: TextStyle(
+                      color: Colors.white60,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(color: const Color(0xFF222225), borderRadius: BorderRadius.circular(12)),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF222225),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     child: DropdownButton<String>(
                       value: selectedCountry,
                       dropdownColor: const Color(0xFF161618),
@@ -315,17 +395,40 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                       underline: const SizedBox(),
                       isExpanded: true,
                       onChanged: (val) {
-                        if (val != null) setModalState(() => selectedCountry = val);
+                        if (val != null)
+                          setModalState(() => selectedCountry = val);
                       },
-                      items: ["USA", "United Kingdom", "Canada", "Spain", "Mexico", "France", "Germany", "Others"]
-                          .map((item) => DropdownMenuItem(value: item, child: Text(item)))
-                          .toList(),
+                      items:
+                          [
+                                "USA",
+                                "United Kingdom",
+                                "Canada",
+                                "Spain",
+                                "Mexico",
+                                "France",
+                                "Germany",
+                                "Others",
+                              ]
+                              .map(
+                                (item) => DropdownMenuItem(
+                                  value: item,
+                                  child: Text(item),
+                                ),
+                              )
+                              .toList(),
                     ),
                   ),
                   const SizedBox(height: 14),
 
                   // Region / State Selection
-                  const Text("State / Territory", style: TextStyle(color: Colors.white60, fontSize: 11, fontWeight: FontWeight.bold)),
+                  const Text(
+                    "State / Territory",
+                    style: TextStyle(
+                      color: Colors.white60,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 6),
                   Container(
                     decoration: BoxDecoration(
@@ -338,19 +441,33 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                       onChanged: (val) => selectedState = val,
                       decoration: const InputDecoration(
                         border: InputBorder.none,
-                        hintText: "Enter state/city (e.g. Georgia, Atlanta, London)",
-                        hintStyle: TextStyle(color: Colors.white30, fontSize: 12),
+                        hintText:
+                            "Enter state/city (e.g. Georgia, Atlanta, London)",
+                        hintStyle: TextStyle(
+                          color: Colors.white30,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                   ),
                   const SizedBox(height: 14),
 
                   // Language Selection
-                  const Text("Language Preference", style: TextStyle(color: Colors.white60, fontSize: 11, fontWeight: FontWeight.bold)),
+                  const Text(
+                    "Language Preference",
+                    style: TextStyle(
+                      color: Colors.white60,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(color: const Color(0xFF222225), borderRadius: BorderRadius.circular(12)),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF222225),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     child: DropdownButton<String>(
                       value: selectedLang,
                       dropdownColor: const Color(0xFF161618),
@@ -358,28 +475,57 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                       underline: const SizedBox(),
                       isExpanded: true,
                       onChanged: (val) {
-                        if (val != null) setModalState(() => selectedLang = val);
+                        if (val != null)
+                          setModalState(() => selectedLang = val);
                       },
-                      items: ["English", "Spanish", "French", "Arabic", "Portuguese", "Hindi", "Others"]
-                          .map((item) => DropdownMenuItem(value: item, child: Text(item)))
-                          .toList(),
+                      items:
+                          [
+                                "English",
+                                "Spanish",
+                                "French",
+                                "Arabic",
+                                "Portuguese",
+                                "Hindi",
+                                "Others",
+                              ]
+                              .map(
+                                (item) => DropdownMenuItem(
+                                  value: item,
+                                  child: Text(item),
+                                ),
+                              )
+                              .toList(),
                     ),
                   ),
                   const SizedBox(height: 16),
 
                   // Category Preferences Switches
-                  const Text("Prioritized Categories", style: TextStyle(color: Colors.white60, fontSize: 11, fontWeight: FontWeight.bold)),
+                  const Text(
+                    "Prioritized Categories",
+                    style: TextStyle(
+                      color: Colors.white60,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 6),
                   SwitchListTile(
-                    title: const Text("Show Sports First", style: TextStyle(color: Colors.white, fontSize: 12)),
+                    title: const Text(
+                      "Show Sports First",
+                      style: TextStyle(color: Colors.white, fontSize: 12),
+                    ),
                     value: prefersSports,
                     activeColor: Colors.amber,
                     contentPadding: EdgeInsets.zero,
                     dense: true,
-                    onChanged: (val) => setModalState(() => prefersSports = val),
+                    onChanged: (val) =>
+                        setModalState(() => prefersSports = val),
                   ),
                   SwitchListTile(
-                    title: const Text("Show Local & Breaking News", style: TextStyle(color: Colors.white, fontSize: 12)),
+                    title: const Text(
+                      "Show Local & Breaking News",
+                      style: TextStyle(color: Colors.white, fontSize: 12),
+                    ),
                     value: prefersNews,
                     activeColor: Colors.amber,
                     contentPadding: EdgeInsets.zero,
@@ -387,7 +533,10 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                     onChanged: (val) => setModalState(() => prefersNews = val),
                   ),
                   SwitchListTile(
-                    title: const Text("Family & Kids Priority", style: TextStyle(color: Colors.white, fontSize: 12)),
+                    title: const Text(
+                      "Family & Kids Priority",
+                      style: TextStyle(color: Colors.white, fontSize: 12),
+                    ),
                     value: prefersKids,
                     activeColor: Colors.amber,
                     contentPadding: EdgeInsets.zero,
@@ -395,7 +544,10 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                     onChanged: (val) => setModalState(() => prefersKids = val),
                   ),
                   SwitchListTile(
-                    title: const Text("Hide Adult Channels", style: TextStyle(color: Colors.white, fontSize: 12)),
+                    title: const Text(
+                      "Hide Adult Channels",
+                      style: TextStyle(color: Colors.white, fontSize: 12),
+                    ),
                     value: hideAdult,
                     activeColor: Colors.amber,
                     contentPadding: EdgeInsets.zero,
@@ -409,7 +561,9 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                       backgroundColor: Colors.white,
                       foregroundColor: Colors.black,
                       minimumSize: const Size(double.infinity, 50),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(25),
+                      ),
                     ),
                     onPressed: () async {
                       final profile = UserPreferenceProfile.load();
@@ -427,7 +581,13 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                       _loadAllCuration();
                       _showSuccessToast("Curation engine updated!");
                     },
-                    child: const Text("Apply Preferences", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                    child: const Text(
+                      "Apply Preferences",
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -441,7 +601,10 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
   void _showSuccessToast(String text) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(text, style: const TextStyle(fontWeight: FontWeight.bold)),
+        content: Text(
+          text,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.amber.shade900,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
@@ -449,7 +612,7 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
     );
   }
 
-  /// Unified Curation loader prefetching all playlist records into memory 
+  /// Unified Curation loader prefetching all playlist records into memory
   /// and building rows utilizing strict Curation Row Rules
   Future<void> _loadAllCuration() async {
     if (mounted) setState(() => _loadingVod = true);
@@ -473,13 +636,20 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
       final movieCatyState = context.read<MovieCatyBloc>().state;
       final seriesCatyState = context.read<SeriesCatyBloc>().state;
 
-      final liveCats = liveCatyState is LiveCatySuccess ? liveCatyState.categories : <CategoryModel>[];
-      final movieCats = movieCatyState is MovieCatySuccess ? movieCatyState.categories : <CategoryModel>[];
-      final seriesCats = seriesCatyState is SeriesCatySuccess ? seriesCatyState.categories : <CategoryModel>[];
+      final liveCats = liveCatyState is LiveCatySuccess
+          ? liveCatyState.categories
+          : <CategoryModel>[];
+      final movieCats = movieCatyState is MovieCatySuccess
+          ? movieCatyState.categories
+          : <CategoryModel>[];
+      final seriesCats = seriesCatyState is SeriesCatySuccess
+          ? seriesCatyState.categories
+          : <CategoryModel>[];
 
       final adultCategoryIds = <String>{};
       for (final cat in [...liveCats, ...movieCats, ...seriesCats]) {
-        if (cat.categoryName != null && ProviderCurationRules.isAdultCategory(cat.categoryName!)) {
+        if (cat.categoryName != null &&
+            ProviderCurationRules.isAdultCategory(cat.categoryName!)) {
           if (cat.categoryId != null) {
             adultCategoryIds.add(cat.categoryId!);
           }
@@ -495,9 +665,13 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
       );
 
       // Load active Live Spotlight events
-      final spots = await EventDiscoveryService.getSpotlightEvents(region: profile.region);
+      final spots = await EventDiscoveryService.getSpotlightEvents(
+        region: profile.region,
+      );
 
-      final categories = liveCatyState is LiveCatySuccess ? liveCatyState.categories : <CategoryModel>[];
+      final categories = liveCatyState is LiveCatySuccess
+          ? liveCatyState.categories
+          : <CategoryModel>[];
 
       // Curate unique horizontal content rows strictly in background isolate
       final curationParams = CurationParams(
@@ -507,11 +681,16 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
         profile: profile,
         categories: categories,
       );
-      final curationResult = await compute(performBackgroundCuration, curationParams);
+      final curationResult = await compute(
+        performBackgroundCuration,
+        curationParams,
+      );
 
       if (mounted) {
         setState(() {
-          _heroCarouselItems = curationResult.heroRanked.map((r) => r.item).toList();
+          _heroCarouselItems = curationResult.heroRanked
+              .map((r) => r.item)
+              .toList();
           _featuredMovies = curationResult.trendingMovies;
           _featuredSeries = curationResult.featuredSeries;
           _sportsChannels = curationResult.sports;
@@ -535,7 +714,9 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
     if (!mounted) return;
 
     try {
-      final enriched = await HeroContentService.fetchAndEnrichHeroItems(_heroCarouselItems);
+      final enriched = await HeroContentService.fetchAndEnrichHeroItems(
+        _heroCarouselItems,
+      );
       if (mounted) {
         setState(() {
           _enrichedHeroItems = enriched;
@@ -549,11 +730,14 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
     }
   }
 
-  Future<void> _startBackgroundTrailerEnrichment(List<HeroCarouselItem> items) async {
+  Future<void> _startBackgroundTrailerEnrichment(
+    List<HeroCarouselItem> items,
+  ) async {
     // Filter out items that are VOD, have a valid image, and don't have a trailer
     final List<HeroCarouselItem> targetItems = items.where((item) {
       if (!item.isVod) return false;
-      if (item.trailerYoutubeId != null && item.trailerYoutubeId!.isNotEmpty) return false;
+      if (item.trailerYoutubeId != null && item.trailerYoutubeId!.isNotEmpty)
+        return false;
       return true;
     }).toList();
 
@@ -563,7 +747,7 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
 
     Future<void> processNext() async {
       if (!mounted || index >= targetItems.length) return;
-      
+
       final currentItem = targetItems[index++];
 
       try {
@@ -571,10 +755,11 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
         final year = currentItem.year;
 
         // Perform search lookup
-        final trailerId = await YouTubeTrailerSearchService.findTrailerYoutubeId(
-          cleanTitle: cleanTitle,
-          year: year,
-        );
+        final trailerId =
+            await YouTubeTrailerSearchService.findTrailerYoutubeId(
+              cleanTitle: cleanTitle,
+              year: year,
+            );
 
         if (trailerId != null && trailerId.isNotEmpty) {
           // Success! Write to cache
@@ -589,7 +774,9 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
           if (mounted) {
             setState(() {
               // Update the item in _enrichedHeroItems
-              final idx = _enrichedHeroItems.indexWhere((x) => x.id == currentItem.id);
+              final idx = _enrichedHeroItems.indexWhere(
+                (x) => x.id == currentItem.id,
+              );
               if (idx != -1) {
                 final original = _enrichedHeroItems[idx];
                 _enrichedHeroItems[idx] = HeroCarouselItem(
@@ -619,7 +806,9 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
           );
         }
       } catch (e) {
-        debugPrint("[MOBILE_WATCH_SCREEN] Background trailer search error for '${currentItem.title}': $e");
+        debugPrint(
+          "[MOBILE_WATCH_SCREEN] Background trailer search error for '${currentItem.title}': $e",
+        );
       } finally {
         // Trigger next item in queue
         processNext();
@@ -655,10 +844,19 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
       final chs = await api.getLiveChannels(categoryId);
       final profile = UserPreferenceProfile.load();
       final liveCatyState = context.read<LiveCatyBloc>().state;
-      final categories = liveCatyState is LiveCatySuccess ? liveCatyState.categories : <CategoryModel>[];
-      
-      final sorted = ContentIntelligenceService.sortLives(chs, profile, categories);
-      final deduped = ContentIntelligenceService.deduplicate<ChannelLive>(sorted, (c) => c.name ?? c.streamId ?? '');
+      final categories = liveCatyState is LiveCatySuccess
+          ? liveCatyState.categories
+          : <CategoryModel>[];
+
+      final sorted = ContentIntelligenceService.sortLives(
+        chs,
+        profile,
+        categories,
+      );
+      final deduped = ContentIntelligenceService.deduplicate<ChannelLive>(
+        sorted,
+        (c) => c.name ?? c.streamId ?? '',
+      );
 
       if (mounted) {
         setState(() {
@@ -682,7 +880,9 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
       body: Stack(
         children: [
           // Scrollable Core Dashboard (Displays on Index 0)
-          _currentNavIndex == 0 ? _buildHomeWatchScreen() : _buildNavSubscreen(),
+          _currentNavIndex == 0
+              ? _buildHomeWatchScreen()
+              : _buildNavSubscreen(),
 
           // Glassmorphic Floating Bottom Bar
           Positioned(
@@ -709,7 +909,9 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
     final favState = context.watch<FavoritesCubit>().state;
 
     final liveCatyState = context.watch<LiveCatyBloc>().state;
-    final liveCategories = liveCatyState is LiveCatySuccess ? liveCatyState.categories : <CategoryModel>[];
+    final liveCategories = liveCatyState is LiveCatySuccess
+        ? liveCatyState.categories
+        : <CategoryModel>[];
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -718,16 +920,18 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (_loadingVod || _loadingLiveChannels)
-            const LinearProgressIndicator(color: Color(0xFFFFC107), backgroundColor: Colors.transparent, minHeight: 2.0),
+            const LinearProgressIndicator(
+              color: Color(0xFFFFC107),
+              backgroundColor: Colors.transparent,
+              minHeight: 2.0,
+            ),
 
           // LOCKED MOBILE WATCH SCREEN TOP TEMPLATE
           // Do not reorder, remove, rename, merge, recolor, replace, or move these top rows
           // without explicit user approval.
           // Approved locked order:
           // 1. HeroCarousel - main cinematic hero/banner carousel MUST stay at absolute top.
-          //    Current hero examples: Fox 5 Live, The Devil Wears Prada 2,
-//    Star Wars / Mandalorian, Pressure 2015, Masters of the Universe,
-//    Scary Movie 2000, The Breadwinner.
+          //    Items are selected only from the connected user source.
           // 2. _buildUserGreetingSection()
           // 3. _buildBrowseEntryPoints()
           // 4. LiveCategoryChips and _currentCategoryLiveChannels, if active
@@ -772,11 +976,15 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
               title: _selectedLiveCategory?.categoryName ?? 'Live TV',
               titleIcon: Icons.live_tv_rounded,
               titleIconColor: Theme.of(context).primaryColor,
-              itemCount: _currentCategoryLiveChannels.length > 15 ? 15 : _currentCategoryLiveChannels.length,
+              itemCount: _currentCategoryLiveChannels.length > 15
+                  ? 15
+                  : _currentCategoryLiveChannels.length,
               aspect: PosterAspect.landscape,
               itemBuilder: (context, index) {
                 final channel = _currentCategoryLiveChannels[index];
-                final isFav = favState.lives.any((l) => l.streamId == channel.streamId);
+                final isFav = favState.lives.any(
+                  (l) => l.streamId == channel.streamId,
+                );
                 return PosterCard(
                   title: channel.name ?? 'Live Channel',
                   imageUrl: channel.streamIcon,
@@ -784,11 +992,19 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                   isLive: true,
                   isFavorite: isFav,
                   onLongPress: () {
-                    context.read<FavoritesCubit>().addLive(channel, isAdd: !isFav);
-                    _showSuccessToast(isFav ? "Removed from Favourites" : "Added to Favourites");
+                    context.read<FavoritesCubit>().addLive(
+                      channel,
+                      isAdd: !isFav,
+                    );
+                    _showSuccessToast(
+                      isFav ? "Removed from Favourites" : "Added to Favourites",
+                    );
                   },
                   onTap: () {
-                    UserBehaviorService.trackClick(channel.streamId ?? '', channel.categoryId);
+                    UserBehaviorService.trackClick(
+                      channel.streamId ?? '',
+                      channel.categoryId,
+                    );
                     _onLiveChannelTap(channel);
                   },
                 );
@@ -807,7 +1023,7 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
             const SizedBox(height: 20),
           ],
 
-          // 6. Premium Plus Carousel using PremiumPlusRow
+          // 6. Playlist-derived featured channels
           PremiumPlusRow(
             items: _premiumPlusItems,
             onPlayChannel: (channel) => _onLiveChannelTap(channel),
@@ -830,11 +1046,18 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                   title: watchItem.title,
                   imageUrl: watchItem.image,
                   aspect: PosterAspect.landscape,
-                  ratingBadge: watchItem.sliderValue > 0 ? "${(watchItem.sliderValue / (watchItem.durationStrm > 0 ? watchItem.durationStrm : 100) * 100).toInt()}% Done" : null,
+                  ratingBadge: watchItem.sliderValue > 0
+                      ? "${(watchItem.sliderValue / (watchItem.durationStrm > 0 ? watchItem.durationStrm : 100) * 100).toInt()}% Done"
+                      : null,
                   onTap: () {
                     // Track click behavior
                     UserBehaviorService.trackClick(watchItem.streamId, null);
-                    Get.to(() => MoviePlayerScreen(link: watchItem.stream, title: watchItem.title));
+                    Get.to(
+                      () => MoviePlayerScreen(
+                        link: watchItem.stream,
+                        title: watchItem.title,
+                      ),
+                    );
                   },
                 );
               },
@@ -854,13 +1077,15 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                 final bool isLive = rItem.contentType == 'live';
                 final bool isMovie = rItem.contentType == 'movie';
                 final String title = RankedItem.getItemTitle(item);
-                final String? imageUrl = isLive ? item.streamIcon : item.streamIcon;
+                final String? imageUrl = isLive
+                    ? item.streamIcon
+                    : item.streamIcon;
 
                 final bool isFav = isLive
                     ? favState.lives.any((l) => l.streamId == item.streamId)
                     : isMovie
-                        ? favState.movies.any((m) => m.streamId == item.streamId)
-                        : favState.series.any((s) => s.seriesId == item.seriesId);
+                    ? favState.movies.any((m) => m.streamId == item.streamId)
+                    : favState.series.any((s) => s.seriesId == item.seriesId);
 
                 return PosterCard(
                   title: title,
@@ -871,16 +1096,30 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                   ratingBadge: "Score: ${rItem.score.toInt()}",
                   onLongPress: () {
                     if (isLive) {
-                      context.read<FavoritesCubit>().addLive(item, isAdd: !isFav);
+                      context.read<FavoritesCubit>().addLive(
+                        item,
+                        isAdd: !isFav,
+                      );
                     } else if (isMovie) {
-                      context.read<FavoritesCubit>().addMovie(item, isAdd: !isFav);
+                      context.read<FavoritesCubit>().addMovie(
+                        item,
+                        isAdd: !isFav,
+                      );
                     } else {
-                      context.read<FavoritesCubit>().addSerie(item, isAdd: !isFav);
+                      context.read<FavoritesCubit>().addSerie(
+                        item,
+                        isAdd: !isFav,
+                      );
                     }
-                    _showSuccessToast(isFav ? "Removed from Favourites" : "Added to Favourites");
+                    _showSuccessToast(
+                      isFav ? "Removed from Favourites" : "Added to Favourites",
+                    );
                   },
                   onTap: () {
-                    UserBehaviorService.trackClick(item.streamId ?? '', item.categoryId);
+                    UserBehaviorService.trackClick(
+                      item.streamId ?? '',
+                      item.categoryId,
+                    );
                     if (isLive) {
                       _onLiveChannelTap(item);
                     } else if (isMovie) {
@@ -890,8 +1129,6 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                 );
               },
             ),
-
-
 
           // 8. Dedicating Live USA Sports Row (High-fidelity filters)
           if (_sportsChannels.isNotEmpty)
@@ -903,7 +1140,9 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
               aspect: PosterAspect.landscape,
               itemBuilder: (context, index) {
                 final sportCh = _sportsChannels[index];
-                final isFav = favState.lives.any((l) => l.streamId == sportCh.streamId);
+                final isFav = favState.lives.any(
+                  (l) => l.streamId == sportCh.streamId,
+                );
                 return PosterCard(
                   title: sportCh.name ?? 'Sports Stream',
                   imageUrl: sportCh.streamIcon,
@@ -911,11 +1150,19 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                   isLive: true,
                   isFavorite: isFav,
                   onLongPress: () {
-                    context.read<FavoritesCubit>().addLive(sportCh, isAdd: !isFav);
-                    _showSuccessToast(isFav ? "Removed from Favourites" : "Added to Favourites");
+                    context.read<FavoritesCubit>().addLive(
+                      sportCh,
+                      isAdd: !isFav,
+                    );
+                    _showSuccessToast(
+                      isFav ? "Removed from Favourites" : "Added to Favourites",
+                    );
                   },
                   onTap: () {
-                    UserBehaviorService.trackClick(sportCh.streamId ?? '', sportCh.categoryId);
+                    UserBehaviorService.trackClick(
+                      sportCh.streamId ?? '',
+                      sportCh.categoryId,
+                    );
                     _onLiveChannelTap(sportCh);
                   },
                 );
@@ -931,7 +1178,9 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
             aspect: PosterAspect.vertical,
             itemBuilder: (context, index) {
               final movie = _featuredMovies[index];
-              final isFav = favState.movies.any((m) => m.streamId == movie.streamId);
+              final isFav = favState.movies.any(
+                (m) => m.streamId == movie.streamId,
+              );
               return PosterCard(
                 title: movie.name ?? 'Movie',
                 imageUrl: movie.streamIcon,
@@ -940,15 +1189,22 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                 ratingBadge: movie.rating != null ? "⭐ ${movie.rating}" : null,
                 onLongPress: () {
                   context.read<FavoritesCubit>().addMovie(movie, isAdd: !isFav);
-                  _showSuccessToast(isFav ? "Removed from Favourites" : "Added to Favourites");
+                  _showSuccessToast(
+                    isFav ? "Removed from Favourites" : "Added to Favourites",
+                  );
                 },
                 onTap: () {
-                  UserBehaviorService.trackClick(movie.streamId ?? '', movie.categoryId);
+                  UserBehaviorService.trackClick(
+                    movie.streamId ?? '',
+                    movie.categoryId,
+                  );
                   _showMovieDetailSheet(movie);
                 },
               );
             },
-            onSeeAllTap: () => Get.to(() => const AllContentScreen(initialMode: BrowseMode.movies)),
+            onSeeAllTap: () => Get.to(
+              () => const AllContentScreen(initialMode: BrowseMode.movies),
+            ),
           ),
 
           // 10. Widescreen Series rows (Strictly curated Series)
@@ -960,7 +1216,9 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
             aspect: PosterAspect.vertical,
             itemBuilder: (context, index) {
               final serie = _featuredSeries[index];
-              final isFav = favState.series.any((s) => s.seriesId == serie.seriesId);
+              final isFav = favState.series.any(
+                (s) => s.seriesId == serie.seriesId,
+              );
               return PosterCard(
                 title: serie.name ?? 'Series',
                 imageUrl: serie.cover,
@@ -969,15 +1227,27 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                 ratingBadge: serie.rating != null ? "⭐ ${serie.rating}" : null,
                 onLongPress: () {
                   context.read<FavoritesCubit>().addSerie(serie, isAdd: !isFav);
-                  _showSuccessToast(isFav ? "Removed from Favourites" : "Added to Favourites");
+                  _showSuccessToast(
+                    isFav ? "Removed from Favourites" : "Added to Favourites",
+                  );
                 },
                 onTap: () {
-                  UserBehaviorService.trackClick(serie.seriesId ?? '', serie.categoryId);
-                  Get.to(() => SerieContent(channelSerie: serie, videoId: serie.seriesId ?? ''));
+                  UserBehaviorService.trackClick(
+                    serie.seriesId ?? '',
+                    serie.categoryId,
+                  );
+                  Get.to(
+                    () => SerieContent(
+                      channelSerie: serie,
+                      videoId: serie.seriesId ?? '',
+                    ),
+                  );
                 },
               );
             },
-            onSeeAllTap: () => Get.to(() => const AllContentScreen(initialMode: BrowseMode.series)),
+            onSeeAllTap: () => Get.to(
+              () => const AllContentScreen(initialMode: BrowseMode.series),
+            ),
           ),
 
           // 11. Local News & Broadcasts Curation Row
@@ -990,7 +1260,9 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
               aspect: PosterAspect.landscape,
               itemBuilder: (context, index) {
                 final channel = _recommendedLiveChannels[index];
-                final isFav = favState.lives.any((l) => l.streamId == channel.streamId);
+                final isFav = favState.lives.any(
+                  (l) => l.streamId == channel.streamId,
+                );
                 return PosterCard(
                   title: channel.name ?? 'News Feed',
                   imageUrl: channel.streamIcon,
@@ -998,11 +1270,19 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                   isLive: true,
                   isFavorite: isFav,
                   onLongPress: () {
-                    context.read<FavoritesCubit>().addLive(channel, isAdd: !isFav);
-                    _showSuccessToast(isFav ? "Removed from Favourites" : "Added to Favourites");
+                    context.read<FavoritesCubit>().addLive(
+                      channel,
+                      isAdd: !isFav,
+                    );
+                    _showSuccessToast(
+                      isFav ? "Removed from Favourites" : "Added to Favourites",
+                    );
                   },
                   onTap: () {
-                    UserBehaviorService.trackClick(channel.streamId ?? '', channel.categoryId);
+                    UserBehaviorService.trackClick(
+                      channel.streamId ?? '',
+                      channel.categoryId,
+                    );
                     _onLiveChannelTap(channel);
                   },
                 );
@@ -1029,7 +1309,10 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
               ],
             ),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFF2D0A0A).withOpacity(0.3), width: 1.5),
+            border: Border.all(
+              color: const Color(0xFF2D0A0A).withOpacity(0.3),
+              width: 1.5,
+            ),
           ),
           child: Row(
             children: [
@@ -1040,7 +1323,11 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                   color: Colors.red.shade900.withOpacity(0.15),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(Icons.shield_rounded, color: Colors.red.shade700, size: 24),
+                child: Icon(
+                  Icons.shield_rounded,
+                  color: Colors.red.shade700,
+                  size: 24,
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -1066,7 +1353,11 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                   ],
                 ),
               ),
-              Icon(Icons.lock_outline_rounded, color: Colors.white.withOpacity(0.3), size: 20),
+              Icon(
+                Icons.lock_outline_rounded,
+                color: Colors.white.withOpacity(0.3),
+                size: 20,
+              ),
             ],
           ),
         ),
@@ -1080,12 +1371,18 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
       context: context,
       builder: (dialogCtx) => AlertDialog(
         backgroundColor: const Color(0xFF13101E),
-        title: const Text("Adult Content Locked", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text(
+          "Adult Content Locked",
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("Enter PIN to unlock 18+ channels.", style: TextStyle(color: Colors.white70)),
+            const Text(
+              "Enter PIN to unlock 18+ channels.",
+              style: TextStyle(color: Colors.white70),
+            ),
             const SizedBox(height: 16),
             TextField(
               controller: pinController,
@@ -1111,7 +1408,10 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
               pinController.dispose();
               Navigator.of(dialogCtx).pop();
             },
-            child: const Text("Cancel", style: TextStyle(color: Colors.white60)),
+            child: const Text(
+              "Cancel",
+              style: TextStyle(color: Colors.white60),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -1147,12 +1447,12 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, state) {
         final username = state is AuthSuccess
-            ? (state.user.userInfo?.username ?? 'Premium Member')
-            : 'Premium Member';
+            ? (state.user.userInfo?.username ?? 'Connected User')
+            : 'Connected User';
         final expDateStr = state is AuthSuccess
             ? 'Exp: ${expirationDate(state.user.userInfo?.expDate)}'
             : 'Active Account';
-        
+
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
           child: Row(
@@ -1163,8 +1463,14 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                   children: [
                     CircleAvatar(
                       radius: 20,
-                      backgroundColor: const Color(0xFFFFC107).withOpacity(0.08),
-                      child: const Icon(Icons.person, color: Color(0xFFFFC107), size: 20),
+                      backgroundColor: const Color(
+                        0xFFFFC107,
+                      ).withOpacity(0.08),
+                      child: const Icon(
+                        Icons.person,
+                        color: Color(0xFFFFC107),
+                        size: 20,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -1175,7 +1481,11 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                             "Hello, $username",
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                           const SizedBox(height: 2),
                           Row(
@@ -1183,7 +1493,10 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                               Container(
                                 width: 6,
                                 height: 6,
-                                decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+                                decoration: const BoxDecoration(
+                                  color: Colors.green,
+                                  shape: BoxShape.circle,
+                                ),
                               ),
                               const SizedBox(width: 5),
                               Expanded(
@@ -1191,7 +1504,10 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                                   expDateStr,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 10),
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.4),
+                                    fontSize: 10,
+                                  ),
                                 ),
                               ),
                             ],
@@ -1205,7 +1521,11 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
               const SizedBox(width: 12),
               // Obvious Search Trigger button in Header
               IconButton(
-                icon: const Icon(Icons.search_rounded, color: Colors.white, size: 24),
+                icon: const Icon(
+                  Icons.search_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
                 onPressed: () => Get.to(() => const MobileSearchScreen()),
               ),
             ],
@@ -1218,7 +1538,8 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
   Widget _buildLocalTvChannelsRow() {
     final activeMarket = LocalMarketService.getActiveMarket();
     final profile = UserPreferenceProfile.load();
-    if (!profile.locationFeatureEnabled || activeMarket == null) return const SizedBox();
+    if (!profile.locationFeatureEnabled || activeMarket == null)
+      return const SizedBox();
 
     final localChannels = LocalMarketService.getLocalChannelsForCategory(
       categoryKey: 'all',
@@ -1231,7 +1552,9 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
     final favState = context.watch<FavoritesCubit>().state;
 
     return HorizontalPosterRows(
-      title: activeMarket.id == 'atlanta_ga' ? "Atlanta Local Channels" : "Local TV Near You",
+      title: activeMarket.id == 'atlanta_ga'
+          ? "Atlanta Local Channels"
+          : "Local TV Near You",
       titleIcon: Icons.location_on_rounded,
       titleIconColor: Colors.amber,
       itemCount: localChannels.length > 10 ? 10 : localChannels.length,
@@ -1247,18 +1570,25 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
           isFavorite: isFav,
           onLongPress: () {
             context.read<FavoritesCubit>().addLive(channel, isAdd: !isFav);
-            _showSuccessToast(isFav ? "Removed from Favourites" : "Added to Favourites");
+            _showSuccessToast(
+              isFav ? "Removed from Favourites" : "Added to Favourites",
+            );
           },
           onTap: () {
-            UserBehaviorService.trackClick(channel.streamId ?? '', channel.categoryId);
+            UserBehaviorService.trackClick(
+              channel.streamId ?? '',
+              channel.categoryId,
+            );
             _onLiveChannelTap(channel);
           },
         );
       },
-      onSeeAllTap: () => Get.to(() => LocalTvScreen(
-        allLiveChannels: _allLiveChannelsForMatching,
-        onPlayChannel: (ch) => _onLiveChannelTap(ch),
-      )),
+      onSeeAllTap: () => Get.to(
+        () => LocalTvScreen(
+          allLiveChannels: _allLiveChannelsForMatching,
+          onPlayChannel: (ch) => _onLiveChannelTap(ch),
+        ),
+      ),
     );
   }
 
@@ -1269,13 +1599,54 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
 
     final entries = [
       if (showLocal)
-        {"title": "Local TV", "icon": Icons.location_on_rounded, "isLocal": true, "color": Colors.amber},
-      {"title": "All Channels • 20,000+", "icon": Icons.live_tv_rounded, "isLocal": false, "mode": BrowseMode.live, "color": const Color(0xFFFFC107)},
-      {"title": "All Movies", "icon": Icons.movie_outlined, "isLocal": false, "mode": BrowseMode.movies, "color": const Color(0xFFFF416C)},
-      {"title": "All Series", "icon": Icons.video_library_outlined, "isLocal": false, "mode": BrowseMode.series, "color": const Color(0xFF00C6FF)},
-      {"title": "Browse Countries", "icon": Icons.flag_outlined, "isLocal": false, "mode": BrowseMode.countries, "color": Colors.tealAccent},
-      {"title": "Browse Languages", "icon": Icons.language_outlined, "isLocal": false, "mode": BrowseMode.languages, "color": Colors.purpleAccent},
-      {"title": "Categories", "icon": Icons.dashboard_customize_outlined, "isLocal": false, "mode": BrowseMode.categories, "color": Colors.pinkAccent},
+        {
+          "title": "Local TV",
+          "icon": Icons.location_on_rounded,
+          "isLocal": true,
+          "color": Colors.amber,
+        },
+      {
+        "title": "All Channels",
+        "icon": Icons.live_tv_rounded,
+        "isLocal": false,
+        "mode": BrowseMode.live,
+        "color": const Color(0xFFFFC107),
+      },
+      {
+        "title": "All Movies",
+        "icon": Icons.movie_outlined,
+        "isLocal": false,
+        "mode": BrowseMode.movies,
+        "color": const Color(0xFFFF416C),
+      },
+      {
+        "title": "All Series",
+        "icon": Icons.video_library_outlined,
+        "isLocal": false,
+        "mode": BrowseMode.series,
+        "color": const Color(0xFF00C6FF),
+      },
+      {
+        "title": "Browse Countries",
+        "icon": Icons.flag_outlined,
+        "isLocal": false,
+        "mode": BrowseMode.countries,
+        "color": Colors.tealAccent,
+      },
+      {
+        "title": "Browse Languages",
+        "icon": Icons.language_outlined,
+        "isLocal": false,
+        "mode": BrowseMode.languages,
+        "color": Colors.purpleAccent,
+      },
+      {
+        "title": "Categories",
+        "icon": Icons.dashboard_customize_outlined,
+        "isLocal": false,
+        "mode": BrowseMode.categories,
+        "color": Colors.pinkAccent,
+      },
     ];
 
     List<Color> getCardGradient(String title) {
@@ -1334,12 +1705,18 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
             child: GestureDetector(
               onTap: () {
                 if (item["isLocal"] == true) {
-                  Get.to(() => LocalTvScreen(
-                        allLiveChannels: _allLiveChannelsForMatching,
-                        onPlayChannel: (ch) => _onLiveChannelTap(ch),
-                      ));
+                  Get.to(
+                    () => LocalTvScreen(
+                      allLiveChannels: _allLiveChannelsForMatching,
+                      onPlayChannel: (ch) => _onLiveChannelTap(ch),
+                    ),
+                  );
                 } else {
-                  Get.to(() => AllContentScreen(initialMode: item["mode"] as BrowseMode));
+                  Get.to(
+                    () => AllContentScreen(
+                      initialMode: item["mode"] as BrowseMode,
+                    ),
+                  );
                 }
               },
               child: Container(
@@ -1431,18 +1808,28 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
       StreamLauncher.openStreamWithBrandedLoading(
         context: context,
         streamUrl: streamUrl,
-        playerBuilder: () => MoviePlayerScreen(link: streamUrl, title: channel.name ?? 'Stream'),
+        playerBuilder: () =>
+            MoviePlayerScreen(link: streamUrl, title: channel.name ?? 'Stream'),
       );
     } else if (channel.streamId != null) {
-      final streamUrl = await PlaybackUrlBuilder.buildLiveUrl(channel.streamId!);
+      final streamUrl = await PlaybackUrlBuilder.buildLiveUrl(
+        channel.streamId!,
+      );
       if (streamUrl.isNotEmpty) {
         // Track play start
-        UserBehaviorService.trackPlay(channel.streamId ?? '', channel.categoryId, 0);
-        
+        UserBehaviorService.trackPlay(
+          channel.streamId ?? '',
+          channel.categoryId,
+          0,
+        );
+
         StreamLauncher.openStreamWithBrandedLoading(
           context: context,
           streamUrl: streamUrl,
-          playerBuilder: () => MoviePlayerScreen(link: streamUrl, title: channel.name ?? 'Stream'),
+          playerBuilder: () => MoviePlayerScreen(
+            link: streamUrl,
+            title: channel.name ?? 'Stream',
+          ),
         );
       }
     }
@@ -1450,32 +1837,60 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
 
   void _onHeroPlayTap(ChannelMovie movie) async {
     if (movie.customSid == 'series') {
-      Get.to(() => SerieContent(channelSerie: ChannelSerie(seriesId: movie.streamId, name: movie.name, cover: movie.streamIcon), videoId: movie.streamId ?? ''));
+      Get.to(
+        () => SerieContent(
+          channelSerie: ChannelSerie(
+            seriesId: movie.streamId,
+            name: movie.name,
+            cover: movie.streamIcon,
+          ),
+          videoId: movie.streamId ?? '',
+        ),
+      );
     } else if (movie.customSid == 'live') {
       if (movie.streamId != null) {
-        final streamUrl = await PlaybackUrlBuilder.buildLiveUrl(movie.streamId!);
+        final streamUrl = await PlaybackUrlBuilder.buildLiveUrl(
+          movie.streamId!,
+        );
         if (streamUrl.isNotEmpty) {
           // Track play start
-          UserBehaviorService.trackPlay(movie.streamId ?? '', movie.categoryId, 0);
+          UserBehaviorService.trackPlay(
+            movie.streamId ?? '',
+            movie.categoryId,
+            0,
+          );
 
           StreamLauncher.openStreamWithBrandedLoading(
             context: context,
             streamUrl: streamUrl,
-            playerBuilder: () => MoviePlayerScreen(link: streamUrl, title: movie.name ?? 'Stream'),
+            playerBuilder: () => MoviePlayerScreen(
+              link: streamUrl,
+              title: movie.name ?? 'Stream',
+            ),
           );
         }
       }
     } else {
       if (movie.streamId != null) {
-        final streamUrl = await PlaybackUrlBuilder.buildMovieUrl(movie.streamId!, containerExtension: movie.containerExtension);
+        final streamUrl = await PlaybackUrlBuilder.buildMovieUrl(
+          movie.streamId!,
+          containerExtension: movie.containerExtension,
+        );
         if (streamUrl.isNotEmpty) {
           // Track play start
-          UserBehaviorService.trackPlay(movie.streamId ?? '', movie.categoryId, 0);
+          UserBehaviorService.trackPlay(
+            movie.streamId ?? '',
+            movie.categoryId,
+            0,
+          );
 
           StreamLauncher.openStreamWithBrandedLoading(
             context: context,
             streamUrl: streamUrl,
-            playerBuilder: () => MoviePlayerScreen(link: streamUrl, title: movie.name ?? 'Stream'),
+            playerBuilder: () => MoviePlayerScreen(
+              link: streamUrl,
+              title: movie.name ?? 'Stream',
+            ),
           );
         }
       }
@@ -1484,7 +1899,16 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
 
   void _onHeroInfoTap(ChannelMovie movie) {
     if (movie.customSid == 'series') {
-      Get.to(() => SerieContent(channelSerie: ChannelSerie(seriesId: movie.streamId, name: movie.name, cover: movie.streamIcon), videoId: movie.streamId ?? ''));
+      Get.to(
+        () => SerieContent(
+          channelSerie: ChannelSerie(
+            seriesId: movie.streamId,
+            name: movie.name,
+            cover: movie.streamIcon,
+          ),
+          videoId: movie.streamId ?? '',
+        ),
+      );
     } else if (movie.customSid == 'live') {
       _onHeroPlayTap(movie);
     } else {
@@ -1494,15 +1918,23 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
 
   void _onMoviePlayTap(ChannelMovie movie) async {
     if (movie.streamId != null) {
-      final streamUrl = await PlaybackUrlBuilder.buildMovieUrl(movie.streamId!, containerExtension: movie.containerExtension);
+      final streamUrl = await PlaybackUrlBuilder.buildMovieUrl(
+        movie.streamId!,
+        containerExtension: movie.containerExtension,
+      );
       if (streamUrl.isNotEmpty) {
         // Track play start
-        UserBehaviorService.trackPlay(movie.streamId ?? '', movie.categoryId, 0);
+        UserBehaviorService.trackPlay(
+          movie.streamId ?? '',
+          movie.categoryId,
+          0,
+        );
 
         StreamLauncher.openStreamWithBrandedLoading(
           context: context,
           streamUrl: streamUrl,
-          playerBuilder: () => MoviePlayerScreen(link: streamUrl, title: movie.name ?? 'Stream'),
+          playerBuilder: () =>
+              MoviePlayerScreen(link: streamUrl, title: movie.name ?? 'Stream'),
         );
       }
     }

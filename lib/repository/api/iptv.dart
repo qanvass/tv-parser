@@ -3,15 +3,15 @@ part of 'api.dart';
 class IpTvApi {
   /// Categories
   Future<List<CategoryModel>> getCategories(String type) async {
-    if (gatewayService.isReviewMode) {
-      return [
-        CategoryModel(
-          categoryId: "demo_cat",
-          categoryName: "Reviewer Demo Playlists",
-          parentId: "0",
-        )
-      ];
+    final user = await LocaleApi.getUser();
+    if (user != null &&
+        user.serverInfo?.serverUrl?.startsWith('m3u:') == true) {
+      if (type == 'get_live_categories') {
+        return LocaleApi.getM3uCategories();
+      }
+      return [];
     }
+
     try {
       final user = await LocaleApi.getUser();
 
@@ -52,26 +52,16 @@ class IpTvApi {
 
   /// Channels Live
   Future<List<ChannelLive>> getLiveChannels(String catyId) async {
-    if (gatewayService.isReviewMode) {
-      return [
-        ChannelLive(
-          num: "1",
-          name: "Big Buck Bunny (Live)",
-          streamId: "1",
-          categoryId: "demo_cat",
-          streamIcon: "",
-          directSource: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-        ),
-        ChannelLive(
-          num: "2",
-          name: "Sintel (Live)",
-          streamId: "2",
-          categoryId: "demo_cat",
-          streamIcon: "",
-          directSource: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
-        ),
-      ];
+    final user = await LocaleApi.getUser();
+    if (user != null &&
+        user.serverInfo?.serverUrl?.startsWith('m3u:') == true) {
+      final allChannels = LocaleApi.getM3uChannels();
+      if (catyId.isEmpty || catyId == 'all') {
+        return allChannels;
+      }
+      return allChannels.where((ch) => ch.categoryId == catyId).toList();
     }
+
     try {
       final user = await LocaleApi.getUser();
 
@@ -110,24 +100,12 @@ class IpTvApi {
 
   /// Channels Movie
   Future<List<ChannelMovie>> getMovieChannels(String catyId) async {
-    if (gatewayService.isReviewMode) {
-      return [
-        ChannelMovie(
-          num: "1",
-          name: "Big Buck Bunny (VOD)",
-          streamId: "1",
-          categoryId: "demo_cat",
-          directSource: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-        ),
-        ChannelMovie(
-          num: "2",
-          name: "Sintel (VOD)",
-          streamId: "2",
-          categoryId: "demo_cat",
-          directSource: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
-        ),
-      ];
+    final user = await LocaleApi.getUser();
+    if (user != null &&
+        user.serverInfo?.serverUrl?.startsWith('m3u:') == true) {
+      return [];
     }
+
     try {
       final user = await LocaleApi.getUser();
 
@@ -166,16 +144,12 @@ class IpTvApi {
 
   /// Channels Series
   Future<List<ChannelSerie>> getSeriesChannels(String catyId) async {
-    if (gatewayService.isReviewMode) {
-      return [
-        ChannelSerie(
-          num: "1",
-          name: "Big Buck Bunny (Series)",
-          seriesId: "1",
-          categoryId: "demo_cat",
-        ),
-      ];
+    final user = await LocaleApi.getUser();
+    if (user != null &&
+        user.serverInfo?.serverUrl?.startsWith('m3u:') == true) {
+      return [];
     }
+
     try {
       final user = await LocaleApi.getUser();
 
@@ -216,6 +190,10 @@ class IpTvApi {
   static Future<MovieDetail?> getMovieDetails(String movieId) async {
     try {
       final user = await LocaleApi.getUser();
+      if (user != null &&
+          user.serverInfo?.serverUrl?.startsWith('m3u:') == true) {
+        return null;
+      }
 
       if (user == null) {
         debugPrint("User is Null");
@@ -253,6 +231,10 @@ class IpTvApi {
   static Future<SerieDetails?> getSerieDetails(String serieId) async {
     try {
       final user = await LocaleApi.getUser();
+      if (user != null &&
+          user.serverInfo?.serverUrl?.startsWith('m3u:') == true) {
+        return null;
+      }
 
       if (user == null) {
         debugPrint("User is Null");
@@ -289,6 +271,10 @@ class IpTvApi {
   static Future<List<EpgModel>> getEPGbyStreamId(String streamId) async {
     try {
       final user = await LocaleApi.getUser();
+      if (user != null &&
+          user.serverInfo?.serverUrl?.startsWith('m3u:') == true) {
+        return [];
+      }
 
       if (user == null) {
         debugPrint("User is Null");

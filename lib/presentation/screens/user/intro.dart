@@ -1,7 +1,30 @@
 part of '../screens.dart';
 
-class IntroScreen extends StatelessWidget {
+class IntroScreen extends StatefulWidget {
   const IntroScreen({super.key});
+
+  @override
+  State<IntroScreen> createState() => _IntroScreenState();
+}
+
+class _IntroScreenState extends State<IntroScreen> {
+  final FocusNode _getStartedFocusNode = FocusNode(
+    debugLabel: 'IntroGetStarted',
+  );
+
+  @override
+  void dispose() {
+    _getStartedFocusNode.dispose();
+    super.dispose();
+  }
+
+  void _goToRegister() {
+    if (isTv(context)) {
+      Get.toNamed(screenRegisterTv);
+    } else {
+      Get.toNamed(screenRegister);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +42,7 @@ class IntroScreen extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    const IntroImageAnimated(),
+                    const _IntroHero(),
 
                     // Dark overlay at top (covers notch area)
                     Positioned(
@@ -90,7 +113,7 @@ class IntroScreen extends StatelessWidget {
                     SizedBox(height: 1.5.h),
 
                     Text(
-                      'Watch anything,\nanywhere.',
+                      'Your media,\nyour way.',
                       style: Get.textTheme.headlineLarge!.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -102,7 +125,7 @@ class IntroScreen extends StatelessWidget {
                     SizedBox(height: 1.h),
 
                     Text(
-                      'Live TV, movies and series — all in one place.',
+                      'Connect an authorized playlist or provider account.',
                       style: Get.textTheme.bodyMedium!.copyWith(
                         color: Colors.white.withValues(alpha: 0.45),
                         height: 1.5,
@@ -111,46 +134,75 @@ class IntroScreen extends StatelessWidget {
 
                     const Spacer(),
 
-                    // Get Started button
-                    GestureDetector(
-                      onTap: () => Get.toNamed(screenRegister),
-                      child: Container(
-                        width: double.infinity,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [kColorPrimary, kColorPrimaryDark],
-                          ),
-                          borderRadius: BorderRadius.circular(14),
-                          boxShadow: [
-                            BoxShadow(
-                              color: kColorPrimary.withValues(alpha: 0.45),
-                              blurRadius: 22,
-                              spreadRadius: 1,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Get Started',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
+                    // Get Started button — focusable so a D-pad/remote
+                    // (no touchscreen) can reach and activate it.
+                    Focus(
+                      focusNode: _getStartedFocusNode,
+                      autofocus: true,
+                      onKeyEvent: (node, event) {
+                        if (event is! KeyDownEvent) {
+                          return KeyEventResult.ignored;
+                        }
+                        final k = event.logicalKey;
+                        if (k == LogicalKeyboardKey.select ||
+                            k == LogicalKeyboardKey.enter ||
+                            k == LogicalKeyboardKey.numpadEnter ||
+                            k == LogicalKeyboardKey.space) {
+                          _goToRegister();
+                          return KeyEventResult.handled;
+                        }
+                        return KeyEventResult.ignored;
+                      },
+                      child: Builder(
+                        builder: (context) {
+                          final isFocused = Focus.of(context).hasFocus;
+                          return GestureDetector(
+                            onTap: _goToRegister,
+                            child: Container(
+                              width: double.infinity,
+                              height: 52,
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [kColorPrimary, kColorPrimaryDark],
+                                ),
+                                borderRadius: BorderRadius.circular(14),
+                                border: isFocused
+                                    ? Border.all(color: Colors.white, width: 3)
+                                    : null,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: kColorPrimary.withValues(
+                                      alpha: isFocused ? 0.75 : 0.45,
+                                    ),
+                                    blurRadius: isFocused ? 30 : 22,
+                                    spreadRadius: isFocused ? 2 : 1,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    'Get Started',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                  SizedBox(width: 10),
+                                  Icon(
+                                    FontAwesomeIcons.arrowRight.data,
+                                    color: Colors.white,
+                                    size: 13,
+                                  ),
+                                ],
                               ),
                             ),
-                            SizedBox(width: 10),
-                            Icon(
-                              FontAwesomeIcons.arrowRight.data,
-                              color: Colors.white,
-                              size: 13,
-                            ),
-                          ],
-                        ),
+                          );
+                        },
                       ),
                     ),
                   ],
@@ -159,6 +211,57 @@ class IntroScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _IntroHero extends StatelessWidget {
+  const _IntroHero();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF35105E), Color(0xFF14101F), Color(0xFF07070B)],
+        ),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned(
+            left: -80,
+            top: -40,
+            child: Container(
+              width: 260,
+              height: 260,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: kColorPrimary.withValues(alpha: 0.18),
+                boxShadow: [
+                  BoxShadow(
+                    color: kColorPrimary.withValues(alpha: 0.28),
+                    blurRadius: 100,
+                    spreadRadius: 28,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(48),
+              child: Image.asset(
+                kIconLogoTransparent,
+                fit: BoxFit.contain,
+                semanticLabel: 'TV Parser',
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

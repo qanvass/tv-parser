@@ -27,29 +27,46 @@ import '../../repository/models/premium_plus_item.dart';
 import '../../repository/api/premium_plus_service.dart';
 import 'widgets/tv_utility_cards_row.dart';
 import 'widgets/tv_premium_plus_row.dart';
+import 'widgets/tv_home_rows.dart';
+import 'tv_search_screen.dart';
+
+/// Primary rail destinations (content panes). Favorites/History deep-link out.
+class _TvNav {
+  static const live = 0;
+  static const movies = 1;
+  static const series = 2;
+  static const search = 3;
+  static const favorites = 4;
+  static const history = 5;
+}
 
 class TvDashboardShell extends StatefulWidget {
   final ValueChanged<String> onChannelSelected;
 
-  const TvDashboardShell({
-    super.key,
-    required this.onChannelSelected,
-  });
+  const TvDashboardShell({super.key, required this.onChannelSelected});
 
   @override
   State<TvDashboardShell> createState() => _TvDashboardShellState();
 }
 
 class _TvDashboardShellState extends State<TvDashboardShell> {
-  int _selectedNavIndex = 0;
+  int _selectedNavIndex = _TvNav.live;
   bool _loading = false;
+  bool _railCollapsed = false;
+
+  static const int _primaryCount = 6;
 
   final List<FocusNode> _navFocusNodes = List.generate(
-    4,
-    (_) => FocusNode(debugLabel: 'TvNavigationItem'),
+    _primaryCount,
+    (i) => FocusNode(debugLabel: 'TvNavPrimary$i'),
   );
+  final List<FocusNode> _utilityFocusNodes = [
+    FocusNode(debugLabel: 'TvNavSettings'),
+  ];
 
   late final List<TvNavigationItem> _navItems;
+  late final List<TvNavigationItem> _utilityItems;
+
   List<TvChannelRow> _liveRows = [];
   List<TvChannelRow> _movieRows = [];
   List<TvChannelRow> _seriesRows = [];
@@ -62,70 +79,26 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
     super.initState();
 
     _navItems = const [
-      TvNavigationItem(
-        label: 'Live TV',
-        icon: Icons.live_tv_rounded,
-      ),
-      TvNavigationItem(
-        label: 'Movies',
-        icon: Icons.local_movies_rounded,
-      ),
-      TvNavigationItem(
-        label: 'Series',
-        icon: Icons.tv_rounded,
-      ),
+      TvNavigationItem(label: 'Live TV', icon: Icons.live_tv_rounded),
+      TvNavigationItem(label: 'Movies', icon: Icons.local_movies_rounded),
+      TvNavigationItem(label: 'Series', icon: Icons.tv_rounded),
+      TvNavigationItem(label: 'Search', icon: Icons.search_rounded),
+      TvNavigationItem(label: 'Favorites', icon: Icons.favorite_rounded),
+      TvNavigationItem(label: 'History', icon: Icons.history_rounded),
+    ];
+    _utilityItems = const [
       TvNavigationItem(
         label: 'Settings',
         icon: Icons.settings_rounded,
+        isUtility: true,
       ),
     ];
-
-    _buildInitialMockContent();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _navFocusNodes.isNotEmpty) {
         _navFocusNodes.first.requestFocus();
       }
       _loadRealPlaylistContent();
-    });
-  }
-
-  void _buildInitialMockContent() {
-    _liveRows = List.generate(4, (rowIndex) {
-      return TvChannelRow(
-        title: rowIndex == 0 ? 'Featured Live TV' : 'Live Categories Loading...',
-        streams: List.generate(8, (itemIndex) {
-          return TvStreamRecord(
-            title: 'Live Stream ${itemIndex + 1}',
-            subtitle: 'Live • HD',
-            streamUrl: 'mock://stream/$rowIndex/$itemIndex',
-          );
-        }),
-      );
-    });
-    _movieRows = List.generate(3, (rowIndex) {
-      return TvChannelRow(
-        title: rowIndex == 0 ? 'Featured Movies' : 'Movie Categories Loading...',
-        streams: List.generate(8, (itemIndex) {
-          return TvStreamRecord(
-            title: 'Movie Stream ${itemIndex + 1}',
-            subtitle: 'VOD • HD',
-            streamUrl: 'mock://stream/movie/$rowIndex/$itemIndex',
-          );
-        }),
-      );
-    });
-    _seriesRows = List.generate(3, (rowIndex) {
-      return TvChannelRow(
-        title: rowIndex == 0 ? 'Featured Series' : 'Series Categories Loading...',
-        streams: List.generate(8, (itemIndex) {
-          return TvStreamRecord(
-            title: 'Series Stream ${itemIndex + 1}',
-            subtitle: 'Series • HD',
-            streamUrl: 'mock://stream/series/$rowIndex/$itemIndex',
-          );
-        }),
-      );
     });
   }
 
@@ -136,14 +109,19 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
       });
     }
 
-    // Read bloc states BEFORE async gaps to prevent warnings
     final liveCatyState = context.read<LiveCatyBloc>().state;
     final movieCatyState = context.read<MovieCatyBloc>().state;
     final seriesCatyState = context.read<SeriesCatyBloc>().state;
 
-    final liveCats = liveCatyState is LiveCatySuccess ? liveCatyState.categories : <CategoryModel>[];
-    final movieCats = movieCatyState is MovieCatySuccess ? movieCatyState.categories : <CategoryModel>[];
-    final seriesCats = seriesCatyState is SeriesCatySuccess ? seriesCatyState.categories : <CategoryModel>[];
+    final liveCats = liveCatyState is LiveCatySuccess
+        ? liveCatyState.categories
+        : <CategoryModel>[];
+    final movieCats = movieCatyState is MovieCatySuccess
+        ? movieCatyState.categories
+        : <CategoryModel>[];
+    final seriesCats = seriesCatyState is SeriesCatySuccess
+        ? seriesCatyState.categories
+        : <CategoryModel>[];
 
     final profile = UserPreferenceProfile.load();
     final api = IpTvApi();
@@ -153,7 +131,6 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
       return;
     }
 
-    // Load all live channels across all categories first for matching and indexing
     List<ChannelLive> allLives = [];
     List<ChannelMovie> allMovies = [];
     List<ChannelSerie> allSeries = [];
@@ -169,17 +146,16 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
       allMovies = results[1] as List<ChannelMovie>;
       allSeries = results[2] as List<ChannelSerie>;
 
-      // Compile adult category IDs to exclude them from the global search index
       final adultCategoryIds = <String>{};
       for (final cat in [...liveCats, ...movieCats, ...seriesCats]) {
-        if (cat.categoryName != null && ProviderCurationRules.isAdultCategory(cat.categoryName!)) {
+        if (cat.categoryName != null &&
+            ProviderCurationRules.isAdultCategory(cat.categoryName!)) {
           if (cat.categoryId != null) {
             adultCategoryIds.add(cat.categoryId!);
           }
         }
       }
 
-      // Build search index asynchronously (does not block UI thread)
       SearchIndexService.buildIndex(
         liveChannels: allLives,
         movies: allMovies,
@@ -187,13 +163,15 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
         adultCategoryIds: adultCategoryIds,
       );
 
-      spots = await EventDiscoveryService.getSpotlightEvents(region: profile.region);
+      spots = await EventDiscoveryService.getSpotlightEvents(
+        region: profile.region,
+      );
     } catch (_) {}
 
     final Map<String, String> categoryIdToName = {
       for (final cat in [...liveCats, ...movieCats, ...seriesCats])
         if (cat.categoryId != null && cat.categoryName != null)
-          cat.categoryId!: cat.categoryName!
+          cat.categoryId!: cat.categoryName!,
     };
 
     final premiumPlusItems = PremiumPlusService.matchPremiumPlusChannels(
@@ -210,20 +188,29 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
       });
     }
 
-    // 1. Load Live TV Rows
     if (liveCatyState is LiveCatySuccess) {
       final categories = liveCats;
       final normalCats = categories
-          .where((c) => c.categoryName != null && !ProviderCurationRules.isAdultCategory(c.categoryName!))
+          .where(
+            (c) =>
+                c.categoryName != null &&
+                !ProviderCurationRules.isAdultCategory(c.categoryName!),
+          )
           .toList();
-      final sortedCats = ProviderCurationRules.sortCategoriesForNormalDashboard(normalCats);
+      final sortedCats = ProviderCurationRules.sortCategoriesForNormalDashboard(
+        normalCats,
+      );
       final topCats = sortedCats.take(5).toList();
       final List<TvChannelRow> rows = [];
       for (final cat in topCats) {
         if (cat.categoryId != null) {
           try {
             final chs = await api.getLiveChannels(cat.categoryId!);
-            final sortedChs = ContentIntelligenceService.sortLives(chs, profile, categories);
+            final sortedChs = ContentIntelligenceService.sortLives(
+              chs,
+              profile,
+              categories,
+            );
             final List<TvStreamRecord> records = [];
             for (final ch in sortedChs.take(15)) {
               String streamUrl = '';
@@ -232,15 +219,22 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
               } else if (ch.streamId != null) {
                 streamUrl = await PlaybackUrlBuilder.buildLiveUrl(ch.streamId!);
               }
-              records.add(TvStreamRecord(
-                title: ch.name ?? 'Live Stream',
-                subtitle: cat.categoryName ?? 'Live',
-                streamUrl: streamUrl,
-                imageUrl: ch.streamIcon,
-              ));
+              records.add(
+                TvStreamRecord(
+                  title: ch.name ?? 'Live Stream',
+                  subtitle: cat.categoryName ?? 'Live',
+                  streamUrl: streamUrl,
+                  imageUrl: ch.streamIcon,
+                ),
+              );
             }
             if (records.isNotEmpty) {
-              rows.add(TvChannelRow(title: cat.categoryName ?? 'Live TV', streams: records));
+              rows.add(
+                TvChannelRow(
+                  title: cat.categoryName ?? 'Live TV',
+                  streams: records,
+                ),
+              );
             }
           } catch (_) {}
         }
@@ -264,37 +258,56 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
       }
     }
 
-    // 2. Load Movie Rows
     if (movieCatyState is MovieCatySuccess) {
       final categories = movieCats;
       final normalCats = categories
-          .where((c) => c.categoryName != null && !ProviderCurationRules.isAdultCategory(c.categoryName!))
+          .where(
+            (c) =>
+                c.categoryName != null &&
+                !ProviderCurationRules.isAdultCategory(c.categoryName!),
+          )
           .toList();
-      final sortedCats = ProviderCurationRules.sortCategoriesForNormalDashboard(normalCats);
+      final sortedCats = ProviderCurationRules.sortCategoriesForNormalDashboard(
+        normalCats,
+      );
       final topCats = sortedCats.take(3).toList();
       final List<TvChannelRow> rows = [];
       for (final cat in topCats) {
         if (cat.categoryId != null) {
           try {
             final chs = await api.getMovieChannels(cat.categoryId!);
-            final sortedChs = ContentIntelligenceService.sortMovies(chs, profile, categories);
+            final sortedChs = ContentIntelligenceService.sortMovies(
+              chs,
+              profile,
+              categories,
+            );
             final List<TvStreamRecord> records = [];
             for (final ch in sortedChs.take(15)) {
               String streamUrl = '';
               if (ch.directSource != null && ch.directSource!.isNotEmpty) {
                 streamUrl = ch.directSource!;
               } else if (ch.streamId != null) {
-                streamUrl = await PlaybackUrlBuilder.buildMovieUrl(ch.streamId!, containerExtension: ch.containerExtension);
+                streamUrl = await PlaybackUrlBuilder.buildMovieUrl(
+                  ch.streamId!,
+                  containerExtension: ch.containerExtension,
+                );
               }
-              records.add(TvStreamRecord(
-                title: ch.name ?? 'Movie',
-                subtitle: "Rating: ${ch.rating ?? '5.0'}",
-                streamUrl: streamUrl,
-                imageUrl: ch.streamIcon,
-              ));
+              records.add(
+                TvStreamRecord(
+                  title: ch.name ?? 'Movie',
+                  subtitle: "Rating: ${ch.rating ?? '5.0'}",
+                  streamUrl: streamUrl,
+                  imageUrl: ch.streamIcon,
+                ),
+              );
             }
             if (records.isNotEmpty) {
-              rows.add(TvChannelRow(title: cat.categoryName ?? 'Movies', streams: records));
+              rows.add(
+                TvChannelRow(
+                  title: cat.categoryName ?? 'Movies',
+                  streams: records,
+                ),
+              );
             }
           } catch (_) {}
         }
@@ -306,35 +319,53 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
       }
     }
 
-    // 3. Load Series Rows
     if (seriesCatyState is SeriesCatySuccess) {
       final categories = seriesCats;
       final normalCats = categories
-          .where((c) => c.categoryName != null && !ProviderCurationRules.isAdultCategory(c.categoryName!))
+          .where(
+            (c) =>
+                c.categoryName != null &&
+                !ProviderCurationRules.isAdultCategory(c.categoryName!),
+          )
           .toList();
-      final sortedCats = ProviderCurationRules.sortCategoriesForNormalDashboard(normalCats);
+      final sortedCats = ProviderCurationRules.sortCategoriesForNormalDashboard(
+        normalCats,
+      );
       final topCats = sortedCats.take(3).toList();
       final List<TvChannelRow> rows = [];
       for (final cat in topCats) {
         if (cat.categoryId != null) {
           try {
             final chs = await api.getSeriesChannels(cat.categoryId!);
-            final sortedChs = ContentIntelligenceService.sortSeries(chs, profile, categories);
+            final sortedChs = ContentIntelligenceService.sortSeries(
+              chs,
+              profile,
+              categories,
+            );
             final List<TvStreamRecord> records = [];
             for (final ch in sortedChs.take(15)) {
               String streamUrl = '';
               if (ch.seriesId != null) {
-                streamUrl = await PlaybackUrlBuilder.buildSeriesUrl(ch.seriesId!);
+                streamUrl = await PlaybackUrlBuilder.buildSeriesUrl(
+                  ch.seriesId!,
+                );
               }
-              records.add(TvStreamRecord(
-                title: ch.name ?? 'Series',
-                subtitle: "Rating: ${ch.rating ?? '5.0'}",
-                streamUrl: streamUrl,
-                imageUrl: ch.cover,
-              ));
+              records.add(
+                TvStreamRecord(
+                  title: ch.name ?? 'Series',
+                  subtitle: "Rating: ${ch.rating ?? '5.0'}",
+                  streamUrl: streamUrl,
+                  imageUrl: ch.cover,
+                ),
+              );
             }
             if (records.isNotEmpty) {
-              rows.add(TvChannelRow(title: cat.categoryName ?? 'Series Shows', streams: records));
+              rows.add(
+                TvChannelRow(
+                  title: cat.categoryName ?? 'Series Shows',
+                  streams: records,
+                ),
+              );
             }
           } catch (_) {}
         }
@@ -353,9 +384,42 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
     }
   }
 
+  void _onPrimarySelected(int index) {
+    if (index == _TvNav.favorites) {
+      Get.toNamed(screenFavourite)?.then((_) {
+        if (mounted) _navFocusNodes[_TvNav.favorites].requestFocus();
+      });
+      return;
+    }
+    if (index == _TvNav.history) {
+      Get.toNamed(screenCatchUp)?.then((_) {
+        if (mounted) _navFocusNodes[_TvNav.history].requestFocus();
+      });
+      return;
+    }
+
+    setState(() {
+      _selectedNavIndex = index;
+      _railCollapsed = index == _TvNav.search;
+    });
+  }
+
+  void _onUtilitySelected(int index) {
+    if (index == 0) {
+      Get.toNamed(screenSettings)?.then((_) {
+        if (mounted && _utilityFocusNodes.isNotEmpty) {
+          _utilityFocusNodes.first.requestFocus();
+        }
+      });
+    }
+  }
+
   @override
   void dispose() {
     for (final node in _navFocusNodes) {
+      node.dispose();
+    }
+    for (final node in _utilityFocusNodes) {
       node.dispose();
     }
     super.dispose();
@@ -374,21 +438,22 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
           backgroundColor: const Color(0xFF050508),
           body: SafeArea(
             child: Padding(
+              // Overscan-safe padding for Android TV
               padding: const EdgeInsets.symmetric(
                 horizontal: 48.0,
-                vertical: 32.0,
+                vertical: 36.0,
               ),
               child: Row(
                 children: [
                   TvNavigationRail(
                     items: _navItems,
+                    utilityItems: _utilityItems,
                     selectedIndex: _selectedNavIndex,
                     focusNodes: _navFocusNodes,
-                    onSelected: (index) {
-                      setState(() {
-                        _selectedNavIndex = index;
-                      });
-                    },
+                    utilityFocusNodes: _utilityFocusNodes,
+                    collapsed: _railCollapsed,
+                    onSelected: _onPrimarySelected,
+                    onUtilitySelected: _onUtilitySelected,
                   ),
                   const SizedBox(width: 34),
                   Expanded(
@@ -399,19 +464,7 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
                           selectedLabel: _navItems[_selectedNavIndex].label,
                         ),
                         const SizedBox(height: 28),
-                        Expanded(
-                          child: _loading
-                              ? const Center(
-                                  child: CircularProgressIndicator(color: Colors.white24),
-                                )
-                              : TvChannelGrid(
-                                  rows: _visibleRowsForTab(_selectedNavIndex),
-                                  onChannelSelected: widget.onChannelSelected,
-                                  header: _selectedNavIndex == 0
-                                      ? _buildLiveTvHeader()
-                                      : null,
-                                ),
-                        ),
+                        Expanded(child: _buildContentPane()),
                       ],
                     ),
                   ),
@@ -421,6 +474,27 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildContentPane() {
+    if (_selectedNavIndex == _TvNav.search) {
+      return TvSearchScreen(
+        embedded: true,
+        onChannelSelected: widget.onChannelSelected,
+      );
+    }
+
+    if (_loading) {
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.white24),
+      );
+    }
+
+    return TvChannelGrid(
+      rows: _visibleRowsForTab(_selectedNavIndex),
+      onChannelSelected: widget.onChannelSelected,
+      header: _selectedNavIndex == _TvNav.live ? _buildLiveTvHeader() : null,
     );
   }
 
@@ -435,19 +509,18 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 1. Greeting / user status area
         const TvUserGreeting(),
         const SizedBox(height: 20),
-
-        // 2. Colorful utility cards row
         TvUtilityCardsRow(
           allLiveChannels: _tvAllLiveChannels,
           onChannelSelected: widget.onChannelSelected,
           showLocal: hasLocal,
         ),
         const SizedBox(height: 28),
-
-        // 3. Live Tonight row
+        TvHomeRows(
+          allLiveChannels: _tvAllLiveChannels,
+          onChannelSelected: widget.onChannelSelected,
+        ),
         if (hasSpotlight) ...[
           TvLiveSpotlightRow(
             events: _tvSpotlightEvents,
@@ -456,13 +529,13 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
           ),
           const SizedBox(height: 28),
         ],
-
-        // 4. Premium Plus row
         if (hasPremiumPlus) ...[
           TvPremiumPlusRow(
             items: _tvPremiumPlusItems,
             onPlayChannel: (ch) {
-              if (ch is ChannelLive && ch.directSource != null && ch.directSource!.isNotEmpty) {
+              if (ch is ChannelLive &&
+                  ch.directSource != null &&
+                  ch.directSource!.isNotEmpty) {
                 widget.onChannelSelected(ch.directSource!);
               } else if (ch is ChannelLive && ch.streamId != null) {
                 widget.onChannelSelected(ch.streamId!);
@@ -471,8 +544,6 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
           ),
           const SizedBox(height: 28),
         ],
-
-        // 5. Local TV row
         if (hasLocal) ...[
           TvLocalTvRow(
             allLiveChannels: _tvAllLiveChannels,
@@ -486,18 +557,12 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
 
   List<TvChannelRow> _visibleRowsForTab(int index) {
     switch (index) {
-      case 0:
+      case _TvNav.live:
         return _liveRows;
-      case 1:
+      case _TvNav.movies:
         return _movieRows;
-      case 2:
+      case _TvNav.series:
         return _seriesRows;
-      case 3:
-        // Settings triggers route navigation
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          Get.toNamed(screenSettings);
-        });
-        return const [];
       default:
         return _liveRows;
     }
@@ -507,60 +572,20 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
 class _Header extends StatelessWidget {
   final String selectedLabel;
 
-  const _Header({
-    required this.selectedLabel,
-  });
+  const _Header({required this.selectedLabel});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            selectedLabel,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 38,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -1.0,
-            ),
-          ),
-        ),
-        Container(
-          height: 46,
-          padding: const EdgeInsets.symmetric(horizontal: 18),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.08),
-            ),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.keyboard_arrow_up_rounded,
-                color: Colors.white.withValues(alpha: 0.7),
-              ),
-              Icon(
-                Icons.keyboard_arrow_down_rounded,
-                color: Colors.white.withValues(alpha: 0.7),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'D-Pad Ready',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.76),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+    return Text(
+      selectedLabel,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 38,
+        fontWeight: FontWeight.w900,
+        letterSpacing: -1.0,
+      ),
     );
   }
 }
@@ -573,8 +598,8 @@ class TvUserGreeting extends StatelessWidget {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, state) {
         final username = state is AuthSuccess
-            ? (state.user.userInfo?.username ?? 'Premium Member')
-            : 'Premium Member';
+            ? (state.user.userInfo?.username ?? 'Connected User')
+            : 'Connected User';
         final expDateStr = state is AuthSuccess
             ? 'Exp: ${expirationDate(state.user.userInfo?.expDate)}'
             : 'Active Account';

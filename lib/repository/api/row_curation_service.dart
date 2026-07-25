@@ -11,21 +11,6 @@ import 'content_intelligence_service.dart';
 import 'premium_plus_service.dart';
 import 'provider_curation_rules.dart';
 
-const List<String> theaterHeroTargets = [
-  'Masters of the Universe',
-  'Scary Movie',
-  'Scary Movie 6',
-  'Backrooms',
-  'Obsession',
-  'Star Wars: The Mandalorian and Grogu',
-  'The Mandalorian and Grogu',
-  'Michael',
-  'The Breadwinner',
-  'The Devil Wears Prada 2',
-  'Pressure',
-  'Power Ballad',
-];
-
 class RowCurationService {
   /// Tracks global deduplication across rows during a single curation pass
   final Set<String> _curatedIds = {};
@@ -39,7 +24,7 @@ class RowCurationService {
         "Title: ${RankedItem.getItemTitle(ranked.item)} | "
         "Score: ${ranked.score.toStringAsFixed(1)} | "
         "Confidence: ${(ranked.confidence * 100).toStringAsFixed(0)}% | "
-        "Reasons: ${ranked.reasons.join(', ')}"
+        "Reasons: ${ranked.reasons.join(', ')}",
       );
     }
   }
@@ -76,33 +61,41 @@ class RowCurationService {
     }
 
     // Trim punctuation and extra spaces
-    text = text.replaceAll(RegExp(r'[^\w\s]'), ' '); // replace punctuation with space
+    text = text.replaceAll(
+      RegExp(r'[^\w\s]'),
+      ' ',
+    ); // replace punctuation with space
     text = text.replaceAll(RegExp(r'\s+'), ' '); // collapse spaces
     return text.trim();
   }
 
   String? _getMatchedTargetCanonical(String normalizedProvider) {
-    if (normalizedProvider.contains("masters of the universe")) return "Masters of the Universe";
-    if (normalizedProvider.contains("scary movie")) return "Scary Movie";
-    if (normalizedProvider.contains("backrooms")) return "Backrooms";
-    if (normalizedProvider.contains("obsession")) return "Obsession";
-    if (normalizedProvider.contains("mandalorian and grogu")) return "The Mandalorian and Grogu";
-    if (normalizedProvider.contains("michael")) return "Michael";
-    if (normalizedProvider.contains("the breadwinner")) return "The Breadwinner";
-    if (normalizedProvider.contains("the devil wears prada 2") || (normalizedProvider.contains("devil") && normalizedProvider.contains("wears") && normalizedProvider.contains("prada") && normalizedProvider.contains("2"))) return "The Devil Wears Prada 2";
-    if (normalizedProvider.contains("pressure")) return "Pressure";
-    if (normalizedProvider.contains("power ballad")) return "Power Ballad";
+    // TV Parser does not maintain a bundled catalog of promoted titles.
     return null;
   }
 
   int _getQualityScore(String title) {
     final lower = title.toLowerCase();
-    if (lower.contains('4k') || lower.contains('uhd') || lower.contains('2160p')) return 100;
+    if (lower.contains('4k') ||
+        lower.contains('uhd') ||
+        lower.contains('2160p'))
+      return 100;
     if (lower.contains('fhd') || lower.contains('1080p')) return 90;
     if (lower.contains('hd') || lower.contains('720p')) return 80;
-    if (lower.contains('web-dl') || lower.contains('webdl') || lower.contains('web')) return 70;
-    if (lower.contains('sd') || lower.contains('480p') || lower.contains('576p')) return 50;
-    if (lower.contains('cam') || lower.contains('hdcam') || lower.contains('ts') || lower.contains('tc') || lower.contains('telesync')) return 10;
+    if (lower.contains('web-dl') ||
+        lower.contains('webdl') ||
+        lower.contains('web'))
+      return 70;
+    if (lower.contains('sd') ||
+        lower.contains('480p') ||
+        lower.contains('576p'))
+      return 50;
+    if (lower.contains('cam') ||
+        lower.contains('hdcam') ||
+        lower.contains('ts') ||
+        lower.contains('tc') ||
+        lower.contains('telesync'))
+      return 10;
     return 60; // Default average quality
   }
 
@@ -116,14 +109,17 @@ class RowCurationService {
     UserPreferenceProfile profile,
     Map<String, String> categoryIdToName,
   ) {
-    // 1. Group movie matches from theaterHeroTargets
+    // 1. Group eligible movies supplied by the connected playlist.
     final Map<String, ChannelMovie> targetBestMatches = {};
     final Map<String, int> targetBestScores = {};
 
     for (final m in allMovies) {
       final catName = categoryIdToName[m.categoryId] ?? '';
-      if (!ContentIntelligenceService.isMovieVOD(m, categoryName: catName)) continue;
-      if (ProviderCurationRules.isAdultCategory(m.name ?? '') || ProviderCurationRules.isAdultCategory(catName)) continue;
+      if (!ContentIntelligenceService.isMovieVOD(m, categoryName: catName))
+        continue;
+      if (ProviderCurationRules.isAdultCategory(m.name ?? '') ||
+          ProviderCurationRules.isAdultCategory(catName))
+        continue;
 
       final normalizedTitle = _normalizeTitle(m.name ?? '');
       final matchedTarget = _getMatchedTargetCanonical(normalizedTitle);
@@ -157,33 +153,52 @@ class RowCurationService {
         final id = m.streamId ?? '';
         if (curatedMovieIds.contains(id)) continue;
         final catName = categoryIdToName[m.categoryId] ?? '';
-        if (!ContentIntelligenceService.isMovieVOD(m, categoryName: catName)) continue;
-        if (ProviderCurationRules.isAdultCategory(m.name ?? '') || ProviderCurationRules.isAdultCategory(catName)) continue;
+        if (!ContentIntelligenceService.isMovieVOD(m, categoryName: catName))
+          continue;
+        if (ProviderCurationRules.isAdultCategory(m.name ?? '') ||
+            ProviderCurationRules.isAdultCategory(catName))
+          continue;
 
         final normalized = _normalizeTitle(m.name ?? '');
         if (curatedMovieTitles.contains(normalized)) continue;
 
-        double score = ContentIntelligenceService.scoreMovie(m, profile, categoryIdToName);
+        double score = ContentIntelligenceService.scoreMovie(
+          m,
+          profile,
+          categoryIdToName,
+        );
         score += _getQualityScore(m.name ?? '');
 
         // Fallback keywords boosts
         final nameLower = (m.name ?? '').toLowerCase();
         final catLower = catName.toLowerCase();
-        final boostKeywords = ['new', 'recently added', '2026', 'top', 'trending', 'box office', 'cinema', 'theater', 'theatrical'];
+        final boostKeywords = [
+          'new',
+          'recently added',
+          '2026',
+          'top',
+          'trending',
+          'box office',
+          'cinema',
+          'theater',
+          'theatrical',
+        ];
         for (final keyword in boostKeywords) {
           if (nameLower.contains(keyword) || catLower.contains(keyword)) {
             score += 40.0;
           }
         }
 
-        fallbackCandidates.add(RankedItem<ChannelMovie>(
-          item: m,
-          score: score,
-          confidence: 0.85,
-          reasons: ["Personalized VOD pick"],
-          contentType: 'movie',
-          sourceRow: 'hero_carousel',
-        ));
+        fallbackCandidates.add(
+          RankedItem<ChannelMovie>(
+            item: m,
+            score: score,
+            confidence: 0.85,
+            reasons: ["Personalized VOD pick"],
+            contentType: 'movie',
+            sourceRow: 'hero_carousel',
+          ),
+        );
       }
 
       fallbackCandidates.sort((a, b) => b.score.compareTo(a.score));
@@ -204,15 +219,25 @@ class RowCurationService {
 
     for (final l in allLives) {
       final catName = categoryIdToName[l.categoryId] ?? '';
-      if (ProviderCurationRules.isAdultCategory(l.name ?? '') || ProviderCurationRules.isAdultCategory(catName)) continue;
+      if (ProviderCurationRules.isAdultCategory(l.name ?? '') ||
+          ProviderCurationRules.isAdultCategory(catName))
+        continue;
 
-      double score = ContentIntelligenceService.scoreLive(l, profile, categoryIdToName);
-      
+      double score = ContentIntelligenceService.scoreLive(
+        l,
+        profile,
+        categoryIdToName,
+      );
+
       final nameLower = (l.name ?? '').toLowerCase();
       final catLower = catName.toLowerCase();
 
       final liveKeywords = [
-        'espn', 'fox', 'abc', 'cbs', 'nbc', 'tnt', 'tbs', 'fs1', 'nfl', 'nba', 'mlb', 'sports', 'local news', 'news', 'breaking news'
+        'live',
+        'sports',
+        'local news',
+        'news',
+        'breaking news',
       ];
 
       for (final kw in liveKeywords) {
@@ -221,7 +246,12 @@ class RowCurationService {
         }
       }
 
-      if (catLower.contains('usa') || catLower.contains('united states') || catLower.contains('us') || catLower.contains('uk') || catLower.contains('canada') || catLower.contains('english')) {
+      if (catLower.contains('usa') ||
+          catLower.contains('united states') ||
+          catLower.contains('us') ||
+          catLower.contains('uk') ||
+          catLower.contains('canada') ||
+          catLower.contains('english')) {
         score += 30.0;
       }
 
@@ -231,14 +261,14 @@ class RowCurationService {
           score += 100.0;
         }
 
-        final isAtlantaUser = regLower.contains('atlanta') || regLower.contains('georgia') || regLower == 'ga';
-        if (isAtlantaUser && ProviderCurationRules.isAtlantaLocal(l.name ?? '')) {
+        final isAtlantaUser =
+            regLower.contains('atlanta') ||
+            regLower.contains('georgia') ||
+            regLower == 'ga';
+        if (isAtlantaUser &&
+            ProviderCurationRules.isAtlantaLocal(l.name ?? '')) {
           score += 150.0;
         }
-      }
-
-      if (nameLower.contains('espn usa hd') || nameLower.contains('espn usa')) {
-        score += 10.0;
       }
 
       if (score > highestLiveScore) {
@@ -268,10 +298,15 @@ class RowCurationService {
     // Live placement: If live is strongest (highest score overall), place at index 0
     // Otherwise place it between index 1 and 2 (never below index 2 to stay within first 3 slides)
     if (liveHeroMovie != null) {
-      final double liveActualScore = highestLiveScore + 60.0; // live hero priority boost
+      final double liveActualScore =
+          highestLiveScore + 60.0; // live hero priority boost
       double highestMovieScore = -99999;
       if (heroMoviesList.isNotEmpty) {
-        highestMovieScore = ContentIntelligenceService.scoreMovie(heroMoviesList.first, profile, categoryIdToName);
+        highestMovieScore = ContentIntelligenceService.scoreMovie(
+          heroMoviesList.first,
+          profile,
+          categoryIdToName,
+        );
       }
 
       if (liveActualScore >= highestMovieScore || finalCarouselItems.isEmpty) {
@@ -287,23 +322,34 @@ class RowCurationService {
       final List<RankedItem<ChannelSerie>> seriesCandidates = [];
       for (final s in allSeries) {
         if (!ContentIntelligenceService.isSeriesVOD(s)) continue;
-        if (ProviderCurationRules.isAdultCategory(s.name ?? '') || ProviderCurationRules.isAdultCategory(categoryIdToName[s.categoryId] ?? '')) continue;
-        
-        final score = ContentIntelligenceService.scoreSerie(s, profile, categoryIdToName);
-        seriesCandidates.add(RankedItem<ChannelSerie>(
-          item: s,
-          score: score,
-          confidence: 0.8,
-          reasons: ["Personalized VOD Series pick"],
-          contentType: 'series',
-          sourceRow: 'hero_carousel',
-        ));
+        if (ProviderCurationRules.isAdultCategory(s.name ?? '') ||
+            ProviderCurationRules.isAdultCategory(
+              categoryIdToName[s.categoryId] ?? '',
+            ))
+          continue;
+
+        final score = ContentIntelligenceService.scoreSerie(
+          s,
+          profile,
+          categoryIdToName,
+        );
+        seriesCandidates.add(
+          RankedItem<ChannelSerie>(
+            item: s,
+            score: score,
+            confidence: 0.8,
+            reasons: ["Personalized VOD Series pick"],
+            contentType: 'series',
+            sourceRow: 'hero_carousel',
+          ),
+        );
       }
 
       seriesCandidates.sort((a, b) => b.score.compareTo(a.score));
 
       for (final c in seriesCandidates) {
-        if (finalCarouselItems.length >= 8) break; // target 8 total items minimum
+        if (finalCarouselItems.length >= 8)
+          break; // target 8 total items minimum
         final mappedMovie = ChannelMovie(
           streamId: c.item.seriesId,
           name: c.item.name,
@@ -318,23 +364,33 @@ class RowCurationService {
 
     // 6. Safe debug logs
     if (kDebugMode) {
-      debugPrint('[HERO_CAROUSEL_CURATION] Theatrical targets matched count: ${targetBestMatches.length}');
-      debugPrint('[HERO_CAROUSEL_CURATION] Matched titles: ${targetBestMatches.keys.join(", ")}');
-      debugPrint('[HERO_CAROUSEL_CURATION] Selected Live Hero: ${bestLiveChannel?.name ?? "None"}');
-      debugPrint('[HERO_CAROUSEL_CURATION] Final Hero Carousel Count: ${finalCarouselItems.length}');
+      debugPrint(
+        '[HERO_CAROUSEL_CURATION] Theatrical targets matched count: ${targetBestMatches.length}',
+      );
+      debugPrint(
+        '[HERO_CAROUSEL_CURATION] Matched titles: ${targetBestMatches.keys.join(", ")}',
+      );
+      debugPrint(
+        '[HERO_CAROUSEL_CURATION] Selected Live Hero: ${bestLiveChannel?.name ?? "None"}',
+      );
+      debugPrint(
+        '[HERO_CAROUSEL_CURATION] Final Hero Carousel Count: ${finalCarouselItems.length}',
+      );
     }
 
     // 7. Convert to RankedItem list
     final List<RankedItem<ChannelMovie>> results = [];
     for (final item in finalCarouselItems) {
-      results.add(RankedItem<ChannelMovie>(
-        item: item,
-        score: item.customSid == 'live' ? highestLiveScore : 100.0,
-        confidence: 0.9,
-        reasons: ["Personalized Hero Pick"],
-        contentType: item.customSid ?? 'movie',
-        sourceRow: 'hero_carousel',
-      ));
+      results.add(
+        RankedItem<ChannelMovie>(
+          item: item,
+          score: item.customSid == 'live' ? highestLiveScore : 100.0,
+          confidence: 0.9,
+          reasons: ["Personalized Hero Pick"],
+          contentType: item.customSid ?? 'movie',
+          sourceRow: 'hero_carousel',
+        ),
+      );
     }
     return results;
   }
@@ -352,9 +408,14 @@ class RowCurationService {
       final id = m.streamId ?? '';
       if (_curatedIds.contains(id)) continue; // Deduplication
       final catName = categoryIdToName[m.categoryId] ?? '';
-      if (!ContentIntelligenceService.isMovieVOD(m, categoryName: catName)) continue;
+      if (!ContentIntelligenceService.isMovieVOD(m, categoryName: catName))
+        continue;
 
-      double score = ContentIntelligenceService.scoreMovie(m, profile, categoryIdToName);
+      double score = ContentIntelligenceService.scoreMovie(
+        m,
+        profile,
+        categoryIdToName,
+      );
       final reasons = ["True VOD movie stream", "No live bleed"];
 
       // Boost premium artwork
@@ -363,18 +424,20 @@ class RowCurationService {
         reasons.add("Visual layout optimization (valid cover image)");
       }
 
-      ranked.add(RankedItem<ChannelMovie>(
-        item: m,
-        score: score,
-        confidence: 0.85,
-        reasons: reasons,
-        contentType: 'movie',
-        sourceRow: 'trending_movies',
-      ));
+      ranked.add(
+        RankedItem<ChannelMovie>(
+          item: m,
+          score: score,
+          confidence: 0.85,
+          reasons: reasons,
+          contentType: 'movie',
+          sourceRow: 'trending_movies',
+        ),
+      );
     }
 
     ranked.sort((a, b) => b.score.compareTo(a.score));
-    
+
     final List<ChannelMovie> results = [];
     for (final r in ranked.take(15)) {
       results.add(r.item);
@@ -398,17 +461,23 @@ class RowCurationService {
       if (_curatedIds.contains(id)) continue; // Deduplication
       if (!ContentIntelligenceService.isSeriesVOD(s)) continue;
 
-      double score = ContentIntelligenceService.scoreSerie(s, profile, categoryIdToName);
+      double score = ContentIntelligenceService.scoreSerie(
+        s,
+        profile,
+        categoryIdToName,
+      );
       final reasons = ["Validated VOD Series catalog"];
 
-      ranked.add(RankedItem<ChannelSerie>(
-        item: s,
-        score: score,
-        confidence: 0.88,
-        reasons: reasons,
-        contentType: 'series',
-        sourceRow: 'featured_series',
-      ));
+      ranked.add(
+        RankedItem<ChannelSerie>(
+          item: s,
+          score: score,
+          confidence: 0.88,
+          reasons: reasons,
+          contentType: 'series',
+          sourceRow: 'featured_series',
+        ),
+      );
     }
 
     ranked.sort((a, b) => b.score.compareTo(a.score));
@@ -435,32 +504,26 @@ class RowCurationService {
       final id = l.streamId ?? '';
       if (_curatedIds.contains(id)) continue;
       final catName = categoryIdToName[l.categoryId] ?? '';
-      if (!ContentIntelligenceService.isSportsEvent(l, categoryName: catName)) continue;
+      if (!ContentIntelligenceService.isSportsEvent(l, categoryName: catName))
+        continue;
 
-      double score = ContentIntelligenceService.scoreLive(l, profile, categoryIdToName);
+      double score = ContentIntelligenceService.scoreLive(
+        l,
+        profile,
+        categoryIdToName,
+      );
       final reasons = ["Classified as live sports broadcast"];
 
-      // Premium sport brand boosts
-      final nameLower = (l.name ?? '').toLowerCase();
-      if (nameLower.contains('espn')) {
-        score += 80;
-        reasons.add("ESPN premium sports network boost");
-      } else if (nameLower.contains('fox sports') || nameLower.contains('fox sport')) {
-        score += 70;
-        reasons.add("Fox Sports prime network boost");
-      } else if (nameLower.contains('bein')) {
-        score += 60;
-        reasons.add("BeIN Sports broadcast boost");
-      }
-
-      ranked.add(RankedItem<ChannelLive>(
-        item: l,
-        score: score,
-        confidence: 0.95,
-        reasons: reasons,
-        contentType: 'live',
-        sourceRow: 'usa_sports',
-      ));
+      ranked.add(
+        RankedItem<ChannelLive>(
+          item: l,
+          score: score,
+          confidence: 0.95,
+          reasons: reasons,
+          contentType: 'live',
+          sourceRow: 'usa_sports',
+        ),
+      );
     }
 
     ranked.sort((a, b) => b.score.compareTo(a.score));
@@ -488,25 +551,23 @@ class RowCurationService {
       if (_curatedIds.contains(id)) continue;
 
       final nameLower = (l.name ?? '').toLowerCase();
-      final isNews = nameLower.contains('news') || 
-                     nameLower.contains('cnn') || 
-                     nameLower.contains('bbc') || 
-                     nameLower.contains('cbs') ||
-                     nameLower.contains('nbc') ||
-                     nameLower.contains('abc') ||
-                     nameLower.contains('fox news') ||
-                     nameLower.contains('local') ||
-                     (profile.region != null && nameLower.contains(profile.region!.toLowerCase()));
+      final categoryName = (categoryIdToName[l.categoryId] ?? '').toLowerCase();
+      final isNews =
+          nameLower.contains('news') ||
+          categoryName.contains('news') ||
+          nameLower.contains('local') ||
+          (profile.region != null &&
+              nameLower.contains(profile.region!.toLowerCase()));
 
       if (!isNews) continue;
 
-      double score = ContentIntelligenceService.scoreLive(l, profile, categoryIdToName);
+      double score = ContentIntelligenceService.scoreLive(
+        l,
+        profile,
+        categoryIdToName,
+      );
       final reasons = ["Live local or national news network"];
 
-      if (nameLower.contains('cnn') || nameLower.contains('bbc') || nameLower.contains('fox news')) {
-        score += 50;
-        reasons.add("Major breaking news boost");
-      }
       if (profile.region != null) {
         final regLower = profile.region!.toLowerCase();
         if (nameLower.contains(regLower)) {
@@ -514,21 +575,27 @@ class RowCurationService {
           reasons.add("Local state/city alignment: ${profile.region}");
         }
 
-        final isAtlantaUser = regLower.contains('atlanta') || regLower.contains('georgia') || regLower == 'ga';
-        if (isAtlantaUser && ProviderCurationRules.isAtlantaLocal(l.name ?? '')) {
+        final isAtlantaUser =
+            regLower.contains('atlanta') ||
+            regLower.contains('georgia') ||
+            regLower == 'ga';
+        if (isAtlantaUser &&
+            ProviderCurationRules.isAtlantaLocal(l.name ?? '')) {
           score += 100.0;
           reasons.add("Atlanta Local News priority boost");
         }
       }
 
-      ranked.add(RankedItem<ChannelLive>(
-        item: l,
-        score: score,
-        confidence: 0.90,
-        reasons: reasons,
-        contentType: 'live',
-        sourceRow: 'local_news',
-      ));
+      ranked.add(
+        RankedItem<ChannelLive>(
+          item: l,
+          score: score,
+          confidence: 0.90,
+          reasons: reasons,
+          contentType: 'live',
+          sourceRow: 'local_news',
+        ),
+      );
     }
 
     ranked.sort((a, b) => b.score.compareTo(a.score));
@@ -558,7 +625,11 @@ class RowCurationService {
       final id = l.streamId ?? '';
       if (_curatedIds.contains(id)) continue;
 
-      double score = ContentIntelligenceService.scoreLive(l, profile, categoryIdToName);
+      double score = ContentIntelligenceService.scoreLive(
+        l,
+        profile,
+        categoryIdToName,
+      );
       final reasons = ["Recommended for You"];
 
       // Learning loop boosts
@@ -576,14 +647,16 @@ class RowCurationService {
         reasons.add("Frequently watched feed");
       }
 
-      candidates.add(RankedItem<ChannelLive>(
-        item: l,
-        score: score,
-        confidence: 0.92,
-        reasons: reasons,
-        contentType: 'live',
-        sourceRow: 'concierge_picks',
-      ));
+      candidates.add(
+        RankedItem<ChannelLive>(
+          item: l,
+          score: score,
+          confidence: 0.92,
+          reasons: reasons,
+          contentType: 'live',
+          sourceRow: 'concierge_picks',
+        ),
+      );
     }
 
     // Add Movie VOD candidates
@@ -591,9 +664,14 @@ class RowCurationService {
       final id = m.streamId ?? '';
       if (_curatedIds.contains(id)) continue;
       final catName = categoryIdToName[m.categoryId] ?? '';
-      if (!ContentIntelligenceService.isMovieVOD(m, categoryName: catName)) continue;
+      if (!ContentIntelligenceService.isMovieVOD(m, categoryName: catName))
+        continue;
 
-      double score = ContentIntelligenceService.scoreMovie(m, profile, categoryIdToName);
+      double score = ContentIntelligenceService.scoreMovie(
+        m,
+        profile,
+        categoryIdToName,
+      );
       final reasons = ["VOD movie personalized pick"];
 
       if (profile.categoryClicks.containsKey(m.categoryId)) {
@@ -606,14 +684,16 @@ class RowCurationService {
         reasons.add("Favorited movie title");
       }
 
-      candidates.add(RankedItem<ChannelMovie>(
-        item: m,
-        score: score,
-        confidence: 0.88,
-        reasons: reasons,
-        contentType: 'movie',
-        sourceRow: 'concierge_picks',
-      ));
+      candidates.add(
+        RankedItem<ChannelMovie>(
+          item: m,
+          score: score,
+          confidence: 0.88,
+          reasons: reasons,
+          contentType: 'movie',
+          sourceRow: 'concierge_picks',
+        ),
+      );
     }
 
     // Sort concierge picks
@@ -670,7 +750,7 @@ CurationResult performBackgroundCuration(CurationParams params) {
   final Map<String, String> categoryIdToName = {
     for (final cat in params.categories)
       if (cat.categoryId != null && cat.categoryName != null)
-        cat.categoryId!: cat.categoryName!
+        cat.categoryId!: cat.categoryName!,
   };
 
   final heroRanked = curator.buildHeroItems(
@@ -680,10 +760,26 @@ CurationResult performBackgroundCuration(CurationParams params) {
     params.profile,
     categoryIdToName,
   );
-  final trendingMovies = curator.buildTrendingMovies(params.movies, params.profile, categoryIdToName);
-  final featuredSeries = curator.buildFeaturedSeries(params.series, params.profile, categoryIdToName);
-  final sports = curator.buildUsaSports(params.lives, params.profile, categoryIdToName);
-  final news = curator.buildLocalNews(params.lives, params.profile, categoryIdToName);
+  final trendingMovies = curator.buildTrendingMovies(
+    params.movies,
+    params.profile,
+    categoryIdToName,
+  );
+  final featuredSeries = curator.buildFeaturedSeries(
+    params.series,
+    params.profile,
+    categoryIdToName,
+  );
+  final sports = curator.buildUsaSports(
+    params.lives,
+    params.profile,
+    categoryIdToName,
+  );
+  final news = curator.buildLocalNews(
+    params.lives,
+    params.profile,
+    categoryIdToName,
+  );
   final concierge = curator.buildConciergePicks(
     params.lives,
     params.movies,

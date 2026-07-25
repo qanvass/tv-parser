@@ -12,10 +12,11 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
   final _password = NativeTextFieldController();
   final _domain = NativeTextFieldController();
 
-  // 0=url, 1=username, 2=password, 3=SignIn, 4=Help, 5=Demo
+  // 0=toggle, 1=url, 2=username, 3=password, 4=SignIn, 5=Help, 6=Demo (clamped depending on mode)
   int _row = 0;
   // true while a TextField keyboard is open
   bool _editing = false;
+  bool _isM3uMode = false;
 
   final FocusNode _navFocus = FocusNode();
   final FocusNode _fn0 = FocusNode(); // username
@@ -30,10 +31,9 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
     _fn1.skipTraversal = true;
     _fn2.skipTraversal = true;
 
-    // Pre-populate LayerSeven TV credentials
-    _domain.text = 'http://cf.fulldin.vip';
-    _username.text = 'd27f1f5d5b85';
-    _password.text = '7b182cd04e';
+    _domain.text = '';
+    _username.text = '';
+    _password.text = '';
   }
 
   @override
@@ -53,13 +53,14 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
     if (_editing) return KeyEventResult.ignored;
 
     final key = event.logicalKey;
+    final maxRow = _isM3uMode ? 3 : 5;
 
     if (key == LogicalKeyboardKey.arrowDown) {
-      setState(() => _row = (_row + 1).clamp(0, 5));
+      setState(() => _row = (_row + 1).clamp(0, maxRow));
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.arrowUp) {
-      setState(() => _row = (_row - 1).clamp(0, 5));
+      setState(() => _row = (_row - 1).clamp(0, maxRow));
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.select ||
@@ -73,30 +74,60 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
 
   void _activate([int? row]) {
     final target = row ?? _row;
-    if (target > 2) {
-      if (target == 3) {
-        _login();
-      } else if (target == 4) {
-        _showHelpDialog();
-      } else if (target == 5) {
-        _loginDemo();
-      }
+
+    if (target == 0) {
+      setState(() {
+        _isM3uMode = !_isM3uMode;
+        _domain.text = '';
+        final maxRow = _isM3uMode ? 3 : 5;
+        if (_row > maxRow) {
+          _row = maxRow;
+        }
+      });
       return;
     }
-    setState(() {
-      _row = target;
-      _editing = true;
-    });
-    // Request focus AFTER rebuild so the field is already enabled.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (target == 0) {
-        _fn2.requestFocus();
-      } else if (target == 1) {
-        _fn0.requestFocus();
-      } else if (target == 2) {
-        _fn1.requestFocus();
+
+    if (_isM3uMode) {
+      if (target > 1) {
+        if (target == 2) {
+          _login();
+        } else if (target == 3) {
+          _showHelpDialog();
+        }
+        return;
       }
-    });
+      setState(() {
+        _row = target;
+        _editing = true;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (target == 1) {
+          _fn2.requestFocus();
+        }
+      });
+    } else {
+      if (target > 3) {
+        if (target == 4) {
+          _login();
+        } else if (target == 5) {
+          _showHelpDialog();
+        }
+        return;
+      }
+      setState(() {
+        _row = target;
+        _editing = true;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (target == 1) {
+          _fn2.requestFocus();
+        } else if (target == 2) {
+          _fn0.requestFocus();
+        } else if (target == 3) {
+          _fn1.requestFocus();
+        }
+      });
+    }
   }
 
   // Called when user presses Done on keyboard
@@ -122,46 +153,35 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
           TextButton(
             onPressed: () => Get.back(),
             child: const Text('OK', style: TextStyle(color: kColorPrimary)),
-          )
+          ),
         ],
       ),
     );
   }
 
-  void _loginDemo() {
-    _username.text = 'azul-iptv';
-    _password.text = 'azul-demo';
-    _domain.text = ''; // Not required for demo
-    gatewayService.isReviewMode = true; // Ensure reviewer mode is enabled to load legal demo content only
-    context.read<SettingsCubit>().updateStatusAccount(true);
-    Get.offAndToNamed(screenWelcome);
-  }
-
   void _login() {
-    final username = _username.text.trim();
-    final password = _password.text.trim();
-
-    if (username == 'azul-iptv' && password == 'azul-demo') {
-      _loginDemo();
-      return;
-    }
-
     final rawUrl = _domain.text.trim();
     if (rawUrl.isEmpty) {
       showWarningToast(
         context,
-        'Server URL Required',
-        'Unable to sign in. Please check your server URL, username, and password.',
+        _isM3uMode ? 'Playlist URL Required' : 'Server URL Required',
+        _isM3uMode
+            ? 'Unable to sign in. Please enter your M3U playlist URL.'
+            : 'Unable to sign in. Please check your server URL, username, and password.',
       );
       return;
     }
 
     final uri = Uri.tryParse(rawUrl);
-    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https') || uri.host.isEmpty) {
+    if (uri == null ||
+        (uri.scheme != 'http' && uri.scheme != 'https') ||
+        uri.host.isEmpty) {
       showWarningToast(
         context,
-        'Invalid Server URL',
-        'Unable to sign in. Please check your server URL, username, and password.',
+        _isM3uMode ? 'Invalid Playlist URL' : 'Invalid Server URL',
+        _isM3uMode
+            ? 'Unable to sign in. Please enter a valid playlist URL starting with http:// or https://'
+            : 'Unable to sign in. Please check your server URL, username, and password.',
       );
       return;
     }
@@ -170,6 +190,14 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
     if (normalizedUrl.endsWith('/')) {
       normalizedUrl = normalizedUrl.substring(0, normalizedUrl.length - 1);
     }
+
+    if (_isM3uMode) {
+      context.read<AuthBloc>().add(AuthLoadM3u(normalizedUrl));
+      return;
+    }
+
+    final username = _username.text.trim();
+    final password = _password.text.trim();
 
     if (username.isEmpty || password.isEmpty) {
       showWarningToast(
@@ -180,7 +208,6 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
       return;
     }
 
-    gatewayService.isReviewMode = false; // Reset to false for normal user logins
     context.read<AuthBloc>().add(
       AuthRegister(username, password, normalizedUrl),
     );
@@ -201,142 +228,176 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
           child: BlocBuilder<SettingsCubit, SettingsState>(
             builder: (context, settingState) {
               return BlocConsumer<AuthBloc, AuthState>(
-                  listener: (context, state) {
-                    if (state is AuthSuccess) {
-                      context.read<LiveCatyBloc>().add(GetLiveCategories());
-                      context.read<MovieCatyBloc>().add(GetMovieCategories());
-                      context.read<SeriesCatyBloc>().add(GetSeriesCategories());
-                      Get.offAndToNamed(screenWelcome);
-                    } else if (state is AuthFailed) {
-                      showWarningToast(
-                        context,
-                        'Login Failed',
-                        'Unable to sign in. Please check your server URL, username, and password.',
-                      );
-                    }
-                  },
-                  builder: (context, state) {
-                    if (state is AuthLoading) {
-                      return const Center(
-                        child: CircularProgressIndicator(color: kColorPrimary),
-                      );
-                    }
+                listener: (context, state) {
+                  if (state is AuthSuccess) {
+                    context.read<LiveCatyBloc>().add(GetLiveCategories());
+                    context.read<MovieCatyBloc>().add(GetMovieCategories());
+                    context.read<SeriesCatyBloc>().add(GetSeriesCategories());
+                    Get.offAndToNamed(screenWelcome);
+                  } else if (state is AuthFailed) {
+                    showWarningToast(
+                      context,
+                      'Login Failed',
+                      'Unable to sign in. Please check your server URL, username, and password.',
+                    );
+                  }
+                },
+                builder: (context, state) {
+                  if (state is AuthLoading) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: kColorPrimary),
+                    );
+                  }
 
-                    return Row(
-                      children: [
-                        // ── Left branding ─────────────────────────────
-                        ExcludeFocus(
-                          child: Expanded(
-                            flex: 4,
-                            child: Container(
-                              decoration: const BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [kColorBackDark, kColorCardLight],
+                  return Row(
+                    children: [
+                      // ── Left branding ─────────────────────────────
+                      ExcludeFocus(
+                        child: Expanded(
+                          flex: 4,
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [kColorBackDark, kColorCardLight],
+                              ),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Image.asset(
+                                  kIconLogoTransparent,
+                                  width: getSize(context).height * .31,
+                                  height: getSize(context).height * .31,
                                 ),
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Image.asset(
-                                    kIconLogoTransparent,
-                                    width: getSize(context).height * .31,
-                                    height: getSize(context).height * .31,
+                                const SizedBox(height: 20),
+                                Text(
+                                  kAppName,
+                                  style: Get.textTheme.headlineLarge!.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 2,
+                                    color: Colors.white,
                                   ),
-                                  const SizedBox(height: 20),
-                                  Text(
-                                    kAppName,
-                                    style: Get.textTheme.headlineLarge!
-                                        .copyWith(
-                                          fontWeight: FontWeight.bold,
-                                          letterSpacing: 2,
-                                          color: Colors.white,
-                                        ),
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  'Your authorized playlist player',
+                                  style: Get.textTheme.bodyMedium!.copyWith(
+                                    color: kColorHint,
                                   ),
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    'Your authorized playlist player',
-                                    style: Get.textTheme.bodyMedium!.copyWith(
-                                      color: kColorHint,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
+                      ),
 
-                        // ── Right form ────────────────────────────────
-                        Expanded(
-                          flex: 6,
-                          child: Center(
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 460),
-                              child: Container(
-                                margin: const EdgeInsets.symmetric(
-                                  horizontal: 32,
-                                  vertical: 24,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: kColorCardLight.withValues(alpha: .8),
-                                  borderRadius: BorderRadius.circular(20),
-                                  boxShadow: const [
-                                    BoxShadow(
-                                      color: Colors.black38,
-                                      blurRadius: 20,
+                      // ── Right form ────────────────────────────────
+                      Expanded(
+                        flex: 6,
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 460),
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 32,
+                                vertical: 24,
+                              ),
+                              decoration: BoxDecoration(
+                                color: kColorCardLight.withValues(alpha: .8),
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Colors.black38,
+                                    blurRadius: 20,
+                                  ),
+                                ],
+                              ),
+                              padding: const EdgeInsets.all(28),
+                              child: SingleChildScrollView(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Text(
+                                      'Sign in to TV Parser',
+                                      style: Get.textTheme.headlineSmall!
+                                          .copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
                                     ),
-                                  ],
-                                ),
-                                padding: const EdgeInsets.all(28),
-                                child: SingleChildScrollView(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      Text(
-                                        'Sign in to TV Parser',
-                                        style: Get.textTheme.headlineSmall!
-                                            .copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white,
-                                            ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Sign in with your authorized playlist/provider credentials.',
+                                      style: Get.textTheme.bodySmall!.copyWith(
+                                        color: kColorHint,
                                       ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Sign in with your authorized playlist/provider credentials.',
-                                        style: Get.textTheme.bodySmall!.copyWith(
-                                          color: kColorHint,
-                                        ),
-                                      ),
+                                    ),
 
-                                      const SizedBox(height: 20),
+                                    const SizedBox(height: 20),
 
-                                      // 1. Server / Portal URL field
-                                      const Text(
-                                        "Server / Portal URL",
-                                        style: TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.bold,
-                                        ),
+                                    // Connection Mode Toggle
+                                    const Text(
+                                      "Connection Type",
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
                                       ),
-                                      const SizedBox(height: 6),
-                                      _TvField(
-                                        controller: _domain,
-                                        hint: 'https://example.com',
-                                        icon: FontAwesomeIcons.link.data,
-                                        focusNode: _fn2,
-                                        keyboardType: TextInputType.url,
-                                        isSelected: _row == 0,
-                                        isEditing: _editing && _row == 0,
-                                        onTap: () => _activate(0),
-                                        onDone: () => _done(1),
-                                        helperText: 'Enter the server URL provided by your authorized playlist provider.',
-                                      ),
-                                      const SizedBox(height: 12),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    _TvToggle(
+                                      key: const ValueKey('toggle_m3u_mode_tv'),
+                                      isSelected: _row == 0,
+                                      isM3uMode: _isM3uMode,
+                                      onTap: () {
+                                        setState(() {
+                                          _isM3uMode = !_isM3uMode;
+                                          _domain.text = '';
+                                          final maxRow = _isM3uMode ? 3 : 5;
+                                          if (_row > maxRow) {
+                                            _row = maxRow;
+                                          }
+                                        });
+                                      },
+                                    ),
+                                    const SizedBox(height: 12),
 
+                                    // 1. Server / Playlist URL field
+                                    Text(
+                                      _isM3uMode
+                                          ? "M3U Playlist URL"
+                                          : "Server / Portal URL",
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    _TvField(
+                                      key: const ValueKey('field_url_tv'),
+                                      controller: _domain,
+                                      hint: _isM3uMode
+                                          ? 'https://example.com/playlist.m3u'
+                                          : 'https://example.com',
+                                      icon: FontAwesomeIcons.link.data,
+                                      focusNode: _fn2,
+                                      keyboardType: TextInputType.url,
+                                      isSelected: _row == 1,
+                                      isEditing: _editing && _row == 1,
+                                      onTap: () => _activate(1),
+                                      onDone: () => _done(2),
+                                      helperText: _isM3uMode
+                                          ? 'Enter the direct M3U playlist URL.'
+                                          : 'Enter the server URL provided by your authorized playlist provider.',
+                                    ),
+                                    const SizedBox(height: 12),
+
+                                    if (!_isM3uMode) ...[
                                       // 2. Username field
                                       const Text(
                                         "Username",
@@ -353,10 +414,10 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
                                         icon: FontAwesomeIcons.solidUser.data,
                                         focusNode: _fn0,
                                         keyboardType: TextInputType.text,
-                                        isSelected: _row == 1,
-                                        isEditing: _editing && _row == 1,
-                                        onTap: () => _activate(1),
-                                        onDone: () => _done(2),
+                                        isSelected: _row == 2,
+                                        isEditing: _editing && _row == 2,
+                                        onTap: () => _activate(2),
+                                        onDone: () => _done(3),
                                       ),
                                       const SizedBox(height: 12),
 
@@ -377,47 +438,46 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
                                         focusNode: _fn1,
                                         keyboardType:
                                             TextInputType.visiblePassword,
-                                        isSelected: _row == 2,
-                                        isEditing: _editing && _row == 2,
+                                        isSelected: _row == 3,
+                                        isEditing: _editing && _row == 3,
                                         obscure: true,
-                                        onTap: () => _activate(2),
-                                        onDone: () => _done(3),
+                                        onTap: () => _activate(3),
+                                        onDone: () => _done(4),
                                       ),
                                       const SizedBox(height: 20),
-
-                                      // 4. Sign In button
-                                      _TvButton(
-                                        label: 'Sign In',
-                                        isSelected: _row == 3,
-                                        onTap: _login,
-                                      ),
-                                      const SizedBox(height: 12),
-
-                                      // 5. Need help link
-                                      _TvTextButton(
-                                        label: 'Need help finding your credentials?',
-                                        isSelected: _row == 4,
-                                        onTap: _showHelpDialog,
-                                      ),
-                                      const SizedBox(height: 8),
-
-                                      // 6. Use Demo Account
-                                      _TvTextButton(
-                                        label: 'Use Demo Account',
-                                        isSelected: _row == 5,
-                                        onTap: _loginDemo,
-                                      ),
                                     ],
-                                  ),
+
+                                    // 4. Sign In button
+                                    _TvButton(
+                                      key: const ValueKey('btn_sign_in_tv'),
+                                      label: 'Sign In',
+                                      isSelected: _isM3uMode
+                                          ? _row == 2
+                                          : _row == 4,
+                                      onTap: _login,
+                                    ),
+                                    const SizedBox(height: 12),
+
+                                    // 5. Need help link
+                                    _TvTextButton(
+                                      label:
+                                          'Need help finding your credentials?',
+                                      isSelected: _isM3uMode
+                                          ? _row == 3
+                                          : _row == 5,
+                                      onTap: _showHelpDialog,
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
                           ),
                         ),
-                      ],
-                    );
-                  },
-                );
+                      ),
+                    ],
+                  );
+                },
+              );
             },
           ),
         ),
@@ -430,6 +490,7 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
 
 class _TvField extends StatelessWidget {
   const _TvField({
+    super.key,
     required this.controller,
     required this.hint,
     required this.icon,
@@ -540,10 +601,7 @@ class _TvField extends StatelessWidget {
             padding: const EdgeInsets.only(left: 8.0),
             child: Text(
               helperText!,
-              style: const TextStyle(
-                color: Colors.white54,
-                fontSize: 10,
-              ),
+              style: const TextStyle(color: Colors.white54, fontSize: 10),
             ),
           ),
         ],
@@ -557,6 +615,7 @@ class _TvField extends StatelessWidget {
 
 class _TvButton extends StatelessWidget {
   const _TvButton({
+    super.key,
     required this.label,
     required this.isSelected,
     required this.onTap,
@@ -639,6 +698,87 @@ class _TvTextButton extends StatelessWidget {
             fontWeight: FontWeight.bold,
             fontSize: 12,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── TV Toggle Switch (D-pad focusable) ───────────────────────────────────────
+
+class _TvToggle extends StatelessWidget {
+  const _TvToggle({
+    super.key,
+    required this.isSelected,
+    required this.isM3uMode,
+    required this.onTap,
+  });
+
+  final bool isSelected;
+  final bool isM3uMode;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        height: 52,
+        decoration: BoxDecoration(
+          color: kColorCardDark,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? kColorFocus : Colors.transparent,
+            width: 2,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: kColorFocus.withValues(alpha: .35),
+                    blurRadius: 10,
+                  ),
+                ]
+              : [],
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Row(
+          children: [
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: !isM3uMode ? kColorPrimary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                alignment: Alignment.center,
+                child: const Text(
+                  'Xtream Codes API',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: isM3uMode ? kColorPrimary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                alignment: Alignment.center,
+                child: const Text(
+                  'M3U Playlist URL',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

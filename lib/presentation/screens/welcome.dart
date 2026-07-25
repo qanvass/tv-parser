@@ -165,7 +165,19 @@ class _WelcomeScreenState extends State<WelcomeScreen> with TickerProviderStateM
           if (url == "adult_locked") {
             _showTvAdultPinDialog(context);
           } else {
-            Get.to(() => MoviePlayerScreen(link: url, title: 'TV Stream'));
+            final streamId = extractStreamIdFromUrl(url);
+            final isLivePath = url.contains('/live/') || streamId != null;
+            if (isLivePath) {
+              Get.to(
+                () => LivePlayerScreen(
+                  link: url,
+                  title: 'TV Stream',
+                  streamId: streamId,
+                ),
+              );
+            } else {
+              Get.to(() => MoviePlayerScreen(link: url, title: 'TV Stream'));
+            }
           }
         },
       );

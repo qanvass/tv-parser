@@ -66,89 +66,30 @@ class CardInputTv extends StatelessWidget {
   }
 }
 
-class IntroImageAnimated extends StatefulWidget {
+class IntroImageAnimated extends StatelessWidget {
   final bool isTv;
   const IntroImageAnimated({super.key, this.isTv = false});
 
   @override
-  State<IntroImageAnimated> createState() => _IntroImageAnimatedState();
-}
-
-class _IntroImageAnimatedState extends State<IntroImageAnimated> {
-  late Timer timer;
-  bool isImage = true;
-  ScrollController controller = ScrollController();
-
-  Future<void> _startAnimation() async {
-    const int second = 27;
-
-    await Future.delayed(const Duration(milliseconds: 400));
-    //debugPrint("start first one");
-
-    await controller.animateTo(
-      isImage ? controller.position.maxScrollExtent : 0,
-      duration: const Duration(seconds: second),
-      curve: Curves.linear,
-    );
-
-    if (mounted) {
-      setState(() {
-        isImage = !isImage;
-      });
-      await _startAnimation();
-    }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _startAnimation();
-  }
-
-  @override
-  void dispose() {
-    //  timer.cancel();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final height = getSize(context).height / (widget.isTv ? 1 : 2);
-    return Stack(
+    final height = getSize(context).height / (isTv ? 1 : 2);
+    return Container(
+      width: getSize(context).width,
+      height: height,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF35105E), Color(0xFF171121), Color(0xFF07070B)],
+        ),
+      ),
       alignment: Alignment.center,
-      children: [
-        SizedBox(
-          width: getSize(context).width,
-          height: height,
-          child: SingleChildScrollView(
-            controller: controller,
-            scrollDirection: Axis.horizontal,
-            child: Image.asset(
-              kImageIntro,
-              fit: BoxFit.cover,
-              width: getSize(context).width + 140,
-            ),
-          ),
-        ),
-        Opacity(
-          opacity: widget.isTv ? 0 : .5,
-          child: Container(
-            width: getSize(context).width,
-            height: height,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: widget.isTv
-                    ? [kColorBackDark]
-                    : [kColorPrimary, kColorPrimaryDark],
-              ),
-            ),
-          ),
-        ),
-        // Centered app branding
-        Center(
-          child: Image.asset(kIconLogoTransparent, width: 69.w, height: 69.w),
-        ),
-      ],
+      child: Image.asset(
+        kIconLogoTransparent,
+        width: isTv ? 340 : 69.w,
+        fit: BoxFit.contain,
+        semanticLabel: 'TV Parser',
+      ),
     );
   }
 }

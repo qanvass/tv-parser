@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_storage/get_storage.dart';
@@ -13,18 +15,28 @@ import 'package:mbark_iptv/repository/api/location_preference_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  late Directory storageDirectory;
 
   // Setup mock storage for GetStorage
   setUpAll(() async {
+    storageDirectory = Directory.systemTemp.createTempSync(
+      'tv_parser_location_tests_',
+    );
     // Mock the path provider method channel
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
-      const MethodChannel('plugins.flutter.io/path_provider'),
-      (MethodCall methodCall) async {
-        return '.'; // Return root directory for storage temp path
-      },
-    );
+          const MethodChannel('plugins.flutter.io/path_provider'),
+          (MethodCall methodCall) async {
+            return storageDirectory.path;
+          },
+        );
     await GetStorage.init("preferences");
+  });
+
+  tearDownAll(() async {
+    if (storageDirectory.existsSync()) {
+      storageDirectory.deleteSync(recursive: true);
+    }
   });
 
   tearDown(() async {
@@ -115,62 +127,81 @@ void main() {
   });
 
   group('SearchIndexService Tests', () {
-    test('Asynchronously build search index and perform scored search lookups', () async {
-      final liveChannels = [
-        ChannelLive(num: "1", name: "ABC News Live", categoryId: "News"),
-        ChannelLive(num: "2", name: "NBA TV HD", categoryId: "Sports"),
-      ];
-      final movies = [
-        ChannelMovie(num: "10", name: "The NBA Story", categoryId: "Documentaries"),
-      ];
-      final series = [
-        ChannelSerie(num: "20", name: "Breaking Bad", categoryId: "Drama"),
-      ];
+    test(
+      'Asynchronously build search index and perform scored search lookups',
+      () async {
+        final liveChannels = [
+          ChannelLive(num: "1", name: "ABC News Live", categoryId: "News"),
+          ChannelLive(num: "2", name: "NBA TV HD", categoryId: "Sports"),
+        ];
+        final movies = [
+          ChannelMovie(
+            num: "10",
+            name: "The NBA Story",
+            categoryId: "Documentaries",
+          ),
+        ];
+        final series = [
+          ChannelSerie(num: "20", name: "Breaking Bad", categoryId: "Drama"),
+        ];
 
-      await SearchIndexService.buildIndex(
-        liveChannels: liveChannels,
-        movies: movies,
-        series: series,
-      );
+        await SearchIndexService.buildIndex(
+          liveChannels: liveChannels,
+          movies: movies,
+          series: series,
+        );
 
-      expect(SearchIndexService.isReady, isTrue);
-      expect(SearchIndexService.totalIndexedEntries, equals(4));
+        expect(SearchIndexService.isReady, isTrue);
+        expect(SearchIndexService.totalIndexedEntries, equals(4));
 
-      // Search for "NBA" across categories
-      final results = SearchIndexService.search("NBA");
-      expect(results.length, equals(2)); // NBA TV HD and The NBA Story
-      expect(results[0].type, equals("live")); // NBA TV HD should rank higher due to start match
-      expect(results[1].type, equals("movie"));
-    });
+        // Search for "NBA" across categories
+        final results = SearchIndexService.search("NBA");
+        expect(results.length, equals(2)); // NBA TV HD and The NBA Story
+        expect(
+          results[0].type,
+          equals("live"),
+        ); // NBA TV HD should rank higher due to start match
+        expect(results[1].type, equals("movie"));
+      },
+    );
 
-    test('Ensure exact phrase match ranks higher than expanded AI intent keywords (e.g. Breaking Bad vs News)', () async {
-      final liveChannels = [
-        ChannelLive(num: "1", name: "CNN Live News", categoryId: "News"),
-        ChannelLive(num: "2", name: "Fox News", categoryId: "News"),
-      ];
-      final series = [
-        ChannelSerie(num: "20", name: "Breaking Bad", categoryId: "Drama"),
-      ];
+    test(
+      'Ensure exact phrase match ranks higher than expanded AI intent keywords (e.g. Breaking Bad vs News)',
+      () async {
+        final liveChannels = [
+          ChannelLive(num: "1", name: "CNN Live News", categoryId: "News"),
+          ChannelLive(num: "2", name: "Fox News", categoryId: "News"),
+        ];
+        final series = [
+          ChannelSerie(num: "20", name: "Breaking Bad", categoryId: "Drama"),
+        ];
 
-      await SearchIndexService.buildIndex(
-        liveChannels: liveChannels,
-        movies: [],
-        series: series,
-      );
+        await SearchIndexService.buildIndex(
+          liveChannels: liveChannels,
+          movies: [],
+          series: series,
+        );
 
-      final intent = AiIntentMapper.parseQuery("Breaking Bad");
-      // "Breaking Bad" has "breaking", which AiIntentMapper maps to news keywords
-      expect(intent.keywords, contains("news"));
-      expect(intent.keywords, contains("cnn"));
+        final intent = AiIntentMapper.parseQuery("Breaking Bad");
+        // "Breaking Bad" has "breaking", which AiIntentMapper maps to news keywords
+        expect(intent.keywords, contains("news"));
+        expect(intent.keywords, contains("cnn"));
 
-      final results = SearchIndexService.search("Breaking Bad", expandedKeywords: intent.keywords);
-      
-      expect(results.isNotEmpty, isTrue);
-      // Breaking Bad series must be the first/top result due to exact phrase match on the query "Breaking Bad",
-      // even though "cnn" and "news" are in the expandedKeywords
-      expect(results.first.type, equals("series"));
-      expect((results.first.item as ChannelSerie).name, equals("Breaking Bad"));
-    });
+        final results = SearchIndexService.search(
+          "Breaking Bad",
+          expandedKeywords: intent.keywords,
+        );
+
+        expect(results.isNotEmpty, isTrue);
+        // Breaking Bad series must be the first/top result due to exact phrase match on the query "Breaking Bad",
+        // even though "cnn" and "news" are in the expandedKeywords
+        expect(results.first.type, equals("series"));
+        expect(
+          (results.first.item as ChannelSerie).name,
+          equals("Breaking Bad"),
+        );
+      },
+    );
   });
 
   group('LocationPreferenceService & UserPreferenceProfile Tests', () {
@@ -196,15 +227,18 @@ void main() {
       expect(profile.country, equals("USA"));
     });
 
-    test('Reset location preference updates profile flags to default state', () async {
-      await LocationPreferenceService.markExplainerSeen(true);
-      await LocationPreferenceService.resetLocationPreferences();
+    test(
+      'Reset location preference updates profile flags to default state',
+      () async {
+        await LocationPreferenceService.markExplainerSeen(true);
+        await LocationPreferenceService.resetLocationPreferences();
 
-      expect(LocationPreferenceService.shouldShowExplainer(), isTrue);
-      final profile = UserPreferenceProfile.load();
-      expect(profile.hasSeenLocationExplainer, isFalse);
-      expect(profile.hasAcceptedLocationPersonalization, isFalse);
-      expect(profile.region, isNull);
-    });
+        expect(LocationPreferenceService.shouldShowExplainer(), isTrue);
+        final profile = UserPreferenceProfile.load();
+        expect(profile.hasSeenLocationExplainer, isFalse);
+        expect(profile.hasAcceptedLocationPersonalization, isFalse);
+        expect(profile.region, isNull);
+      },
+    );
   });
 }

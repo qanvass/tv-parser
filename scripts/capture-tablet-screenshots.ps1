@@ -30,7 +30,7 @@ Start-Sleep -Seconds 4
 
 # Ensure app is in foreground
 & $adb shell am start -n com.quasar.tvparser/com.quasar.tvparser.MainActivity | Out-Null
-Start-Sleep -Seconds 3
+Start-Sleep -Seconds 15
 
 try {
     # ── Screen 1: Movies Catalog ──────────────────────────────────────
@@ -58,7 +58,7 @@ try {
     # ── Screen 3: Home/Watch Screen ───────────────────────────────────
     # Scroll up to the top of the Watch screen to reset scroll state
     Write-Host "Scrolling up to the top of the Watch screen..."
-    & $adb shell input swipe 540 500 540 1500
+    & $adb shell input swipe 540 900 540 1700
     Start-Sleep -Seconds 2
     Take-Screenshot "tablet_home.png"
 

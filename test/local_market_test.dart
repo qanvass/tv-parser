@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_storage/get_storage.dart';
@@ -8,16 +10,26 @@ import 'package:mbark_iptv/repository/api/location_preference_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  late Directory storageDirectory;
 
   setUpAll(() async {
+    storageDirectory = Directory.systemTemp.createTempSync(
+      'tv_parser_market_tests_',
+    );
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
-      const MethodChannel('plugins.flutter.io/path_provider'),
-      (MethodCall methodCall) async {
-        return '.'; // Return root directory for storage temp path
-      },
-    );
+          const MethodChannel('plugins.flutter.io/path_provider'),
+          (MethodCall methodCall) async {
+            return storageDirectory.path;
+          },
+        );
     await GetStorage.init("preferences");
+  });
+
+  tearDownAll(() async {
+    if (storageDirectory.existsSync()) {
+      storageDirectory.deleteSync(recursive: true);
+    }
   });
 
   tearDown(() async {
@@ -28,7 +40,10 @@ void main() {
 
   group('LocalMarketService & Registry Tests', () {
     test('Verify total registry includes at least 30 markets', () {
-      expect(LocalMarketService.supportedMarkets.length, greaterThanOrEqualTo(30));
+      expect(
+        LocalMarketService.supportedMarkets.length,
+        greaterThanOrEqualTo(30),
+      );
     });
 
     test('Verify findClosestMarket returns correct DMA', () {
@@ -83,11 +98,19 @@ void main() {
     final mockPlaylist = [
       ChannelLive(num: "1", name: "WSB-TV ABC Atlanta", categoryId: "US Local"),
       ChannelLive(num: "2", name: "WAGA FOX 5", categoryId: "US Local"),
-      ChannelLive(num: "3", name: "11Alive NBC Atlanta", categoryId: "US Local"),
+      ChannelLive(
+        num: "3",
+        name: "11Alive NBC Atlanta",
+        categoryId: "US Local",
+      ),
       ChannelLive(num: "4", name: "GPB PBS Atlanta", categoryId: "US Local"),
       ChannelLive(num: "5", name: "WFAA ABC Dallas", categoryId: "US Local"),
       ChannelLive(num: "6", name: "ESPN HD", categoryId: "Sports"),
-      ChannelLive(num: "7", name: "Univision Atlanta WUVG", categoryId: "Spanish"),
+      ChannelLive(
+        num: "7",
+        name: "Univision Atlanta WUVG",
+        categoryId: "Spanish",
+      ),
     ];
 
     test('Curation matches correct channels for Atlanta', () {
@@ -123,7 +146,9 @@ void main() {
     });
 
     test('Curation matches correct channels for Dallas', () {
-      final dallasMarket = LocalMarketService.findMarketById("dallas_fort_worth_tx");
+      final dallasMarket = LocalMarketService.findMarketById(
+        "dallas_fort_worth_tx",
+      );
       expect(dallasMarket, isNotNull);
 
       final broadcasts = LocalMarketService.getLocalChannelsForCategory(

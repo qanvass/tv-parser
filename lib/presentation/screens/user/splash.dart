@@ -103,17 +103,50 @@ class _SplashScreenState extends State<SplashScreen> {
               }
             },
             child: _videoInitialized
-                ? SizedBox.expand(
-                    child: FittedBox(
-                      fit: BoxFit.cover,
-                      child: SizedBox(
-                        width: _controller!.value.size.width,
-                        height: _controller!.value.size.height,
-                        child: VideoPlayer(_controller!),
-                      ),
-                    ),
-                  )
+                ? _SplashVideoFrame(controller: _controller!)
                 : const LoadingWidget(),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Frames the splash reel inside the TV overscan safe area (~90%) with
+/// contain scaling so the brand mark is never cropped on 16:9 displays.
+class _SplashVideoFrame extends StatelessWidget {
+  const _SplashVideoFrame({required this.controller});
+
+  final VideoPlayerController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final videoSize = controller.value.size;
+    final aspect = videoSize.width == 0 || videoSize.height == 0
+        ? (16 / 9)
+        : videoSize.width / videoSize.height;
+
+    return ColoredBox(
+      color: const Color(0xFF0F0F10),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Android TV overscan: keep critical brand inside ~90% of the panel.
+          final maxW = constraints.maxWidth * 0.90;
+          final maxH = constraints.maxHeight * 0.90;
+
+          var width = maxW;
+          var height = width / aspect;
+          if (height > maxH) {
+            height = maxH;
+            width = height * aspect;
+          }
+
+          return Center(
+            child: SizedBox(
+              width: width,
+              height: height,
+              child: VideoPlayer(controller),
+            ),
           );
         },
       ),
@@ -126,16 +159,19 @@ class LoadingWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final size = getSize(context);
+    final logoSize = size.shortestSide * 0.45;
     return Container(
-      width: getSize(context).width,
-      height: getSize(context).height,
+      width: size.width,
+      height: size.height,
       decoration: kDecorBackground,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Image(
-            width: getSize(context).height * .22,
-            height: getSize(context).height * .22,
+            width: logoSize,
+            height: logoSize,
+            fit: BoxFit.contain,
             image: const AssetImage(kIconSplash),
           ),
           const SizedBox(height: 10),

@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mbark_iptv/repository/api/api.dart';
+import 'package:mbark_iptv/repository/api/saved_accounts_service.dart';
 import 'package:mbark_iptv/repository/models/user.dart';
 
 import '../../../helpers/helpers.dart';
@@ -16,25 +17,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthRegister>((event, emit) async {
       emit(AuthLoading());
 
-      if (gatewayService.isReviewMode) {
-        final mockUser = UserModel(
-          userInfo: UserInfo(
-            username: event.username,
-            password: event.password,
-            status: "Active",
-            expDate: "2099-12-31",
-          ),
-          serverInfo: ServerInfo(
-            serverUrl: event.domain,
-            timezone: "UTC",
-          ),
-        );
-        changeDeviceOrient();
-        await Future.delayed(const Duration(milliseconds: 300));
-        emit(AuthSuccess(mockUser));
-        return;
-      }
-
       final user = await authApi.registerUser(
         event.username,
         event.password,
@@ -45,11 +27,20 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       if (user != null) {
         final status = user.userInfo?.status?.trim().toLowerCase();
         if (status == 'active') {
+          await SavedAccountsService.upsertXtream(
+            username: event.username,
+            password: event.password,
+            domain: event.domain,
+          );
           changeDeviceOrient();
           await Future.delayed(const Duration(milliseconds: 300));
           emit(AuthSuccess(user));
         } else {
-          emit(AuthFailed("Account is inactive or expired. Status: ${user.userInfo?.status ?? 'Unknown'}"));
+          emit(
+            AuthFailed(
+              "Account is inactive or expired. Status: ${user.userInfo?.status ?? 'Unknown'}",
+            ),
+          );
         }
       } else {
         emit(AuthFailed("could not login!!"));
@@ -79,6 +70,25 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       await LocaleApi.logOut();
       changeDeviceOrientBack();
       emit(AuthFailed("LogOut"));
+    });
+
+    on<AuthLoadM3u>((event, emit) async {
+      emit(AuthLoading());
+
+      final user = await authApi.registerM3u(event.playlistUrl);
+
+      if (user != null) {
+        await SavedAccountsService.upsertM3u(playlistUrl: event.playlistUrl);
+        changeDeviceOrient();
+        await Future.delayed(const Duration(milliseconds: 300));
+        emit(AuthSuccess(user));
+      } else {
+        emit(
+          AuthFailed(
+            "Could not parse or load M3U playlist. Make sure the URL is valid.",
+          ),
+        );
+      }
     });
   }
 }

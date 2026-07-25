@@ -21,13 +21,54 @@ class TvUtilityCardsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final entries = [
       if (showLocal)
-        {"title": "Local TV", "icon": Icons.location_on_rounded, "isLocal": true, "color": Colors.amber},
-      {"title": "All Channels • 20,000+", "icon": Icons.live_tv_rounded, "isLocal": false, "mode": BrowseMode.live, "color": const Color(0xFFFFC107)},
-      {"title": "All Movies", "icon": Icons.movie_outlined, "isLocal": false, "mode": BrowseMode.movies, "color": const Color(0xFFFF416C)},
-      {"title": "All Series", "icon": Icons.video_library_outlined, "isLocal": false, "mode": BrowseMode.series, "color": const Color(0xFF00C6FF)},
-      {"title": "Browse Countries", "icon": Icons.flag_outlined, "isLocal": false, "mode": BrowseMode.countries, "color": Colors.tealAccent},
-      {"title": "Browse Languages", "icon": Icons.language_outlined, "isLocal": false, "mode": BrowseMode.languages, "color": Colors.purpleAccent},
-      {"title": "Categories", "icon": Icons.dashboard_customize_outlined, "isLocal": false, "mode": BrowseMode.categories, "color": Colors.pinkAccent},
+        {
+          "title": "Local TV",
+          "icon": Icons.location_on_rounded,
+          "isLocal": true,
+          "color": Colors.amber,
+        },
+      {
+        "title": "All Channels",
+        "icon": Icons.live_tv_rounded,
+        "isLocal": false,
+        "mode": BrowseMode.live,
+        "color": const Color(0xFFFFC107),
+      },
+      {
+        "title": "All Movies",
+        "icon": Icons.movie_outlined,
+        "isLocal": false,
+        "mode": BrowseMode.movies,
+        "color": const Color(0xFFFF416C),
+      },
+      {
+        "title": "All Series",
+        "icon": Icons.video_library_outlined,
+        "isLocal": false,
+        "mode": BrowseMode.series,
+        "color": const Color(0xFF00C6FF),
+      },
+      {
+        "title": "Browse Countries",
+        "icon": Icons.flag_outlined,
+        "isLocal": false,
+        "mode": BrowseMode.countries,
+        "color": Colors.tealAccent,
+      },
+      {
+        "title": "Browse Languages",
+        "icon": Icons.language_outlined,
+        "isLocal": false,
+        "mode": BrowseMode.languages,
+        "color": Colors.purpleAccent,
+      },
+      {
+        "title": "Categories",
+        "icon": Icons.dashboard_customize_outlined,
+        "isLocal": false,
+        "mode": BrowseMode.categories,
+        "color": Colors.pinkAccent,
+      },
     ];
 
     return SizedBox(
@@ -48,18 +89,25 @@ class TvUtilityCardsRow extends StatelessWidget {
               icon: item["icon"] as IconData,
               onTap: () {
                 if (item["isLocal"] == true) {
-                  Get.to(() => LocalTvScreen(
-                        allLiveChannels: allLiveChannels,
-                        onPlayChannel: (ch) {
-                          if (ch.directSource != null && ch.directSource!.isNotEmpty) {
-                            onChannelSelected(ch.directSource!);
-                          } else if (ch.streamId != null) {
-                            onChannelSelected(ch.streamId!);
-                          }
-                        },
-                      ));
+                  Get.to(
+                    () => LocalTvScreen(
+                      allLiveChannels: allLiveChannels,
+                      onPlayChannel: (ch) {
+                        if (ch.directSource != null &&
+                            ch.directSource!.isNotEmpty) {
+                          onChannelSelected(ch.directSource!);
+                        } else if (ch.streamId != null) {
+                          onChannelSelected(ch.streamId!);
+                        }
+                      },
+                    ),
+                  );
                 } else {
-                  Get.to(() => AllContentScreen(initialMode: item["mode"] as BrowseMode));
+                  Get.to(
+                    () => AllContentScreen(
+                      initialMode: item["mode"] as BrowseMode,
+                    ),
+                  );
                 }
               },
             ),
@@ -162,13 +210,15 @@ class _TvUtilityCardState extends State<TvUtilityCard> {
                 ),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: _focused ? Colors.white : accent.withValues(alpha: 0.25),
+                  color: _focused
+                      ? Colors.white
+                      : accent.withValues(alpha: 0.25),
                   width: _focused ? 2.5 : 1.2,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: _focused 
-                        ? accent.withValues(alpha: 0.35) 
+                    color: _focused
+                        ? accent.withValues(alpha: 0.35)
                         : accent.withValues(alpha: 0.18),
                     blurRadius: _focused ? 16 : 8,
                     spreadRadius: _focused ? 1 : 0,
@@ -180,11 +230,7 @@ class _TvUtilityCardState extends State<TvUtilityCard> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    widget.icon,
-                    color: Colors.white,
-                    size: 24,
-                  ),
+                  Icon(widget.icon, color: Colors.white, size: 24),
                   const SizedBox(height: 8),
                   Text(
                     widget.title,

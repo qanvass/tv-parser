@@ -1,10 +1,23 @@
 import 'package:mbark_iptv/repository/api/api.dart';
+import '../models/channel_live.dart';
 
 class PlaybackUrlBuilder {
   /// Builds a URL for live streams asynchronously fetching credentials.
-  static Future<String> buildLiveUrl(String streamId, {bool preferCast = false, bool isFallback = false}) async {
+  static Future<String> buildLiveUrl(
+    String streamId, {
+    bool preferCast = false,
+    bool isFallback = false,
+  }) async {
     final user = await LocaleApi.getUser();
     if (user == null) return '';
+    if (user.serverInfo?.serverUrl?.startsWith('m3u:') == true) {
+      final channels = LocaleApi.getM3uChannels();
+      final match = channels.firstWhere(
+        (ch) => ch.streamId == streamId,
+        orElse: () => const ChannelLive(),
+      );
+      return match.directSource ?? '';
+    }
     return buildLiveUrlSync(
       serverUrl: user.serverInfo?.serverUrl ?? '',
       username: user.userInfo?.username ?? '',
@@ -16,7 +29,10 @@ class PlaybackUrlBuilder {
   }
 
   /// Builds a URL for movies.
-  static Future<String> buildMovieUrl(String streamId, {String? containerExtension}) async {
+  static Future<String> buildMovieUrl(
+    String streamId, {
+    String? containerExtension,
+  }) async {
     final user = await LocaleApi.getUser();
     if (user == null) return '';
     return buildMovieUrlSync(
@@ -29,7 +45,10 @@ class PlaybackUrlBuilder {
   }
 
   /// Builds a URL for series episodes.
-  static Future<String> buildSeriesUrl(String episodeId, {String? containerExtension}) async {
+  static Future<String> buildSeriesUrl(
+    String episodeId, {
+    String? containerExtension,
+  }) async {
     final user = await LocaleApi.getUser();
     if (user == null) return '';
     return buildSeriesUrlSync(
@@ -67,7 +86,10 @@ class PlaybackUrlBuilder {
     required String streamId,
     String? containerExtension,
   }) {
-    final ext = (containerExtension == null || containerExtension.trim().isEmpty) ? 'mp4' : containerExtension.trim();
+    final ext =
+        (containerExtension == null || containerExtension.trim().isEmpty)
+        ? 'mp4'
+        : containerExtension.trim();
     return '$serverUrl/movie/$username/$password/$streamId.$ext';
   }
 
@@ -79,7 +101,10 @@ class PlaybackUrlBuilder {
     required String episodeId,
     String? containerExtension,
   }) {
-    final ext = (containerExtension == null || containerExtension.trim().isEmpty) ? 'mp4' : containerExtension.trim();
+    final ext =
+        (containerExtension == null || containerExtension.trim().isEmpty)
+        ? 'mp4'
+        : containerExtension.trim();
     return '$serverUrl/series/$username/$password/$episodeId.$ext';
   }
 }

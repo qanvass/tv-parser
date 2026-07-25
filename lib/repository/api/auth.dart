@@ -45,14 +45,19 @@ class AuthApi {
   ) async {
     try {
       debugPrint("[Auth] login request started");
-      final Response response = await _dio
-          .get("$link/player_api.php?username=$username&password=$password");
+      final Response response = await _dio.get(
+        "$link/player_api.php?username=$username&password=$password",
+      );
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic>? json = _normalizeAuthResponse(response.data);
+        final Map<String, dynamic>? json = _normalizeAuthResponse(
+          response.data,
+        );
 
         if (json == null) {
-          debugPrint('[Auth] login failed: response was not a valid JSON object');
+          debugPrint(
+            '[Auth] login failed: response was not a valid JSON object',
+          );
           return null;
         }
 
@@ -71,5 +76,65 @@ class AuthApi {
       return null;
     }
   }
-}
 
+  Future<UserModel?> registerM3u(String playlistUrl) async {
+    try {
+      debugPrint("[Auth] M3U login request started");
+      final Response<String> response = await _dio.get(
+        playlistUrl,
+        options: Options(responseType: ResponseType.plain),
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        final content = response.data!;
+        if (!content.contains("#EXTM3U")) {
+          debugPrint("[Auth] M3U download failed: missing #EXTM3U header");
+          return null;
+        }
+
+        final parsedData = M3uParser.parse(content);
+        final List<CategoryModel> categories =
+            parsedData['categories'] as List<CategoryModel>;
+        final List<ChannelLive> channels =
+            parsedData['channels'] as List<ChannelLive>;
+
+        if (channels.isEmpty) {
+          debugPrint("[Auth] M3U download failed: no channels parsed");
+          return null;
+        }
+
+        // Cache M3U lists locally
+        await LocaleApi.saveM3uCategories(categories);
+        await LocaleApi.saveM3uChannels(channels);
+
+        // Build mock UserModel
+        final mockUser = UserModel(
+          userInfo: UserInfo(
+            username: "Playlist User",
+            password: "",
+            status: "Active",
+            expDate: (DateTime(2099, 12, 31).millisecondsSinceEpoch ~/ 1000)
+                .toString(),
+          ),
+          serverInfo: ServerInfo(
+            serverUrl: "m3u://$playlistUrl",
+            timezone: "UTC",
+          ),
+        );
+
+        // Save mock user to locale
+        await LocaleApi.saveUser(mockUser);
+        debugPrint(
+          "[Auth] M3U login success. Channels parsed: ${channels.length}",
+        );
+        return mockUser;
+      } else {
+        debugPrint("[Auth] M3U download failed status=${response.statusCode}");
+        return null;
+      }
+    } catch (e) {
+      debugPrint("[Auth] M3U login error: $e");
+      return null;
+    }
+  }
+}

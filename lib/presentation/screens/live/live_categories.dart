@@ -176,7 +176,10 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
   List<ChannelLive> get _displayStreams {
     if (_chSearch.isNotEmpty) {
       final intent = AiIntentMapper.parseQuery(_chSearch);
-      final results = SearchIndexService.search(_chSearch, expandedKeywords: intent.keywords);
+      final results = SearchIndexService.search(
+        _chSearch,
+        expandedKeywords: intent.keywords,
+      );
       return results
           .where((entry) => entry.type == 'live')
           .map((entry) => entry.item as ChannelLive)
@@ -204,7 +207,8 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
   // ── D-pad Traversal ───────────────────────────────────────────────────────
 
   KeyEventResult _onKey(FocusNode _, KeyEvent e) {
-    if (_searchFocus.hasFocus || _isSearchEditing) return KeyEventResult.ignored;
+    if (_searchFocus.hasFocus || _isSearchEditing)
+      return KeyEventResult.ignored;
     if (e is! KeyDownEvent) return KeyEventResult.ignored;
     final k = e.logicalKey;
 
@@ -445,25 +449,17 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
                     // Safe top app bar spacing
                     SafeArea(
                       bottom: false,
-                      child: SizedBox(
-                        height: 56,
-                        child: _buildBar(),
-                      ),
+                      child: SizedBox(height: 56, child: _buildBar()),
                     ),
                     Expanded(
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           // Left Category Rail (width: 240px)
-                          SizedBox(
-                            width: 240,
-                            child: _buildCategoryRail(),
-                          ),
+                          SizedBox(width: 240, child: _buildCategoryRail()),
                           Container(width: 1, color: kColorCardLight),
                           // Right catalog grid area
-                          Expanded(
-                            child: _buildRightContent(displayStreams),
-                          ),
+                          Expanded(child: _buildRightContent(displayStreams)),
                         ],
                       ),
                     ),
@@ -533,14 +529,18 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
                   itemCount: _cats.length,
                   itemBuilder: (_, i) {
                     final isSelected = i == _catIdx;
-                    final isHighlighted = isSelected && _panel == 0 && !_appbarActive;
+                    final isHighlighted =
+                        isSelected && _panel == 0 && !_appbarActive;
 
                     return GestureDetector(
                       onTap: () => _selectCategory(i),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 130),
                         height: _kItemH,
-                        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 3,
+                        ),
                         padding: const EdgeInsets.symmetric(horizontal: 14),
                         decoration: BoxDecoration(
                           color: isSelected
@@ -558,7 +558,9 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
                           boxShadow: isHighlighted
                               ? [
                                   BoxShadow(
-                                    color: const Color(0xFFFFC107).withValues(alpha: .25),
+                                    color: const Color(
+                                      0xFFFFC107,
+                                    ).withValues(alpha: .25),
                                     blurRadius: 8,
                                     spreadRadius: 1,
                                   ),
@@ -570,7 +572,9 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
                             Icon(
                               FontAwesomeIcons.list.data,
                               size: 13,
-                              color: isSelected ? const Color(0xFFFFC107) : Colors.white38,
+                              color: isSelected
+                                  ? const Color(0xFFFFC107)
+                                  : Colors.white38,
                             ),
                             const SizedBox(width: 10),
                             Expanded(
@@ -579,8 +583,12 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: Get.textTheme.bodySmall!.copyWith(
-                                  color: isSelected ? Colors.white : Colors.white60,
-                                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Colors.white60,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
                                 ),
                               ),
                             ),
@@ -613,11 +621,11 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
 
     final hasSearch = _chSearch.isNotEmpty;
     final titleText = hasSearch
-        ? 'AI Search: "$_chSearch"'
+        ? 'Search: "$_chSearch"'
         : (_cats.isNotEmpty ? _cats[_catIdx].categoryName ?? '' : 'Catalog');
     final subtitleText = hasSearch
         ? 'Global Search • ${displayStreams.length} matches'
-        : 'Full Catalog • 20,000+ discoverable';
+        : '${displayStreams.length} channels from your source';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -657,7 +665,10 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
               ? _buildEmptyState()
               : GridView.builder(
                   controller: _gridScroll,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
                   cacheExtent: 350.0,
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: _gridColumns,
@@ -668,7 +679,8 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
                   itemCount: displayStreams.length,
                   itemBuilder: (context, index) {
                     final isSelected = index == _chIdx;
-                    final isItemFocused = isSelected && _panel == 1 && !_appbarActive;
+                    final isItemFocused =
+                        isSelected && _panel == 1 && !_appbarActive;
 
                     return PremiumChannelCard(
                       title: displayStreams[index].name ?? 'Channel',
@@ -698,12 +710,17 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
           const SizedBox(height: 16),
           Text(
             'No matching channels found',
-            style: Get.textTheme.bodyMedium!.copyWith(color: kColorHint, fontWeight: FontWeight.bold),
+            style: Get.textTheme.bodyMedium!.copyWith(
+              color: kColorHint,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 6),
           Text(
-            'Try searching for "ESPN", "CNN", "HBO", or "Fox"',
-            style: Get.textTheme.bodySmall!.copyWith(color: kColorHint.withOpacity(0.7)),
+            'Try a channel name, category, or program title',
+            style: Get.textTheme.bodySmall!.copyWith(
+              color: kColorHint.withOpacity(0.7),
+            ),
           ),
           const SizedBox(height: 24),
           GestureDetector(
@@ -721,10 +738,7 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
               decoration: BoxDecoration(
                 color: const Color(0xFFFFC107).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: const Color(0xFFFFC107),
-                  width: 1.5,
-                ),
+                border: Border.all(color: const Color(0xFFFFC107), width: 1.5),
               ),
               child: const Text(
                 'Clear Search',

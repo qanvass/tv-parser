@@ -21,10 +21,7 @@ class MainActivity : FlutterActivity() {
                 val dd = resources.getString(R.string.unique_key)
                 result.success(dd)
             } else if (call.method == "isTvDevice") {
-                val isLeanback = packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
-                val uiModeManager = getSystemService(Context.UI_MODE_SERVICE) as UiModeManager
-                val isTelevision = uiModeManager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
-                result.success(isLeanback || isTelevision)
+                result.success(shouldUseTvLayout())
             } else {
                 result.notImplemented()
             }
@@ -32,22 +29,42 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun forceCorrectOrientationBeforeFlutter() {
-        val isLeanback = packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
-        val uiModeManager = getSystemService(Context.UI_MODE_SERVICE) as UiModeManager
-        val isTelevision = uiModeManager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
+        val isTv = shouldUseTvLayout()
 
-        if (isLeanback || isTelevision) {
-            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-            android.util.Log.d("OrientationGuard", "NATIVE BOOT platform=tv applied=landscape")
+        requestedOrientation = if (isTv) {
+            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         } else {
-            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-            android.util.Log.d("OrientationGuard", "NATIVE BOOT platform=mobile applied=portrait")
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         }
 
         android.util.Log.d(
             "OrientationGuard",
-            "features leanback=$isLeanback television=$isTelevision mode=${uiModeManager.currentModeType}"
+            "NATIVE BOOT platform=${if (isTv) "tv" else "mobile"}"
         )
+    }
+
+    private fun shouldUseTvLayout(): Boolean {
+        val isLeanback = packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
+        val uiModeManager = getSystemService(Context.UI_MODE_SERVICE) as UiModeManager
+        val isTelevision = uiModeManager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
+
+        // A landscape phone emulator may exercise the TV UI in debug builds only.
+        // Release builds rely exclusively on Android's native TV capability flags.
+        val isDebugLandscapeEmulator = BuildConfig.DEBUG && isEmulator() &&
+            resources.displayMetrics.widthPixels > resources.displayMetrics.heightPixels
+
+        return isLeanback || isTelevision || isDebugLandscapeEmulator
+    }
+
+    private fun isEmulator(): Boolean {
+        return android.os.Build.FINGERPRINT.startsWith("generic")
+            || android.os.Build.FINGERPRINT.startsWith("unknown") 
+            || android.os.Build.MODEL.contains("google_sdk") 
+            || android.os.Build.MODEL.contains("Emulator") 
+            || android.os.Build.MODEL.contains("Android SDK built for x86")
+            || android.os.Build.MODEL.contains("sdk")
+            || android.os.Build.HARDWARE.contains("ranchu")
+            || android.os.Build.HARDWARE.contains("goldfish")
     }
 }
 

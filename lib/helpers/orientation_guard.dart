@@ -3,7 +3,7 @@ part of 'helpers.dart';
 class OrientationGuard {
   static const String _storageKey = 'allowMobileLandscape';
   static final _box = GetStorage("preferences");
-  
+
   static bool _isTv = false;
   static bool get isTv => _isTv;
 
@@ -14,40 +14,42 @@ class OrientationGuard {
 
   /// Lock mobile to portraitUp on boot, and TV to landscape.
   static Future<void> init() async {
-    // Step 6: Emergency reset for saved setting during this build
-    await _box.write(_storageKey, false);
-    
     // Check native method channel first for TV status
     try {
-      final bool? result = await const MethodChannel("main_activity_channel").invokeMethod<bool>("isTvDevice");
+      final bool? result = await const MethodChannel(
+        "main_activity_channel",
+      ).invokeMethod<bool>("isTvDevice");
       _isTv = result ?? false;
     } catch (_) {
       _isTv = _detectIsTvFallback();
     }
-    
+
     if (_isTv) {
       SystemChrome.setPreferredOrientations([
         DeviceOrientation.landscapeLeft,
         DeviceOrientation.landscapeRight,
       ]);
-      debugPrint('[OrientationGuard] BOOT platform=tv allowMobileLandscape=false applied=landscape');
+      debugPrint(
+        '[OrientationGuard] BOOT platform=tv allowMobileLandscape=false applied=landscape',
+      );
     } else {
-      SystemChrome.setPreferredOrientations([
-        DeviceOrientation.portraitUp,
-      ]);
+      SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
       debugPrint('[OrientationGuard] BOOT mobile forced portraitUp');
-      debugPrint('[OrientationGuard] allowMobileLandscape=false applied=portraitUp');
+      debugPrint(
+        '[OrientationGuard] allowMobileLandscape=false applied=portraitUp',
+      );
     }
   }
 
   /// Fallback checks to distinguish mobile from TV/Tablet using shortest dimension.
   static bool _detectIsTvFallback() {
-    if (kForceTvMode) return true;
     try {
       final view = PlatformDispatcher.instance.views.first;
       final logicalWidth = view.physicalSize.width / view.devicePixelRatio;
       final logicalHeight = view.physicalSize.height / view.devicePixelRatio;
-      final minDim = logicalWidth < logicalHeight ? logicalWidth : logicalHeight;
+      final minDim = logicalWidth < logicalHeight
+          ? logicalWidth
+          : logicalHeight;
       return minDim > 600;
     } catch (_) {
       return false;
@@ -68,12 +70,14 @@ class OrientationGuard {
           DeviceOrientation.landscapeLeft,
           DeviceOrientation.landscapeRight,
         ]);
-        debugPrint('[OrientationGuard] allowMobileLandscape=true applied=portrait+landscape');
+        debugPrint(
+          '[OrientationGuard] allowMobileLandscape=true applied=portrait+landscape',
+        );
       } else {
-        SystemChrome.setPreferredOrientations([
-          DeviceOrientation.portraitUp,
-        ]);
-        debugPrint('[OrientationGuard] allowMobileLandscape=false applied=portraitUp');
+        SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+        debugPrint(
+          '[OrientationGuard] allowMobileLandscape=false applied=portraitUp',
+        );
       }
     }
   }

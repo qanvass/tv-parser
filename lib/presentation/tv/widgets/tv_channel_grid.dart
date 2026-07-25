@@ -20,10 +20,7 @@ class TvChannelRow {
   final String title;
   final List<TvStreamRecord> streams;
 
-  const TvChannelRow({
-    required this.title,
-    required this.streams,
-  });
+  const TvChannelRow({required this.title, required this.streams});
 }
 
 class TvChannelGrid extends StatelessWidget {
@@ -42,6 +39,20 @@ class TvChannelGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasHeader = header != null;
 
+    if (rows.isEmpty && !hasHeader) {
+      return const Center(
+        child: Text(
+          'No content is available in this section for the connected playlist.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.white60,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
+
     return ListView.builder(
       scrollCacheExtent: const ScrollCacheExtent.pixels(300.0),
       padding: const EdgeInsets.only(bottom: 40),
@@ -59,10 +70,7 @@ class TvChannelGrid extends StatelessWidget {
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 34),
-          child: _TvStreamRow(
-            row: row,
-            onChannelSelected: onChannelSelected,
-          ),
+          child: _TvStreamRow(row: row, onChannelSelected: onChannelSelected),
         );
       },
     );
@@ -73,10 +81,7 @@ class _TvStreamRow extends StatelessWidget {
   final TvChannelRow row;
   final ValueChanged<String> onChannelSelected;
 
-  const _TvStreamRow({
-    required this.row,
-    required this.onChannelSelected,
-  });
+  const _TvStreamRow({required this.row, required this.onChannelSelected});
 
   @override
   Widget build(BuildContext context) {
@@ -187,10 +192,7 @@ class _TvChannelCardState extends State<TvChannelCard> {
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Color(0xCC000000),
-                        ],
+                        colors: [Colors.transparent, Color(0xCC000000)],
                       ),
                     ),
                   ),
@@ -259,9 +261,7 @@ class _TvChannelCardState extends State<TvChannelCard> {
 class _CardArtwork extends StatelessWidget {
   final String? imageUrl;
 
-  const _CardArtwork({
-    this.imageUrl,
-  });
+  const _CardArtwork({this.imageUrl});
 
   @override
   Widget build(BuildContext context) {
@@ -289,11 +289,7 @@ class _FallbackArtwork extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF1B0F2F),
-            Color(0xFF101018),
-            Color(0xFF050508),
-          ],
+          colors: [Color(0xFF1B0F2F), Color(0xFF101018), Color(0xFF050508)],
         ),
       ),
       child: Center(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 class PremiumChannelCard extends StatefulWidget {
@@ -35,28 +36,44 @@ class _PremiumChannelCardState extends State<PremiumChannelCard> {
   @override
   Widget build(BuildContext context) {
     final focused = widget.isFocused ?? _isFocused;
-    if (widget.isTv) {
-      return Focus(
-        focusNode: widget.focusNode,
-        onFocusChange: (value) {
-          setState(() {
-            _isFocused = value;
-          });
-        },
-        child: AnimatedScale(
-          scale: focused ? 1.06 : 1.0,
-          duration: const Duration(milliseconds: 150),
-          curve: Curves.easeOut,
+    // Always focusable (not just when isTv is explicitly passed) so a
+    // D-pad/remote or bluetooth keyboard can always reach and activate
+    // this card, regardless of what the caller passed in.
+    return Focus(
+      focusNode: widget.focusNode,
+      onFocusChange: (value) {
+        setState(() {
+          _isFocused = value;
+        });
+      },
+      onKeyEvent: (node, event) {
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        final k = event.logicalKey;
+        if (k == LogicalKeyboardKey.select ||
+            k == LogicalKeyboardKey.enter ||
+            k == LogicalKeyboardKey.numpadEnter ||
+            k == LogicalKeyboardKey.space) {
+          widget.onTap();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: AnimatedScale(
+        scale: focused ? 1.06 : 1.0,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+        child: GestureDetector(
+          onTap: widget.onTap,
+          onLongPress: widget.onLongPress,
           child: _buildCardBody(focused),
         ),
-      );
-    }
-
-    return _buildCardBody(focused);
+      ),
+    );
   }
 
   Widget _buildCardBody(bool focused) {
-    final hasLogo = widget.imageUrl != null && widget.imageUrl!.trim().isNotEmpty;
+    final hasLogo =
+        widget.imageUrl != null && widget.imageUrl!.trim().isNotEmpty;
     final cardBorderColor = focused
         ? const Color(0xFFFFC107) // Gold focus border
         : Colors.white.withOpacity(0.06);
@@ -77,10 +94,7 @@ class _PremiumChannelCardState extends State<PremiumChannelCard> {
       decoration: BoxDecoration(
         color: const Color(0xFF131315),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: cardBorderColor,
-          width: focused ? 2.5 : 1.2,
-        ),
+        border: Border.all(color: cardBorderColor, width: focused ? 2.5 : 1.2),
         boxShadow: cardGlow,
       ),
       clipBehavior: Clip.antiAlias,
@@ -105,12 +119,15 @@ class _PremiumChannelCardState extends State<PremiumChannelCard> {
                             width: 18,
                             height: 18,
                             child: CircularProgressIndicator(
-                              color: Theme.of(context).primaryColor.withOpacity(0.5),
+                              color: Theme.of(
+                                context,
+                              ).primaryColor.withOpacity(0.5),
                               strokeWidth: 2,
                             ),
                           ),
                         ),
-                        errorWidget: (context, url, error) => _buildFallbackLogo(),
+                        errorWidget: (context, url, error) =>
+                            _buildFallbackLogo(),
                       )
                     : _buildFallbackLogo(),
               ),
@@ -222,16 +239,8 @@ class _PremiumChannelCardState extends State<PremiumChannelCard> {
     );
 
     return widget.isTv
-        ? SizedBox(
-            width: 170,
-            height: 146,
-            child: cardContent,
-          )
-        : GestureDetector(
-            onTap: widget.onTap,
-            onLongPress: widget.onLongPress,
-            child: cardContent,
-          );
+        ? SizedBox(width: 170, height: 146, child: cardContent)
+        : cardContent;
   }
 
   Widget _buildFallbackLogo() {

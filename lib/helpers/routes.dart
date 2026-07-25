@@ -15,3 +15,4 @@ const String screenMovieCategories = "/categories-movie";
 const String screenSeriesCategories = "/categories-series";
 const String screenConnectionTest = "/connection-test";
 const String screenAdultContent = "/adult-content";
+const String screenTvSearch = "/tv-search";

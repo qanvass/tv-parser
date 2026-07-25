@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get/get.dart';
 import '../../logic/blocs/categories/live_caty/live_caty_bloc.dart';
@@ -35,15 +36,14 @@ class AllContentScreen extends StatefulWidget {
 
 class _AllContentScreenState extends State<AllContentScreen> {
   late BrowseMode _currentMode;
-  
+
   List<CategoryModel> _liveCategories = [];
   List<CategoryModel> _movieCategories = [];
   List<CategoryModel> _seriesCategories = [];
-  
+
   List<dynamic> _loadedStreams = [];
   CategoryModel? _selectedCategory;
   bool _loading = false;
-  final String _catalogCountText = '20,000+';
 
   // Search variables
   final TextEditingController _searchController = TextEditingController();
@@ -57,7 +57,7 @@ class _AllContentScreenState extends State<AllContentScreen> {
     super.initState();
     _currentMode = widget.initialMode;
     _loadCategories();
-    
+
     // Ensure search index is ready for fast global lookups
     if (!SearchIndexService.isReady) {
       _buildSearchIndex();
@@ -92,10 +92,12 @@ class _AllContentScreenState extends State<AllContentScreen> {
     if (liveState is LiveCatySuccess) _liveCategories = liveState.categories;
 
     final movieState = context.read<MovieCatyBloc>().state;
-    if (movieState is MovieCatySuccess) _movieCategories = movieState.categories;
+    if (movieState is MovieCatySuccess)
+      _movieCategories = movieState.categories;
 
     final seriesState = context.read<SeriesCatyBloc>().state;
-    if (seriesState is SeriesCatySuccess) _seriesCategories = seriesState.categories;
+    if (seriesState is SeriesCatySuccess)
+      _seriesCategories = seriesState.categories;
 
     _autoSelectFirstCategory();
   }
@@ -116,20 +118,47 @@ class _AllContentScreenState extends State<AllContentScreen> {
 
     try {
       final api = IpTvApi();
-      if (_currentMode == BrowseMode.live || _currentMode == BrowseMode.countries || _currentMode == BrowseMode.languages) {
+      if (_currentMode == BrowseMode.live ||
+          _currentMode == BrowseMode.countries ||
+          _currentMode == BrowseMode.languages) {
         final data = await api.getLiveChannels(category.categoryId ?? '');
-        final filtered = data.where((item) => ContentIntelligenceService.isLiveChannel(item, categoryName: category.categoryName)).toList();
-        final deduped = ContentIntelligenceService.deduplicate<ChannelLive>(filtered, (c) => c.name ?? c.streamId ?? '');
+        final filtered = data
+            .where(
+              (item) => ContentIntelligenceService.isLiveChannel(
+                item,
+                categoryName: category.categoryName,
+              ),
+            )
+            .toList();
+        final deduped = ContentIntelligenceService.deduplicate<ChannelLive>(
+          filtered,
+          (c) => c.name ?? c.streamId ?? '',
+        );
         if (mounted) setState(() => _loadedStreams = deduped);
       } else if (_currentMode == BrowseMode.movies) {
         final data = await api.getMovieChannels(category.categoryId ?? '');
-        final filtered = data.where((item) => ContentIntelligenceService.isMovieVOD(item, categoryName: category.categoryName)).toList();
-        final deduped = ContentIntelligenceService.deduplicate<ChannelMovie>(filtered, (c) => c.name ?? c.streamId ?? '');
+        final filtered = data
+            .where(
+              (item) => ContentIntelligenceService.isMovieVOD(
+                item,
+                categoryName: category.categoryName,
+              ),
+            )
+            .toList();
+        final deduped = ContentIntelligenceService.deduplicate<ChannelMovie>(
+          filtered,
+          (c) => c.name ?? c.streamId ?? '',
+        );
         if (mounted) setState(() => _loadedStreams = deduped);
       } else if (_currentMode == BrowseMode.series) {
         final data = await api.getSeriesChannels(category.categoryId ?? '');
-        final filtered = data.where((item) => ContentIntelligenceService.isSeriesVOD(item)).toList();
-        final deduped = ContentIntelligenceService.deduplicate<ChannelSerie>(filtered, (c) => c.name ?? c.seriesId ?? '');
+        final filtered = data
+            .where((item) => ContentIntelligenceService.isSeriesVOD(item))
+            .toList();
+        final deduped = ContentIntelligenceService.deduplicate<ChannelSerie>(
+          filtered,
+          (c) => c.name ?? c.seriesId ?? '',
+        );
         if (mounted) setState(() => _loadedStreams = deduped);
       }
     } catch (_) {}
@@ -140,21 +169,31 @@ class _AllContentScreenState extends State<AllContentScreen> {
   List<CategoryModel> _getCategoryFilterList() {
     if (_currentMode == BrowseMode.movies) return _movieCategories;
     if (_currentMode == BrowseMode.series) return _seriesCategories;
-    
+
     if (_currentMode == BrowseMode.countries) {
       return _liveCategories.where((c) {
         final name = (c.categoryName ?? '').toLowerCase();
-        return name.contains('usa') || name.contains('uk') || name.contains('canada') || 
-               name.contains('spain') || name.contains('mexico') || name.contains('france') ||
-               name.contains('germany') || name.contains('italy') || name.contains('latino');
+        return name.contains('usa') ||
+            name.contains('uk') ||
+            name.contains('canada') ||
+            name.contains('spain') ||
+            name.contains('mexico') ||
+            name.contains('france') ||
+            name.contains('germany') ||
+            name.contains('italy') ||
+            name.contains('latino');
       }).toList();
     }
-    
+
     if (_currentMode == BrowseMode.languages) {
       return _liveCategories.where((c) {
         final name = (c.categoryName ?? '').toLowerCase();
-        return name.contains('english') || name.contains('spanish') || name.contains('french') || 
-               name.contains('arabic') || name.contains('portuguese') || name.contains('hindi');
+        return name.contains('english') ||
+            name.contains('spanish') ||
+            name.contains('french') ||
+            name.contains('arabic') ||
+            name.contains('portuguese') ||
+            name.contains('hindi');
       }).toList();
     }
 
@@ -188,23 +227,33 @@ class _AllContentScreenState extends State<AllContentScreen> {
 
     // Natural language expansion using AiIntentMapper
     final intent = AiIntentMapper.parseQuery(clean);
-    final results = SearchIndexService.search(clean, expandedKeywords: intent.keywords);
+    final results = SearchIndexService.search(
+      clean,
+      expandedKeywords: intent.keywords,
+    );
 
-    final filtered = results.where((entry) {
-      if (_currentMode == BrowseMode.live || _currentMode == BrowseMode.countries || _currentMode == BrowseMode.languages) {
-        return entry.type == 'live';
-      } else if (_currentMode == BrowseMode.movies) {
-        return entry.type == 'movie';
-      } else if (_currentMode == BrowseMode.series) {
-        return entry.type == 'series';
-      }
-      return false;
-    }).map((entry) => entry.item).toList();
+    final filtered = results
+        .where((entry) {
+          if (_currentMode == BrowseMode.live ||
+              _currentMode == BrowseMode.countries ||
+              _currentMode == BrowseMode.languages) {
+            return entry.type == 'live';
+          } else if (_currentMode == BrowseMode.movies) {
+            return entry.type == 'movie';
+          } else if (_currentMode == BrowseMode.series) {
+            return entry.type == 'series';
+          }
+          return false;
+        })
+        .map((entry) => entry.item)
+        .toList();
 
     stopwatch.stop();
 
     if (kDebugMode) {
-      debugPrint('[AllLiveSearch] query="$query" results=${filtered.length} durationMs=${stopwatch.elapsedMilliseconds}');
+      debugPrint(
+        '[AllLiveSearch] query="$query" results=${filtered.length} durationMs=${stopwatch.elapsedMilliseconds}',
+      );
     }
 
     setState(() {
@@ -229,7 +278,9 @@ class _AllContentScreenState extends State<AllContentScreen> {
           builder: (context, constraints) {
             final isLandscape = constraints.maxWidth > constraints.maxHeight;
             final isWide = constraints.maxWidth >= 600;
-            final useLandscape = (isWide || isLandscape) && (isTvDevice() || OrientationGuard.allowMobileLandscape);
+            final useLandscape =
+                (isWide || isLandscape) &&
+                (isTvDevice() || OrientationGuard.allowMobileLandscape);
 
             if (useLandscape) {
               return _buildLandscapeLayout(context, constraints);
@@ -243,16 +294,26 @@ class _AllContentScreenState extends State<AllContentScreen> {
   }
 
   // 1. Portrait Layout
-  Widget _buildPortraitLayout(BuildContext context, BoxConstraints constraints) {
+  Widget _buildPortraitLayout(
+    BuildContext context,
+    BoxConstraints constraints,
+  ) {
     final categories = _getCategoryFilterList();
-    final isLive = _currentMode == BrowseMode.live || _currentMode == BrowseMode.countries || _currentMode == BrowseMode.languages;
-    final displayStreams = _searchQuery.isNotEmpty ? _searchResults : _loadedStreams;
-    
+    final isLive =
+        _currentMode == BrowseMode.live ||
+        _currentMode == BrowseMode.countries ||
+        _currentMode == BrowseMode.languages;
+    final displayStreams = _searchQuery.isNotEmpty
+        ? _searchResults
+        : _loadedStreams;
+
     // Dynamic columns count based on portrait size constraints
     final int cols = constraints.maxWidth > 360 ? 3 : 2;
 
     if (kDebugMode) {
-      debugPrint('[AllLiveScreen] platform=android_mobile layout=portrait columns=$cols category="${_selectedCategory?.categoryName ?? ""}"');
+      debugPrint(
+        '[AllLiveScreen] platform=android_mobile layout=portrait columns=$cols category="${_selectedCategory?.categoryName ?? ""}"',
+      );
     }
 
     return SafeArea(
@@ -264,7 +325,10 @@ class _AllContentScreenState extends State<AllContentScreen> {
 
           // AI Search Bar
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
             child: _buildSearchBar(),
           ),
           const SizedBox(height: 8),
@@ -280,10 +344,12 @@ class _AllContentScreenState extends State<AllContentScreen> {
           // Main Grid Area
           Expanded(
             child: _loading || _isSearching
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFFFFC107)))
+                ? const Center(
+                    child: CircularProgressIndicator(color: Color(0xFFFFC107)),
+                  )
                 : displayStreams.isEmpty
-                    ? _buildEmptyState()
-                    : _buildGrid(displayStreams, cols, isLive),
+                ? _buildEmptyState()
+                : _buildGrid(displayStreams, cols, isLive),
           ),
         ],
       ),
@@ -291,16 +357,26 @@ class _AllContentScreenState extends State<AllContentScreen> {
   }
 
   // 2. Landscape Layout
-  Widget _buildLandscapeLayout(BuildContext context, BoxConstraints constraints) {
+  Widget _buildLandscapeLayout(
+    BuildContext context,
+    BoxConstraints constraints,
+  ) {
     final categories = _getCategoryFilterList();
-    final isLive = _currentMode == BrowseMode.live || _currentMode == BrowseMode.countries || _currentMode == BrowseMode.languages;
-    final displayStreams = _searchQuery.isNotEmpty ? _searchResults : _loadedStreams;
+    final isLive =
+        _currentMode == BrowseMode.live ||
+        _currentMode == BrowseMode.countries ||
+        _currentMode == BrowseMode.languages;
+    final displayStreams = _searchQuery.isNotEmpty
+        ? _searchResults
+        : _loadedStreams;
 
     // Dynamic math sizing for widescreen
     final int cols = ((constraints.maxWidth - 240) ~/ 130).clamp(4, 6);
 
     if (kDebugMode) {
-      debugPrint('[AllLiveScreen] platform=android_mobile layout=landscape columns=$cols category="${_selectedCategory?.categoryName ?? ""}"');
+      debugPrint(
+        '[AllLiveScreen] platform=android_mobile layout=landscape columns=$cols category="${_selectedCategory?.categoryName ?? ""}"',
+      );
     }
 
     return Row(
@@ -310,7 +386,12 @@ class _AllContentScreenState extends State<AllContentScreen> {
           width: 240,
           decoration: BoxDecoration(
             color: const Color(0xFF131314),
-            border: Border(right: BorderSide(color: Colors.white.withOpacity(0.04), width: 1)),
+            border: Border(
+              right: BorderSide(
+                color: Colors.white.withOpacity(0.04),
+                width: 1,
+              ),
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -322,13 +403,21 @@ class _AllContentScreenState extends State<AllContentScreen> {
                   child: Row(
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
+                        icon: const Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          color: Colors.white,
+                          size: 18,
+                        ),
                         onPressed: () => Get.back(),
                       ),
                       const SizedBox(width: 8),
                       const Text(
                         "Categories",
-                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ],
                   ),
@@ -341,16 +430,25 @@ class _AllContentScreenState extends State<AllContentScreen> {
                   itemCount: categories.length,
                   itemBuilder: (context, index) {
                     final cat = categories[index];
-                    final isSelected = cat.categoryId == _selectedCategory?.categoryId;
-                    return GestureDetector(
-                      onTap: () => _onCategorySelected(cat),
+                    final isSelected =
+                        cat.categoryId == _selectedCategory?.categoryId;
+                    return _CategoryFocusableTap(
+                      autofocus: index == 0,
+                      onActivate: () => _onCategorySelected(cat),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 16,
+                        ),
                         decoration: BoxDecoration(
-                          color: isSelected ? Colors.white.withOpacity(0.04) : Colors.transparent,
+                          color: isSelected
+                              ? Colors.white.withOpacity(0.04)
+                              : Colors.transparent,
                           border: Border(
                             left: BorderSide(
-                              color: isSelected ? Theme.of(context).primaryColor : Colors.transparent,
+                              color: isSelected
+                                  ? Theme.of(context).primaryColor
+                                  : Colors.transparent,
                               width: 4,
                             ),
                           ),
@@ -362,7 +460,9 @@ class _AllContentScreenState extends State<AllContentScreen> {
                           style: TextStyle(
                             color: isSelected ? Colors.white : Colors.white60,
                             fontSize: 13,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.w500,
                           ),
                         ),
                       ),
@@ -394,12 +494,19 @@ class _AllContentScreenState extends State<AllContentScreen> {
                             children: [
                               Text(
                                 _getTitleText(),
-                                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                ),
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                "Full Catalog • $_catalogCountText discoverable",
-                                style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 10),
+                                "${_loadedStreams.length} items from your source",
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.4),
+                                  fontSize: 10,
+                                ),
                               ),
                             ],
                           ),
@@ -407,10 +514,7 @@ class _AllContentScreenState extends State<AllContentScreen> {
                           _buildRotationQuickButton(),
                         ],
                       ),
-                      SizedBox(
-                        width: 280,
-                        child: _buildSearchBar(),
-                      ),
+                      SizedBox(width: 280, child: _buildSearchBar()),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -418,8 +522,12 @@ class _AllContentScreenState extends State<AllContentScreen> {
                   // Results Header (Only when searching)
                   if (_searchQuery.isNotEmpty) ...[
                     Text(
-                      "AI Search Results (${displayStreams.length} found)",
-                      style: const TextStyle(color: Colors.amber, fontSize: 12, fontWeight: FontWeight.bold),
+                      "Search Results (${displayStreams.length} found)",
+                      style: const TextStyle(
+                        color: Colors.amber,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 10),
                   ],
@@ -427,10 +535,14 @@ class _AllContentScreenState extends State<AllContentScreen> {
                   // Landscape Grid View
                   Expanded(
                     child: _loading || _isSearching
-                        ? const Center(child: CircularProgressIndicator(color: Color(0xFFFFC107)))
+                        ? const Center(
+                            child: CircularProgressIndicator(
+                              color: Color(0xFFFFC107),
+                            ),
+                          )
                         : displayStreams.isEmpty
-                            ? _buildEmptyState()
-                            : _buildGrid(displayStreams, cols, isLive),
+                        ? _buildEmptyState()
+                        : _buildGrid(displayStreams, cols, isLive),
                   ),
                 ],
               ),
@@ -448,7 +560,11 @@ class _AllContentScreenState extends State<AllContentScreen> {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+            icon: const Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
             onPressed: () => Get.back(),
           ),
           const SizedBox(width: 8),
@@ -458,12 +574,19 @@ class _AllContentScreenState extends State<AllContentScreen> {
               children: [
                 Text(
                   _getTitleText(),
-                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  "Full Catalog • $_catalogCountText discoverable",
-                  style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 10),
+                  "${_loadedStreams.length} items from your source",
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.4),
+                    fontSize: 10,
+                  ),
                 ),
               ],
             ),
@@ -479,7 +602,9 @@ class _AllContentScreenState extends State<AllContentScreen> {
     final allowed = OrientationGuard.allowMobileLandscape;
     return IconButton(
       icon: Icon(
-        allowed ? Icons.screen_lock_portrait_rounded : Icons.screen_rotation_rounded,
+        allowed
+            ? Icons.screen_lock_portrait_rounded
+            : Icons.screen_rotation_rounded,
         color: allowed ? const Color(0xFFFFC107) : Colors.white60,
         size: 20,
       ),
@@ -496,10 +621,14 @@ class _AllContentScreenState extends State<AllContentScreen> {
         backgroundColor: const Color(0xFF131314),
         title: Text(
           allowed ? "Lock Screen to Portrait?" : "Allow Landscape Rotation?",
-          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         content: Text(
-          allowed 
+          allowed
               ? "Screen will be locked to portrait mode during browsing."
               : "Browsing screens will automatically rotate to landscape when you tilt your device.",
           style: const TextStyle(color: Colors.white70, fontSize: 13),
@@ -507,7 +636,10 @@ class _AllContentScreenState extends State<AllContentScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text("Cancel", style: TextStyle(color: Colors.white60)),
+            child: const Text(
+              "Cancel",
+              style: TextStyle(color: Colors.white60),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -532,22 +664,30 @@ class _AllContentScreenState extends State<AllContentScreen> {
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.06),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.04),
-          width: 1.0,
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.04), width: 1.0),
       ),
       child: TextField(
         controller: _searchController,
         onChanged: _onSearchChanged,
         style: const TextStyle(color: Colors.white, fontSize: 13),
         decoration: InputDecoration(
-          hintText: "Search CNN, ESPN, NBA Finals, PPV, ABC Atlanta...",
-          hintStyle: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 12),
-          prefixIcon: Icon(Icons.search_rounded, color: Colors.white.withOpacity(0.4), size: 18),
+          hintText: "Search channels, movies, series, or categories...",
+          hintStyle: TextStyle(
+            color: Colors.white.withOpacity(0.3),
+            fontSize: 12,
+          ),
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            color: Colors.white.withOpacity(0.4),
+            size: 18,
+          ),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
-                  icon: const Icon(Icons.clear_rounded, color: Colors.white60, size: 16),
+                  icon: const Icon(
+                    Icons.clear_rounded,
+                    color: Colors.white60,
+                    size: 16,
+                  ),
                   onPressed: () {
                     _searchController.clear();
                     _onSearchChanged('');
@@ -642,18 +782,31 @@ class _AllContentScreenState extends State<AllContentScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.video_library_rounded, size: 48, color: Colors.white.withOpacity(0.1)),
+          Icon(
+            Icons.video_library_rounded,
+            size: 48,
+            color: Colors.white.withOpacity(0.1),
+          ),
           const SizedBox(height: 14),
           Text(
-            _searchQuery.isNotEmpty ? "No matching channels found" : "No content available",
-            style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold),
+            _searchQuery.isNotEmpty
+                ? "No matching channels found"
+                : "No content available",
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           if (_searchQuery.isNotEmpty) ...[
             const SizedBox(height: 6),
             Text(
-              "Try CNN, ESPN, ABC, PPV, HBO, NBA, or local news",
+              "Try a title, channel name, genre, or category",
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11),
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.4),
+                fontSize: 11,
+              ),
             ),
             const SizedBox(height: 18),
             ElevatedButton(
@@ -664,7 +817,9 @@ class _AllContentScreenState extends State<AllContentScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFFFC107),
                 foregroundColor: Colors.black,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               child: const Text("Clear Search"),
             ),
@@ -680,7 +835,9 @@ class _AllContentScreenState extends State<AllContentScreen> {
     } else if (item is ChannelMovie) {
       _showMovieDetailSheet(item);
     } else if (item is ChannelSerie) {
-      Get.to(() => SerieContent(channelSerie: item, videoId: item.seriesId ?? ''));
+      Get.to(
+        () => SerieContent(channelSerie: item, videoId: item.seriesId ?? ''),
+      );
     }
   }
 
@@ -690,15 +847,21 @@ class _AllContentScreenState extends State<AllContentScreen> {
       StreamLauncher.openStreamWithBrandedLoading(
         context: context,
         streamUrl: streamUrl,
-        playerBuilder: () => MoviePlayerScreen(link: streamUrl, title: channel.name ?? 'Stream'),
+        playerBuilder: () =>
+            MoviePlayerScreen(link: streamUrl, title: channel.name ?? 'Stream'),
       );
     } else if (channel.streamId != null) {
-      final streamUrl = await PlaybackUrlBuilder.buildLiveUrl(channel.streamId!);
+      final streamUrl = await PlaybackUrlBuilder.buildLiveUrl(
+        channel.streamId!,
+      );
       if (streamUrl.isNotEmpty) {
         StreamLauncher.openStreamWithBrandedLoading(
           context: context,
           streamUrl: streamUrl,
-          playerBuilder: () => MoviePlayerScreen(link: streamUrl, title: channel.name ?? 'Stream'),
+          playerBuilder: () => MoviePlayerScreen(
+            link: streamUrl,
+            title: channel.name ?? 'Stream',
+          ),
         );
       }
     }
@@ -706,12 +869,16 @@ class _AllContentScreenState extends State<AllContentScreen> {
 
   void _onMoviePlayTap(ChannelMovie movie) async {
     if (movie.streamId != null) {
-      final streamUrl = await PlaybackUrlBuilder.buildMovieUrl(movie.streamId!, containerExtension: movie.containerExtension);
+      final streamUrl = await PlaybackUrlBuilder.buildMovieUrl(
+        movie.streamId!,
+        containerExtension: movie.containerExtension,
+      );
       if (streamUrl.isNotEmpty) {
         StreamLauncher.openStreamWithBrandedLoading(
           context: context,
           streamUrl: streamUrl,
-          playerBuilder: () => MoviePlayerScreen(link: streamUrl, title: movie.name ?? 'Stream'),
+          playerBuilder: () =>
+              MoviePlayerScreen(link: streamUrl, title: movie.name ?? 'Stream'),
         );
       }
     }
@@ -757,6 +924,56 @@ class _AllContentScreenState extends State<AllContentScreen> {
         backgroundColor: Colors.amber.shade900,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+}
+
+/// Wraps a category row item so it's reachable and activatable via
+/// D-pad/remote (Select/Enter/Space) in addition to touch.
+class _CategoryFocusableTap extends StatefulWidget {
+  const _CategoryFocusableTap({
+    required this.onActivate,
+    required this.child,
+    this.autofocus = false,
+  });
+
+  final VoidCallback onActivate;
+  final Widget child;
+  final bool autofocus;
+
+  @override
+  State<_CategoryFocusableTap> createState() => _CategoryFocusableTapState();
+}
+
+class _CategoryFocusableTapState extends State<_CategoryFocusableTap> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      autofocus: widget.autofocus,
+      onFocusChange: (v) => setState(() => _focused = v),
+      onKeyEvent: (node, event) {
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        final k = event.logicalKey;
+        if (k == LogicalKeyboardKey.select ||
+            k == LogicalKeyboardKey.enter ||
+            k == LogicalKeyboardKey.numpadEnter ||
+            k == LogicalKeyboardKey.space) {
+          widget.onActivate();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: GestureDetector(
+        onTap: widget.onActivate,
+        child: Container(
+          decoration: _focused
+              ? BoxDecoration(border: Border.all(color: Colors.white, width: 2))
+              : null,
+          child: widget.child,
+        ),
       ),
     );
   }

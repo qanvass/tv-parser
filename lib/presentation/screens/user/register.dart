@@ -12,13 +12,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _password = TextEditingController();
   final _url = TextEditingController();
   final _fullUrl = TextEditingController();
+  bool _isM3uMode = false;
 
   @override
   void initState() {
     super.initState();
-    _url.text = 'http://cf.fulldin.vip';
-    _username.text = 'd27f1f5d5b85';
-    _password.text = '7b182cd04e';
+    _url.text = '';
+    _username.text = '';
+    _password.text = '';
   }
 
   @override
@@ -98,27 +99,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
   */
 
   void _login(BuildContext ctx) {
-    // Check if it is the demo account manually inputted
-    if (_username.text.trim() == 'azul-iptv' && _password.text.trim() == 'azul-demo') {
-      _loginDemo(ctx);
-      return;
-    }
-
     final rawUrl = _url.text.trim();
     if (rawUrl.isEmpty) {
       showWarningToast(
         context,
-        'Server URL Required',
-        'Please enter your Server / Portal URL to continue.',
+        _isM3uMode ? 'Playlist URL Required' : 'Server URL Required',
+        _isM3uMode
+            ? 'Please enter your M3U playlist URL to continue.'
+            : 'Please enter your Server / Portal URL to continue.',
       );
       return;
     }
 
     final uri = Uri.tryParse(rawUrl);
-    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https') || uri.host.isEmpty) {
+    if (uri == null ||
+        (uri.scheme != 'http' && uri.scheme != 'https') ||
+        uri.host.isEmpty) {
       showWarningToast(
         context,
-        'Invalid Server URL',
+        _isM3uMode ? 'Invalid Playlist URL' : 'Invalid Server URL',
         'Please enter a valid URL starting with http:// or https://',
       );
       return;
@@ -127,6 +126,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     var normalizedUrl = rawUrl;
     if (normalizedUrl.endsWith('/')) {
       normalizedUrl = normalizedUrl.substring(0, normalizedUrl.length - 1);
+    }
+
+    if (_isM3uMode) {
+      ctx.read<AuthBloc>().add(AuthLoadM3u(normalizedUrl));
+      return;
     }
 
     final username = _username.text.trim();
@@ -141,21 +145,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    gatewayService.isReviewMode = false;
-
-    ctx.read<AuthBloc>().add(
-      AuthRegister(username, password, normalizedUrl),
-    );
-  }
-
-  void _loginDemo(BuildContext ctx) {
-    _username.text = 'azul-iptv';
-    _password.text = 'azul-demo';
-    _url.text = ''; // Not required for demo
-    gatewayService.isReviewMode = true;
-    ctx.read<SettingsCubit>().updateStatusAccount(true);
-    changeDeviceOrient();
-    Get.offAndToNamed(screenWelcome);
+    ctx.read<AuthBloc>().add(AuthRegister(username, password, normalizedUrl));
   }
 
   @override
@@ -245,11 +235,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 Center(
                                   child: Text(
                                     'Sign in to TV Parser',
-                                    style: Get.textTheme.headlineMedium!.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                      fontSize: 18.sp,
-                                    ),
+                                    style: Get.textTheme.headlineMedium!
+                                        .copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                          fontSize: 18.sp,
+                                        ),
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -267,64 +258,163 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                                 const SizedBox(height: 20),
 
-                                // 4. Server / Portal URL field
-                                Text(
-                                  "Server / Portal URL",
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 13.sp,
-                                    fontWeight: FontWeight.bold,
+                                // Mode Switcher Toggle
+                                Container(
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF1B1828),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.white12),
                                   ),
-                                ),
-                                const SizedBox(height: 6),
-                                _LoginFieldMobile(
-                                  controller: _url,
-                                  hint: 'https://example.com',
-                                  icon: FontAwesomeIcons.link.data,
-                                  style: fieldStyle,
-                                  helperText: 'Enter the server URL provided by your authorized playlist provider.',
-                                ),
-                                const SizedBox(height: 14),
-
-                                // 5. Username field
-                                Text(
-                                  "Username",
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 13.sp,
-                                    fontWeight: FontWeight.bold,
+                                  padding: const EdgeInsets.all(4),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: GestureDetector(
+                                          key: const ValueKey(
+                                            'toggle_xtream_mode',
+                                          ),
+                                          onTap: () {
+                                            setState(() {
+                                              _isM3uMode = false;
+                                              _url.text = '';
+                                            });
+                                          },
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: !_isM3uMode
+                                                  ? kColorPrimary
+                                                  : Colors.transparent,
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 10,
+                                            ),
+                                            alignment: Alignment.center,
+                                            child: Text(
+                                              'Xtream Codes API',
+                                              style: TextStyle(
+                                                color: !_isM3uMode
+                                                    ? Colors.white
+                                                    : Colors.white60,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 12.sp,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: GestureDetector(
+                                          key: const ValueKey(
+                                            'toggle_m3u_mode',
+                                          ),
+                                          onTap: () {
+                                            setState(() {
+                                              _isM3uMode = true;
+                                              _url.text = '';
+                                            });
+                                          },
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: _isM3uMode
+                                                  ? kColorPrimary
+                                                  : Colors.transparent,
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 10,
+                                            ),
+                                            alignment: Alignment.center,
+                                            child: Text(
+                                              'M3U Playlist URL',
+                                              style: TextStyle(
+                                                color: _isM3uMode
+                                                    ? Colors.white
+                                                    : Colors.white60,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 12.sp,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                                const SizedBox(height: 6),
-                                _LoginFieldMobile(
-                                  controller: _username,
-                                  hint: 'Username',
-                                  icon: FontAwesomeIcons.solidUser.data,
-                                  style: fieldStyle,
-                                ),
-                                const SizedBox(height: 14),
-
-                                // 6. Password field
-                                Text(
-                                  "Password",
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 13.sp,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                _LoginFieldMobile(
-                                  controller: _password,
-                                  hint: 'Password',
-                                  icon: FontAwesomeIcons.lock.data,
-                                  obscure: true,
-                                  style: fieldStyle,
                                 ),
                                 const SizedBox(height: 24),
 
+                                // 4. Server / Playlist URL field
+                                Text(
+                                  _isM3uMode
+                                      ? "M3U Playlist URL"
+                                      : "Server / Portal URL",
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 13.sp,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                _LoginFieldMobile(
+                                  key: const ValueKey('field_url'),
+                                  controller: _url,
+                                  hint: _isM3uMode
+                                      ? 'https://example.com/playlist.m3u'
+                                      : 'https://example.com',
+                                  icon: FontAwesomeIcons.link.data,
+                                  style: fieldStyle,
+                                  helperText: _isM3uMode
+                                      ? 'Enter the direct M3U playlist URL.'
+                                      : 'Enter the server URL provided by your authorized playlist provider.',
+                                ),
+                                const SizedBox(height: 14),
+
+                                if (!_isM3uMode) ...[
+                                  // 5. Username field
+                                  Text(
+                                    "Username",
+                                    style: TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 13.sp,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  _LoginFieldMobile(
+                                    controller: _username,
+                                    hint: 'Username',
+                                    icon: FontAwesomeIcons.solidUser.data,
+                                    style: fieldStyle,
+                                  ),
+                                  const SizedBox(height: 14),
+
+                                  // 6. Password field
+                                  Text(
+                                    "Password",
+                                    style: TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 13.sp,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  _LoginFieldMobile(
+                                    controller: _password,
+                                    hint: 'Password',
+                                    icon: FontAwesomeIcons.lock.data,
+                                    obscure: true,
+                                    style: fieldStyle,
+                                  ),
+                                  const SizedBox(height: 24),
+                                ] else ...[
+                                  const SizedBox(height: 10),
+                                ],
+
                                 // 7. Sign In button
                                 CardTallButton(
+                                  key: const ValueKey('btn_sign_in'),
                                   label: 'Sign In',
                                   isLoading: isLoading,
                                   onTap: () => _login(context),
@@ -338,17 +428,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       showDialog(
                                         context: context,
                                         builder: (_) => AlertDialog(
-                                          backgroundColor: const Color(0xFF13101E),
-                                          title: const Text('Need Help?', style: TextStyle(color: Colors.white)),
+                                          backgroundColor: const Color(
+                                            0xFF13101E,
+                                          ),
+                                          title: const Text(
+                                            'Need Help?',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                            ),
+                                          ),
                                           content: const Text(
                                             'Please contact your playlist provider or administrator to retrieve your Server URL, Username, and Password.',
-                                            style: TextStyle(color: Colors.white70),
+                                            style: TextStyle(
+                                              color: Colors.white70,
+                                            ),
                                           ),
                                           actions: [
                                             TextButton(
                                               onPressed: () => Get.back(),
-                                              child: const Text('OK', style: TextStyle(color: kColorPrimary)),
-                                            )
+                                              child: const Text(
+                                                'OK',
+                                                style: TextStyle(
+                                                  color: kColorPrimary,
+                                                ),
+                                              ),
+                                            ),
                                           ],
                                         ),
                                       );
@@ -358,27 +462,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       style: TextStyle(
                                         color: kColorPrimary,
                                         fontWeight: FontWeight.w600,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-
-                                // Use Demo Account link
-                                Center(
-                                  child: OutlinedButton(
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: Colors.white70,
-                                      side: const BorderSide(color: Colors.white30),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                                      minimumSize: const Size(180, 36),
-                                    ),
-                                    onPressed: () => _loginDemo(context),
-                                    child: const Text(
-                                      "Use Demo Account",
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
                                         fontSize: 12,
                                       ),
                                     ),
@@ -405,6 +488,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
 class _LoginFieldMobile extends StatelessWidget {
   const _LoginFieldMobile({
+    super.key,
     required this.controller,
     required this.hint,
     required this.icon,
@@ -450,7 +534,10 @@ class _LoginFieldMobile extends StatelessWidget {
             padding: const EdgeInsets.only(left: 8.0),
             child: Text(
               helperText!,
-              style: Get.textTheme.bodySmall!.copyWith(color: Colors.white54, fontSize: 11),
+              style: Get.textTheme.bodySmall!.copyWith(
+                color: Colors.white54,
+                fontSize: 11,
+              ),
             ),
           ),
         ],
@@ -458,5 +545,3 @@ class _LoginFieldMobile extends StatelessWidget {
     );
   }
 }
-
-

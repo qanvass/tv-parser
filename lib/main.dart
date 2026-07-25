@@ -17,29 +17,25 @@ import 'logic/cubits/video/video_cubit.dart';
 import 'logic/cubits/watch/watching_cubit.dart';
 import 'presentation/screens/screens.dart';
 import 'presentation/mobile/adult_content_screen.dart';
+import 'presentation/tv/tv_search_screen.dart';
 
 void main() async {
   // Ensure Flutter engine bindings are initialized prior to loading services
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize local GetStorage instances for state and favorites
   await GetStorage.init();
   await GetStorage.init("favorites");
   await GetStorage.init("preferences");
   await GetStorage.init("youtube_trailer_cache");
-  
+
   final prefs = GetStorage("preferences");
   prefs.writeIfNull("allowMobileLandscape", false);
-  
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-  ]);
-  
+
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+
   // Initialize device orientation
   await OrientationGuard.init();
-  
-  // Initialize streaming Gateway/decoders 
-  await gatewayService.initializeGateway();
 
   runApp(
     MyApp(
@@ -56,7 +52,7 @@ class MyApp extends StatefulWidget {
   final AuthApi authApi;
   final WatchingLocale watchingLocale;
   final FavoriteLocale favoriteLocale;
-  
+
   const MyApp({
     super.key,
     required this.iptv,
@@ -78,11 +74,9 @@ class _MyAppState extends State<MyApp> {
 
   /// Configures system UI overlays for an immersive, distraction-free playback experience.
   void _configureSystemUI() {
-    // ImmersiveSticky hides the status and navigation bars, making them only reveal 
+    // ImmersiveSticky hides the status and navigation bars, making them only reveal
     // on a swipe gesture without shifting the layout underneath. Ideal for media players.
-    SystemChrome.setEnabledSystemUIMode(
-      SystemUiMode.immersiveSticky,
-    );
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
   @override
@@ -95,9 +89,7 @@ class _MyAppState extends State<MyApp> {
       },
       child: MultiBlocProvider(
         providers: [
-          BlocProvider<AuthBloc>(
-            create: (context) => AuthBloc(widget.authApi),
-          ),
+          BlocProvider<AuthBloc>(create: (context) => AuthBloc(widget.authApi)),
           BlocProvider<LiveCatyBloc>(
             create: (context) => LiveCatyBloc(widget.iptv),
           ),
@@ -110,12 +102,8 @@ class _MyAppState extends State<MyApp> {
           BlocProvider<SeriesCatyBloc>(
             create: (context) => SeriesCatyBloc(widget.iptv),
           ),
-          BlocProvider<VideoCubit>(
-            create: (context) => VideoCubit(),
-          ),
-          BlocProvider<SettingsCubit>(
-            create: (context) => SettingsCubit(),
-          ),
+          BlocProvider<VideoCubit>(create: (context) => VideoCubit()),
+          BlocProvider<SettingsCubit>(create: (context) => SettingsCubit()),
           BlocProvider<WatchingCubit>(
             create: (context) => WatchingCubit(widget.watchingLocale),
           ),
@@ -167,7 +155,14 @@ class _MyAppState extends State<MyApp> {
                   page: () => const FavouriteScreen(),
                 ),
                 GetPage(name: screenCatchUp, page: () => const CatchUpScreen()),
-                GetPage(name: screenAdultContent, page: () => const AdultContentScreen()),
+                GetPage(
+                  name: screenAdultContent,
+                  page: () => const AdultContentScreen(),
+                ),
+                GetPage(
+                  name: screenTvSearch,
+                  page: () => const TvSearchScreen(),
+                ),
               ],
             );
           },

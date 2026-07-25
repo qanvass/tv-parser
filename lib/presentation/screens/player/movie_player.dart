@@ -138,11 +138,13 @@ class LivePlayerScreen extends StatefulWidget {
     required this.link,
     required this.title,
     this.streamIcon,
+    this.streamId,
   });
 
   final String link;
   final String title;
   final String? streamIcon;
+  final String? streamId;
 
   @override
   State<LivePlayerScreen> createState() => _LivePlayerScreenState();
@@ -377,7 +379,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
       if (_focusRow == 1)
         setState(() {
           _focusRow = 0;
-          _focusCol = _focusCol.clamp(0, 3);
+          _focusCol = _focusCol.clamp(0, isTvDevice() ? 4 : 3);
         });
       _scheduleHide();
     } else if (k == LogicalKeyboardKey.arrowDown) {
@@ -391,7 +393,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
       if (_focusCol > 0) setState(() => _focusCol--);
       _scheduleHide();
     } else if (k == LogicalKeyboardKey.arrowRight) {
-      final maxCol = _focusRow == 0 ? 3 : 1;
+      final maxCol = _focusRow == 0 ? (isTvDevice() ? 4 : 3) : 1;
       if (_focusCol < maxCol) setState(() => _focusCol++);
       _scheduleHide();
     } else if (_isSelectKey(k)) {
@@ -420,15 +422,30 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
 
   void _activate() {
     if (_focusRow == 0) {
-      switch (_focusCol) {
-        case 0:
-          Get.back();
-        case 1:
-          _openCastDialog();
-        case 2:
-          if (_subtitleTracks.isNotEmpty) _openTrackPanel('sub');
-        case 3:
-          if (_audioTracks.isNotEmpty) _openTrackPanel('audio');
+      if (isTvDevice()) {
+        switch (_focusCol) {
+          case 0:
+            Get.back();
+          case 1:
+            _toggleFavorite();
+          case 2:
+            _openCastDialog();
+          case 3:
+            if (_subtitleTracks.isNotEmpty) _openTrackPanel('sub');
+          case 4:
+            if (_audioTracks.isNotEmpty) _openTrackPanel('audio');
+        }
+      } else {
+        switch (_focusCol) {
+          case 0:
+            Get.back();
+          case 1:
+            _openCastDialog();
+          case 2:
+            if (_subtitleTracks.isNotEmpty) _openTrackPanel('sub');
+          case 3:
+            if (_audioTracks.isNotEmpty) _openTrackPanel('audio');
+        }
       }
     } else {
       switch (_focusCol) {
@@ -438,6 +455,26 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
           _cycleAspect();
       }
     }
+  }
+
+  void _toggleFavorite() {
+    final sid = widget.streamId ?? extractStreamIdFromUrl(widget.link);
+    if (sid == null) return;
+    final favState = context.read<FavoritesCubit>().state;
+    final existing = favState.lives.where((l) => l.streamId == sid).toList();
+    if (existing.isNotEmpty) {
+      context.read<FavoritesCubit>().addLive(existing.first, isAdd: false);
+    } else {
+      context.read<FavoritesCubit>().addLive(
+            ChannelLive(
+              streamId: sid,
+              name: widget.title,
+              streamIcon: widget.streamIcon,
+            ),
+            isAdd: true,
+          );
+    }
+    _scheduleHide();
   }
 
   Widget _buildCastOverlay(BuildContext context) {
@@ -726,6 +763,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
   }
 
   Widget _buildOverlay() {
+    final streamId = widget.streamId ?? extractStreamIdFromUrl(widget.link);
     return DecoratedBox(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -741,7 +779,19 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
         ),
       ),
       child: Column(
-        children: [_buildTopBar(), const Spacer(), _buildBottomBar()],
+        children: [
+          _buildTopBar(),
+          if (isTvDevice() && streamId != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(56, 0, 16, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: TvEpgPeek(streamId: streamId),
+              ),
+            ),
+          const Spacer(),
+          _buildBottomBar(),
+        ],
       ),
     );
   }
@@ -783,6 +833,24 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            if (isTvDevice()) ...[
+              BlocBuilder<FavoritesCubit, FavoritesState>(
+                builder: (context, favState) {
+                  final sid = widget.streamId ?? extractStreamIdFromUrl(widget.link);
+                  final isFav = sid != null &&
+                      favState.lives.any((l) => l.streamId == sid);
+                  return _FsBtn(
+                    icon: isFav
+                        ? FontAwesomeIcons.solidHeart.data
+                        : FontAwesomeIcons.heart.data,
+                    label: isFav ? 'Unfav' : 'Fav',
+                    isFocused: _isFocused(0, 1),
+                    onTap: _toggleFavorite,
+                  );
+                },
+              ),
+              const SizedBox(width: 8),
+            ],
             Container(
               margin: const EdgeInsets.only(left: 8, right: 12),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -804,7 +872,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
             _FsBtn(
               icon: FontAwesomeIcons.chromecast.data,
               label: 'Cast',
-              isFocused: _isFocused(0, 1),
+              isFocused: _isFocused(0, isTvDevice() ? 2 : 1),
               onTap: _openCastDialog,
             ),
             const SizedBox(width: 8),
@@ -814,7 +882,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
               badge: _subtitleTracks.isNotEmpty
                   ? '${_subtitleTracks.length}'
                   : null,
-              isFocused: _isFocused(0, 2),
+              isFocused: _isFocused(0, isTvDevice() ? 3 : 2),
               isDisabled: _subtitleTracks.isEmpty,
               onTap: () => _openTrackPanel('sub'),
             ),
@@ -823,7 +891,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
               icon: FontAwesomeIcons.volumeHigh.data,
               label: 'AUD',
               badge: _audioTracks.isNotEmpty ? '${_audioTracks.length}' : null,
-              isFocused: _isFocused(0, 3),
+              isFocused: _isFocused(0, isTvDevice() ? 4 : 3),
               isDisabled: _audioTracks.isEmpty,
               onTap: () => _openTrackPanel('audio'),
             ),
