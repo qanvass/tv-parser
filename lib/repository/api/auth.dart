@@ -79,20 +79,27 @@ class AuthApi {
 
   Future<UserModel?> registerM3u(String playlistUrl) async {
     try {
-      debugPrint("[Auth] M3U login request started");
+      final uri = Uri.tryParse(playlistUrl);
+      final safeUrl = (uri == null || !uri.hasScheme)
+          ? '<invalid>'
+          : '${uri.scheme}://${uri.host}${uri.path}';
+      debugPrint("[Auth] M3U login request started for: $safeUrl");
       final Response<String> response = await _dio.get(
         playlistUrl,
-        options: Options(responseType: ResponseType.plain),
+        options: Options(
+          responseType: ResponseType.plain,
+          validateStatus: (status) => status != null && status < 400,
+        ),
       );
 
       if (response.statusCode == 200 && response.data != null) {
         final content = response.data!;
         if (!content.contains("#EXTM3U")) {
-          debugPrint("[Auth] M3U download failed: missing #EXTM3U header");
+          debugPrint("[Auth] M3U download failed: missing #EXTM3U header (received non-M3U content)");
           return null;
         }
 
-        final parsedData = M3uParser.parse(content);
+        final Map<String, dynamic> parsedData = await compute(M3uParser.parse, content);
         final List<CategoryModel> categories =
             parsedData['categories'] as List<CategoryModel>;
         final List<ChannelLive> channels =
