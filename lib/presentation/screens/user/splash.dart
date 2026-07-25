@@ -32,12 +32,15 @@ class _SplashScreenState extends State<SplashScreen> {
     // CRITICAL: DO NOT TOUCH THIS SPLASH SCREEN VIDEO PATH EVER. HARDCODED REQUIREMENT.
     _controller = VideoPlayerController.asset('assets/images/splash_video.mp4')
       ..initialize().then((_) {
-        if (mounted) {
-          setState(() {
-            _videoInitialized = true;
-          });
-          _controller?.play();
-        }
+        if (!mounted) return;
+        // Keep sync — async then+catchError can drop errors on some devices.
+        try {
+          _controller?.setVolume(1.0);
+        } catch (_) {}
+        setState(() {
+          _videoInitialized = true;
+        });
+        _controller?.play();
       }).catchError((e) {
         debugPrint("Splash video player load error: $e");
         // Fallback to instantly complete video if loading fails
@@ -61,8 +64,8 @@ class _SplashScreenState extends State<SplashScreen> {
       }
     });
 
-    // Safety fallback timer (5 seconds) to ensure the app never hangs
-    Future.delayed(const Duration(seconds: 5)).then((_) {
+    // Safety fallback slightly past the 5s splash reel
+    Future.delayed(const Duration(seconds: 6)).then((_) {
       if (mounted && !_videoCompleted) {
         setState(() {
           _videoCompleted = true;
@@ -112,8 +115,8 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 }
 
-/// Frames the splash reel inside the TV overscan safe area (~90%) with
-/// contain scaling so the brand mark is never cropped on 16:9 displays.
+/// Full-bleed 16:9 splash. Uses contain so phone portrait letterboxes
+/// cleanly; on TV panels the widescreen reel fills the frame.
 class _SplashVideoFrame extends StatelessWidget {
   const _SplashVideoFrame({required this.controller});
 
@@ -130,9 +133,9 @@ class _SplashVideoFrame extends StatelessWidget {
       color: const Color(0xFF0F0F10),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // Android TV overscan: keep critical brand inside ~90% of the panel.
-          final maxW = constraints.maxWidth * 0.90;
-          final maxH = constraints.maxHeight * 0.90;
+          // Slight overscan inset (~2%) so aurora edges aren't clipped on TVs.
+          final maxW = constraints.maxWidth * 0.98;
+          final maxH = constraints.maxHeight * 0.98;
 
           var width = maxW;
           var height = width / aspect;
