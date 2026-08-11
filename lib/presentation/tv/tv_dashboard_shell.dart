@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get/get.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../helpers/helpers.dart';
 import '../../logic/blocs/auth/auth_bloc.dart';
@@ -1677,6 +1678,41 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
   }
 }
 
+class _AppBuildBadge extends StatefulWidget {
+  const _AppBuildBadge();
+
+  @override
+  State<_AppBuildBadge> createState() => _AppBuildBadgeState();
+}
+
+class _AppBuildBadgeState extends State<_AppBuildBadge> {
+  String _label = '';
+
+  @override
+  void initState() {
+    super.initState();
+    PackageInfo.fromPlatform().then((info) {
+      if (!mounted) return;
+      final build = info.buildNumber.trim();
+      setState(() => _label = build.isEmpty ? info.version : 'v$build');
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_label.isEmpty) return const SizedBox(width: 36, height: 22);
+    return Text(
+      _label,
+      style: const TextStyle(
+        color: Color(0xFF00D2FF),
+        fontSize: 13,
+        fontWeight: FontWeight.w900,
+        letterSpacing: 0.8,
+      ),
+    );
+  }
+}
+
 class _Header extends StatelessWidget {
   final String selectedLabel;
   final String? subtitle;
@@ -1752,15 +1788,7 @@ class _Header extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: kColorPrimary.withValues(alpha: 0.7)),
           ),
-          child: const Text(
-            'v3002',
-            style: TextStyle(
-              color: Color(0xFF00D2FF),
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.8,
-            ),
-          ),
+          child: const _AppBuildBadge(),
         ),
         const TvStatusClock(),
       ],
