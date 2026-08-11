@@ -30,6 +30,7 @@ class SearchIndexService {
   static bool moviesIndexReady = false;
   static bool seriesIndexReady = false;
   static Completer<void>? _inFlight;
+  static Completer<void>? _liveInFlight;
   static Completer<void>? _moviesInFlight;
   static Completer<void>? _seriesInFlight;
   static int _lastSourceCount = 0;
@@ -122,6 +123,45 @@ class SearchIndexService {
       CatalogPerf.span('search_index_ms', stopwatch.elapsedMilliseconds);
       CatalogPerf.count('searchIndexEntries', _index.length);
       CatalogPerf.flush('after_search_index');
+    }
+  }
+
+  /// Index live only. Does not wait on movies/series and does not clear them.
+  static Future<void> indexLive({
+    required List<ChannelLive> liveChannels,
+    Set<String>? adultCategoryIds,
+    Map<String, String>? categoryIdToName,
+  }) async {
+    if (_liveInFlight != null) {
+      try {
+        await _liveInFlight!.future;
+      } catch (_) {}
+      if (liveIndexReady) return;
+    }
+    final completer = Completer<void>();
+    _liveInFlight = completer;
+    try {
+      final params = SearchIndexParams(
+        liveChannels: liveChannels,
+        movies: const [],
+        series: const [],
+        adultCategoryIds: adultCategoryIds ?? {},
+        categoryIdToName: categoryIdToName ?? const {},
+      );
+      final built = await compute(buildSearchIndexInBackground, params);
+      _index.removeWhere((e) => e.type == 'live');
+      _index.addAll(built);
+      liveIndexReady = true;
+      _isReady = true;
+      if (!completer.isCompleted) completer.complete();
+      debugPrint(
+        '[SearchIndexService] live domain ready entries=${built.length}',
+      );
+    } catch (e) {
+      debugPrint('[SearchIndexService] live index error: $e');
+      if (!completer.isCompleted) completer.completeError(e);
+    } finally {
+      if (identical(_liveInFlight, completer)) _liveInFlight = null;
     }
   }
 

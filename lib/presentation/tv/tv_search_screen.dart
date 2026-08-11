@@ -51,7 +51,6 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
   List<ChannelMovie> _movieResults = [];
   List<ChannelSerie> _seriesResults = [];
 
-  bool _loading = false;
   bool _indexReady = false;
   bool _hasSearched = false;
   String _activeQuery = '';
@@ -99,23 +98,15 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
     };
   }
 
-  /// Prefer session / LocaleApi cache (same source Live uses), then IpTvApi.
+  /// Session / LocaleApi cache only. Never cold-loads Series or buildIndex().
   Future<void> _loadCatalog() async {
     if (!mounted) return;
-    setState(() => _loading = true);
     try {
-      // Sync readable lists first — Apollo/starlite M3U already in m3u_cache.
+      // Live + Movies from whatever is already in session memory / file cache.
+      // Do NOT call seriesChannels() or getSeriesChannels("") — that rematerializes
+      // the full Series catalog. Series joins later via its existing index.
       var lives = IptvProviderSession.instance.liveChannels();
       var movies = IptvProviderSession.instance.movieChannels();
-      var series = IptvProviderSession.instance.seriesChannels();
-
-      if (lives.isEmpty && movies.isEmpty && series.isEmpty) {
-        final api = IpTvApi();
-        lives = await api.getLiveChannels("");
-        movies = await api.getMovieChannels("");
-        // Series after movies so Search can index movies first.
-        series = await api.getSeriesChannels("");
-      }
 
       final cats = <CategoryModel>[
         ...LocaleApi.getM3uCategories(),
@@ -138,43 +129,97 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
       setState(() {
         _allLiveChannels = lives;
         _allMovies = movies;
-        _allSeries = series;
         _categoryIdToName = catMap;
+        _indexReady = SearchIndexService.isReady;
       });
 
       debugPrint(
         '[TvSearch] catalog live=${lives.length} movies=${movies.length} '
-        'series=${series.length} groups=${catMap.length} '
+        'seriesIndexed=${SearchIndexService.seriesIndexReady} '
+        'groups=${catMap.length} '
         'indexReady=${SearchIndexService.isReady} '
         'indexed=${SearchIndexService.totalIndexedEntries}',
       );
 
-      await SearchIndexService.buildIndex(
-        liveChannels: lives,
+      await _indexAvailableDomains(
+        lives: lives,
         movies: movies,
-        series: series,
         adultCategoryIds: adultCategoryIds,
         categoryIdToName: catMap,
       );
 
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _indexReady = SearchIndexService.isReady;
-      });
-
-      final pending = _searchController.text.trim();
-      if (pending.isNotEmpty) {
-        _performSearch(pending);
+      if (lives.isEmpty) {
+        try {
+          final fetched = await IpTvApi().getLiveChannels("");
+          if (!mounted) return;
+          if (fetched.isNotEmpty) {
+            setState(() => _allLiveChannels = fetched);
+            await _indexAvailableDomains(
+              lives: fetched,
+              movies: const [],
+              adultCategoryIds: adultCategoryIds,
+              categoryIdToName: catMap,
+            );
+          }
+        } catch (e) {
+          debugPrint('TV search live fallback: $e');
+        }
       }
     } catch (e) {
       debugPrint('TV search prefetch error: $e');
       if (mounted) {
-        setState(() {
-          _loading = false;
-          _indexReady = SearchIndexService.isReady;
-        });
+        setState(() => _indexReady = SearchIndexService.isReady);
       }
+    }
+  }
+
+  Future<void> _indexAvailableDomains({
+    required List<ChannelLive> lives,
+    required List<ChannelMovie> movies,
+    required Set<String> adultCategoryIds,
+    required Map<String, String> categoryIdToName,
+  }) async {
+    final jobs = <Future<void>>[];
+    if (lives.isNotEmpty && !SearchIndexService.liveIndexReady) {
+      jobs.add(
+        SearchIndexService.indexLive(
+          liveChannels: lives,
+          adultCategoryIds: adultCategoryIds,
+          categoryIdToName: categoryIdToName,
+        ),
+      );
+    }
+    if (movies.isNotEmpty && !SearchIndexService.moviesIndexReady) {
+      jobs.add(
+        SearchIndexService.indexMovies(
+          movies: movies,
+          adultCategoryIds: adultCategoryIds,
+          categoryIdToName: categoryIdToName,
+        ),
+      );
+    }
+    if (SearchIndexService.seriesIndexReady == false &&
+        _allSeries.isNotEmpty) {
+      jobs.add(
+        SearchIndexService.indexSeries(
+          series: _allSeries,
+          adultCategoryIds: adultCategoryIds,
+          categoryIdToName: categoryIdToName,
+        ),
+      );
+    }
+    if (jobs.isEmpty) {
+      if (mounted) {
+        setState(() => _indexReady = SearchIndexService.isReady);
+      }
+      return;
+    }
+    await Future.wait(jobs);
+    if (!mounted) return;
+    setState(() => _indexReady = SearchIndexService.isReady);
+    final pending = _searchController.text.trim();
+    if (pending.isNotEmpty) {
+      await _performSearch(pending);
     }
   }
 
@@ -200,13 +245,32 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
       return;
     }
 
-    if (!SearchIndexService.isReady ||
-        SearchIndexService.totalIndexedEntries == 0) {
-      await SearchIndexService.buildIndex(
-        liveChannels: _allLiveChannels,
-        movies: _allMovies,
-        series: _allSeries,
-        categoryIdToName: _categoryIdToName,
+    if (_allLiveChannels.isNotEmpty && !SearchIndexService.liveIndexReady) {
+      unawaited(
+        SearchIndexService.indexLive(
+          liveChannels: _allLiveChannels,
+          categoryIdToName: _categoryIdToName,
+        ).then((_) {
+          if (mounted && _searchController.text.trim() == clean) {
+            _performSearch(clean);
+          }
+        }).catchError((Object e) {
+          debugPrint('TV search live index: $e');
+        }),
+      );
+    }
+    if (_allMovies.isNotEmpty && !SearchIndexService.moviesIndexReady) {
+      unawaited(
+        SearchIndexService.indexMovies(
+          movies: _allMovies,
+          categoryIdToName: _categoryIdToName,
+        ).then((_) {
+          if (mounted && _searchController.text.trim() == clean) {
+            _performSearch(clean);
+          }
+        }).catchError((Object e) {
+          debugPrint('TV search movies index: $e');
+        }),
       );
     }
 
@@ -321,20 +385,13 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
       children: [
         _buildSearchField(),
         const SizedBox(height: 20),
-        if (_loading)
-          const Expanded(
-            child: Center(
-              child: CircularProgressIndicator(color: Colors.white24),
-            ),
-          )
-        else
-          Expanded(
-            child: !_hasSearched
-                ? _buildIdleState()
-                : total == 0
-                    ? _buildEmptyState()
-                    : _buildResults(total),
-          ),
+        Expanded(
+          child: !_hasSearched
+              ? _buildIdleState()
+              : total == 0
+                  ? _buildEmptyState()
+                  : _buildResults(total),
+        ),
       ],
     );
 
@@ -515,7 +572,7 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
             fontSize: 13,
           ),
         ),
-        if (!_indexReady && !_loading) ...[
+        if (!_indexReady) ...[
           const SizedBox(height: 8),
           Text(
             'Index still building… results appear when ready.',

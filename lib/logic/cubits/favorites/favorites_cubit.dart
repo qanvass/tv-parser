@@ -12,7 +12,7 @@ class FavoritesCubit extends Cubit<FavoritesState> {
   final FavoriteLocale favoriteLocale;
   FavoritesCubit(this.favoriteLocale) : super(FavoritesState.defaultData());
 
-  void initialData() async {
+  Future<void> initialData() async {
     final series = await favoriteLocale.getFavSeries();
     final movies = await favoriteLocale.getFavMovies();
     final lives = await favoriteLocale.getFavLives();
@@ -28,11 +28,17 @@ class FavoritesCubit extends Cubit<FavoritesState> {
     );
   }
 
-  void addMovie(ChannelMovie? value, {required bool isAdd}) async {
+  Future<void> addMovie(ChannelMovie? value, {required bool isAdd}) async {
     final oldList = state.movies;
     List<ChannelMovie> newList = List.of(oldList);
+    final id = value?.streamId;
 
     if (isAdd) {
+      if (id != null &&
+          id.isNotEmpty &&
+          oldList.any((movie) => movie.streamId == id)) {
+        return;
+      }
       newList.insert(0, value!);
     } else {
       newList =
@@ -55,11 +61,17 @@ class FavoritesCubit extends Cubit<FavoritesState> {
     ));
   }
 
-  void addSerie(ChannelSerie? value, {required bool isAdd}) async {
+  Future<void> addSerie(ChannelSerie? value, {required bool isAdd}) async {
     final oldList = state.series;
     List<ChannelSerie> newList = List.of(oldList);
+    final id = value?.seriesId;
 
     if (isAdd) {
+      if (id != null &&
+          id.isNotEmpty &&
+          oldList.any((serie) => serie.seriesId == id)) {
+        return;
+      }
       newList.insert(0, value!);
     } else {
       newList =
@@ -80,11 +92,17 @@ class FavoritesCubit extends Cubit<FavoritesState> {
     ));
   }
 
-  void addLive(ChannelLive? value, {required bool isAdd}) async {
+  Future<void> addLive(ChannelLive? value, {required bool isAdd}) async {
     final oldList = state.lives;
     List<ChannelLive> newList = List.of(oldList);
+    final id = value?.streamId;
 
     if (isAdd) {
+      if (id != null &&
+          id.isNotEmpty &&
+          oldList.any((live) => live.streamId == id)) {
+        return;
+      }
       newList.insert(0, value!);
     } else {
       newList =

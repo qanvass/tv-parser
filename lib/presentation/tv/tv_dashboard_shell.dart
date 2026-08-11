@@ -232,6 +232,43 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     unawaited(_resumePreviewWhenDashboardCurrent());
   }
 
+  /// Live → Movies: drop the hero provider slot before the Movies pane appears.
+  Future<void> _leaveLiveForMovies() async {
+    // ignore: avoid_print
+    print('[PLAYBACK_HANDOFF] preview_release_requested reason=live_to_movies');
+    await _livePreview.stopAndRelease(reason: 'live_to_movies');
+    // ignore: avoid_print
+    print(
+      '[PLAYBACK_HANDOFF] preview_release_completed reason=live_to_movies '
+      'phase=${_livePreview.phase.name}',
+    );
+    if (!mounted) return;
+    setState(() {
+      _selectedNavIndex = _TvNav.movies;
+      _railCollapsed = false;
+    });
+  }
+
+  /// Cinematic Movies play only. Await existing preview release, then
+  /// the existing Welcome movie route. Does not resume Live hero.
+  Future<void> _openMovieFromCatalog(String streamUrl) async {
+    // ignore: avoid_print
+    print('[PLAYBACK_HANDOFF] preview_release_requested reason=movie_play');
+    await _livePreview.stopAndRelease(reason: 'movie_play');
+    if (!mounted) return;
+    // ignore: avoid_print
+    print(
+      '[PLAYBACK_HANDOFF] preview_release_completed reason=movie_play '
+      'phase=${_livePreview.phase.name}',
+    );
+    // ignore: avoid_print
+    print(
+      '[PLAYBACK_HANDOFF] movie_open_requested '
+      'hash=${LivePreviewTrace.urlHash(streamUrl)}',
+    );
+    widget.onChannelSelected(streamUrl);
+  }
+
   Future<void> _resumePreviewWhenDashboardCurrent() async {
     final route = ModalRoute.of(context);
     if (route == null) return;
@@ -1247,6 +1284,10 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     if (index == _TvNav.movies) {
       CatalogPerf.anchor('movies_tab');
     }
+    if (leavingLive && index == _TvNav.movies) {
+      unawaited(_leaveLiveForMovies());
+      return;
+    }
     setState(() {
       _selectedNavIndex = index;
       _railCollapsed = index == _TvNav.search;
@@ -1669,7 +1710,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     if (isMoviesTab) {
       return CinematicMoviesPage(
         rows: rows,
-        onChannelSelected: widget.onChannelSelected,
+        onChannelSelected: _openMovieFromCatalog,
         onStreamFocused: (stream) {
           if (!mounted) return;
           setState(() => _focusedVodStream = stream);
