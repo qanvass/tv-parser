@@ -127,8 +127,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       builder: (dialogCtx) => AlertDialog(
         backgroundColor: const Color(0xFF13101E),
         title: const Text(
-          "Adult Content Locked", 
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 24)
+          "Adult Content Locked",
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 24),
         ),
         content: SizedBox(
           width: 400,
@@ -136,7 +136,10 @@ class _WelcomeScreenState extends State<WelcomeScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text("Enter PIN to unlock 18+ channels.", style: TextStyle(color: Colors.white70, fontSize: 16)),
+              const Text(
+                "Enter PIN to unlock 18+ channels.",
+                style: TextStyle(color: Colors.white70, fontSize: 16),
+              ),
               const SizedBox(height: 20),
               TextField(
                 controller: pinController,
@@ -164,7 +167,10 @@ class _WelcomeScreenState extends State<WelcomeScreen>
               pinController.dispose();
               Navigator.of(dialogCtx).pop();
             },
-            child: const Text("Cancel", style: TextStyle(color: Colors.white60, fontSize: 16)),
+            child: const Text(
+              "Cancel",
+              style: TextStyle(color: Colors.white60, fontSize: 16),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -190,7 +196,10 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                 );
               }
             },
-            child: const Text("Unlock", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            child: const Text(
+              "Unlock",
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -206,14 +215,35 @@ class _WelcomeScreenState extends State<WelcomeScreen>
           if (url == "adult_locked") {
             _showTvAdultPinDialog(context);
           } else {
-            final streamId = extractStreamIdFromUrl(url);
-            // M3U providers (e.g. /api/stream/.../*.m3u8) are not Xtream /live/<id>.
+            final extractedStreamId = extractStreamIdFromUrl(url);
+            // Preserve the actual Live record when crossing the URL-only shell
+            // callback so fullscreen Favorites can persist the real channel id,
+            // title, and logo instead of silently no-oping on M3U URLs.
+            ChannelLive? selectedLive;
             if (isLikelyLiveStreamUrl(url)) {
+              for (final ch in IptvProviderSession.instance.liveChannels()) {
+                final direct = ch.directSource?.trim();
+                final id = ch.streamId?.trim();
+                if (direct == url ||
+                    (extractedStreamId != null && id == extractedStreamId)) {
+                  selectedLive = ch;
+                  break;
+                }
+              }
+              final selectedId = selectedLive?.streamId?.trim();
+              final effectiveStreamId =
+                  (selectedId != null && selectedId.isNotEmpty)
+                      ? selectedId
+                      : (extractedStreamId ?? url);
+              final selectedName = selectedLive?.name?.trim();
               Get.to(
                 () => LivePlayerScreen(
                   link: url,
-                  title: 'TV Stream',
-                  streamId: streamId,
+                  title: (selectedName != null && selectedName.isNotEmpty)
+                      ? selectedName
+                      : 'TV Stream',
+                  streamIcon: selectedLive?.streamIcon,
+                  streamId: effectiveStreamId,
                 ),
               );
             } else {
