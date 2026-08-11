@@ -73,15 +73,29 @@ class TmdbEnrichmentWorker extends ChangeNotifier {
 
   UnifiedMediaMetadata? lookup(String key) => _cache.get(key);
 
+  /// Debug-only counters for the v3008 rebuild audit. Release stays silent.
+  @visibleForTesting
+  int debugNotifyCount = 0;
+  @visibleForTesting
+  int debugCacheHitSkipCount = 0;
+
   /// [year] must be the same value stored on the rail record. Passing a
   /// stripped display title without [year] used to produce a different key
   /// than `cacheKeyFor(rawNameWithYear)` — UI lookup then missed every hit.
+  ///
+  /// When the caller already ran [TitleNormalizer.parse], pass that
+  /// [matchTitle] (and the same [year]) to skip a second parse. The
+  /// emitted string format is unchanged.
   static String cacheKeyFor(
     String rawTitle,
     String? providerId, {
     ContentType type = ContentType.unknown,
     int? year,
+    String? matchTitle,
   }) {
+    if (matchTitle != null) {
+      return '${type.name}|${providerId ?? ''}|${matchTitle.toLowerCase()}|${year ?? ''}';
+    }
     final parsed = TitleNormalizer.parse(rawTitle);
     return '${type.name}|${providerId ?? ''}|${parsed.matchTitle.toLowerCase()}|${year ?? parsed.year ?? ''}';
   }
@@ -94,7 +108,9 @@ class TmdbEnrichmentWorker extends ChangeNotifier {
   void prioritize(TmdbEnqueueRequest request) {
     if (!_client.isEnabled) return;
     if (_cache.has(request.key)) {
-      notifyListeners();
+      // Cache already has art — posters/hero look up on build. A notify
+      // here rebuilt the whole dashboard on every D-pad focus.
+      if (kDebugMode) debugCacheHitSkipCount++;
       return;
     }
     _queue.removeWhere((j) => j.key == request.key);
@@ -120,6 +136,12 @@ class TmdbEnrichmentWorker extends ChangeNotifier {
       _queue.add(request);
     }
     _pump();
+  }
+
+  @override
+  void notifyListeners() {
+    if (kDebugMode) debugNotifyCount++;
+    super.notifyListeners();
   }
 
   Future<void> _pump() async {

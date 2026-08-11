@@ -129,7 +129,7 @@ class _TvEpgPeekState extends State<TvEpgPeek> {
       return Text(
         'Loading guide…',
         style: TextStyle(
-          color: Colors.white.withValues(alpha: 0.45),
+          color: Colors.white.withValues(alpha: 0.4),
           fontSize: widget.compact ? 12 : 14,
         ),
       );

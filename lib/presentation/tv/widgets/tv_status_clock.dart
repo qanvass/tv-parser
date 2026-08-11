@@ -6,7 +6,9 @@ import '../../../helpers/helpers.dart';
 
 /// Real device time/date in the mockup status slot. Never a hardcoded clock.
 class TvStatusClock extends StatefulWidget {
-  const TvStatusClock({super.key});
+  final bool neutral;
+
+  const TvStatusClock({super.key, this.neutral = false});
 
   @override
   State<TvStatusClock> createState() => _TvStatusClockState();
@@ -63,8 +65,10 @@ class _TvStatusClockState extends State<TvStatusClock> {
           children: [
             Text(
               '$hour:$min $mer',
-              style: const TextStyle(
-                color: Color(0xFF00D2FF),
+              style: TextStyle(
+                color: widget.neutral
+                    ? const Color(0xFFF2F2F5)
+                    : const Color(0xFF00D2FF),
                 fontSize: 22,
                 fontWeight: FontWeight.w900,
                 height: 1.05,

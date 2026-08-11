@@ -127,12 +127,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  final _backGate = TvBackGate();
+
   /// Guard against double-pop (Focus goBack + system Back) → Google TV Home.
   void _popToShell() {
     if (!mounted) return;
-    if (Navigator.of(context).canPop()) {
-      Get.back();
-    }
+    if (!_backGate.allow(screen: 'Settings', source: 'focus')) return;
+    if (!Navigator.of(context).canPop()) return;
+    _backGate.markRouteExit();
+    logTvBack(
+      screen: 'Settings',
+      source: 'focus',
+      action: 'popRoute',
+      blockedDuplicate: false,
+      routeBefore: Get.currentRoute,
+    );
+    Get.back();
   }
 
   KeyEventResult _onKey(FocusNode _, KeyEvent e) {

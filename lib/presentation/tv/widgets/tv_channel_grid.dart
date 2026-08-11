@@ -5,14 +5,31 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
+import 'package:flutter_bloc/flutter_bloc.dart';
+
 import '../../../helpers/helpers.dart';
+import '../../../logic/cubits/favorites/favorites_cubit.dart';
 import '../../../repository/api/artwork_url_resolver.dart';
 import '../../../repository/epg/xmltv_repository.dart';
+import '../../../repository/models/channel_live.dart';
 import '../../../repository/provider/tmdb_enrichment_worker.dart';
 import '../../widgets/smart_channel_logo.dart';
+import '../live/live_hero_preview_controller.dart';
+import '../live/live_hero_preview_surface.dart';
 import 'tv_artwork_shimmer.dart';
 import 'tv_branded_empty.dart';
 import 'tv_epg_peek.dart';
+
+/// Live chrome only. Do not import cinematic/* — Movies files stay frozen.
+abstract final class _LiveChrome {
+  static const Color background = Color(0xFF0B0B0E);
+  static const Color focus = Color(0xFFF2F2F5);
+  static const Color text = Color(0xFFF7F7F8);
+  static const Color muted = Color(0xFFB8B8C0);
+  static const Color live = Color(0xFFE11D2E);
+  static const Color glass = Color(0x24FFFFFF);
+  static const Color glassBorder = Color(0x38FFFFFF);
+}
 
 enum TvPosterStyle { liveLandscape, vodPortrait }
 
@@ -159,6 +176,7 @@ class TvRailSectionHeader extends StatelessWidget {
   final String? trailing;
   final IconData? icon;
   final Color? accent;
+  final bool quiet;
 
   const TvRailSectionHeader({
     super.key,
@@ -166,11 +184,14 @@ class TvRailSectionHeader extends StatelessWidget {
     this.trailing,
     this.icon,
     this.accent,
+    this.quiet = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final bar = accent ?? kColorPrimary;
+    final bar = quiet
+        ? _LiveChrome.muted
+        : (accent ?? kColorPrimary);
     return Row(
       children: [
         if (icon != null) ...[
@@ -211,6 +232,7 @@ class TvLiveFocusHero extends StatelessWidget {
   final VoidCallback? onTrailer;
   final bool focusedCta;
   final String? kicker;
+  final LiveHeroPreviewController? livePreview;
 
   const TvLiveFocusHero({
     super.key,
@@ -219,6 +241,7 @@ class TvLiveFocusHero extends StatelessWidget {
     this.onTrailer,
     this.focusedCta = false,
     this.kicker,
+    this.livePreview,
   });
 
   @override
@@ -264,11 +287,6 @@ class TvLiveFocusHero extends StatelessWidget {
         : (rec?.title ?? 'Browse your playlist');
     final metaBits = <String>[
       if (hasProgramme) rec!.title,
-      if (rec != null &&
-          !rec.isVod &&
-          rec.badge != null &&
-          rec.badge!.isNotEmpty)
-        'Ch ${rec.badge}',
       if (year != null) '$year',
       if (runtime != null && runtime > 0) '${runtime}m',
       if (rating != null && rating > 0) rating.toStringAsFixed(1),
@@ -285,6 +303,18 @@ class TvLiveFocusHero extends StatelessWidget {
         : null;
 
     final isLive = rec != null && !rec.isVod;
+    if (isLive) {
+      return _LiveSelectedPanel(
+        rec: rec,
+        programmeTitle: hasProgramme ? programmeTitle : null,
+        times: times,
+        epgStart: epg?.now.start,
+        epgStop: epg?.now.stop,
+        nextTitle: epg?.next?.title,
+        onWatch: onWatch,
+        preview: livePreview,
+      );
+    }
     return Container(
       height: rec?.isVod == true ? 292 : 286,
       decoration: BoxDecoration(
@@ -514,15 +544,6 @@ class TvLiveFocusHero extends StatelessWidget {
                                   muted: true,
                                 ),
                               ],
-                              const SizedBox(width: 12),
-                              Text(
-                                'OK to play',
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.45),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
                             ],
                           ),
                       ],
@@ -557,11 +578,382 @@ class TvLiveFocusHero extends StatelessWidget {
   }
 }
 
+class _LiveSelectedPanel extends StatelessWidget {
+  final TvStreamRecord rec;
+  final String? programmeTitle;
+  final String? times;
+  final DateTime? epgStart;
+  final DateTime? epgStop;
+  final String? nextTitle;
+  final VoidCallback? onWatch;
+  final LiveHeroPreviewController? preview;
+
+  const _LiveSelectedPanel({
+    required this.rec,
+    this.programmeTitle,
+    this.times,
+    this.epgStart,
+    this.epgStop,
+    this.nextTitle,
+    this.onWatch,
+    this.preview,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasProgramme =
+        programmeTitle != null && programmeTitle!.trim().isNotEmpty;
+    final previewListenable = preview ?? const _NeverListenable();
+    return SizedBox(
+      height: 268,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: ListenableBuilder(
+          listenable: previewListenable,
+          builder: (context, _) {
+            final videoUp = preview?.hasFirstFrame == true;
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                const ColoredBox(color: _LiveChrome.background),
+                if (preview != null) LiveHeroPreviewSurface(preview: preview!),
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [
+                        Color(0xF20B0B0E),
+                        Color(0xCC0B0B0E),
+                        Color(0x660B0B0E),
+                        Color(0x140B0B0E),
+                      ],
+                      stops: [0.0, 0.38, 0.68, 1.0],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(26, 20, 22, 16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 7,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 9,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: _LiveChrome.live,
+                                    borderRadius: BorderRadius.circular(5),
+                                  ),
+                                  child: const Text(
+                                    'LIVE',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 1.4,
+                                    ),
+                                  ),
+                                ),
+                                if (hasProgramme) ...[
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    'ON NOW',
+                                    style: TextStyle(
+                                      color: _LiveChrome.muted.withValues(
+                                        alpha: 0.9,
+                                      ),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 1.1,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              hasProgramme ? programmeTitle! : rec.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: _LiveChrome.text,
+                                fontSize: 28,
+                                fontWeight: FontWeight.w900,
+                                height: 1.05,
+                                letterSpacing: -0.6,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              hasProgramme ? rec.title : 'Live channel',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: _LiveChrome.muted,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            if (times != null) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                times!,
+                                style: TextStyle(
+                                  color: _LiveChrome.muted.withValues(
+                                    alpha: 0.8,
+                                  ),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                            if (epgStart != null && epgStop != null) ...[
+                              const SizedBox(height: 10),
+                              _NowProgressBar(
+                                start: epgStart!,
+                                stop: epgStop!,
+                                live: true,
+                              ),
+                            ],
+                            if (nextTitle != null &&
+                                nextTitle!.trim().isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Text(
+                                  'Next  ·  $nextTitle',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: _LiveChrome.muted.withValues(
+                                      alpha: 0.75,
+                                    ),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              )
+                            else
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: TvEpgPeek(
+                                  streamId: rec.streamId ?? rec.streamUrl,
+                                  tvgId: rec.tvgId,
+                                  channelName: rec.title,
+                                  compact: true,
+                                ),
+                              ),
+                            const Spacer(),
+                            _LiveHeroActions(rec: rec, onWatch: onWatch),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 18),
+                      AnimatedOpacity(
+                        opacity: videoUp ? 0.0 : 1.0,
+                        duration: const Duration(milliseconds: 360),
+                        child: AnimatedSlide(
+                          offset: videoUp
+                              ? const Offset(0.08, 0)
+                              : Offset.zero,
+                          duration: const Duration(milliseconds: 360),
+                          curve: Curves.easeOutCubic,
+                          child: IgnorePointer(
+                            ignoring: videoUp,
+                            child: SizedBox(
+                              width: videoUp ? 0 : 200,
+                              child: _ClearLogo(
+                                url: rec.imageUrl,
+                                name: rec.title,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (videoUp)
+                  Positioned(
+                    right: 18,
+                    bottom: 16,
+                    child: SizedBox(
+                      width: 88,
+                      height: 48,
+                      child: _ClearLogo(url: rec.imageUrl, name: rec.title),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _NeverListenable extends Listenable {
+  const _NeverListenable();
+
+  @override
+  void addListener(VoidCallback listener) {}
+
+  @override
+  void removeListener(VoidCallback listener) {}
+}
+
+class _LiveHeroActions extends StatelessWidget {
+  final TvStreamRecord rec;
+  final VoidCallback? onWatch;
+
+  const _LiveHeroActions({required this.rec, this.onWatch});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<FavoritesCubit, FavoritesState>(
+      builder: (context, favs) {
+        final id = rec.streamId;
+        final inList = id != null &&
+            id.isNotEmpty &&
+            favs.lives.any((l) => l.streamId == id);
+        return Row(
+          children: [
+            if (onWatch != null)
+              _LiveChromeButton(
+                label: 'Watch Live',
+                icon: Icons.play_arrow_rounded,
+                onPressed: onWatch,
+              ),
+            if (id != null && id.isNotEmpty) ...[
+              const SizedBox(width: 10),
+              _LiveChromeButton(
+                label: inList ? 'In Favorites' : 'Favorite',
+                icon: inList
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
+                onPressed: () {
+                  context.read<FavoritesCubit>().addLive(
+                    ChannelLive(
+                      name: rec.title,
+                      streamId: rec.streamId,
+                      streamIcon: rec.imageUrl,
+                      directSource: rec.streamUrl,
+                      epgChannelId: rec.tvgId,
+                    ),
+                    isAdd: !inList,
+                  );
+                },
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _LiveChromeButton extends StatefulWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final bool filled;
+
+  const _LiveChromeButton({
+    required this.label,
+    required this.icon,
+    this.onPressed,
+    this.filled = false,
+  });
+
+  @override
+  State<_LiveChromeButton> createState() => _LiveChromeButtonState();
+}
+
+class _LiveChromeButtonState extends State<_LiveChromeButton> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final on = _focused || widget.filled;
+    return Focus(
+      onFocusChange: (v) => setState(() => _focused = v),
+      onKeyEvent: (node, event) {
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        final k = event.logicalKey;
+        if (k == LogicalKeyboardKey.select ||
+            k == LogicalKeyboardKey.enter ||
+            k == LogicalKeyboardKey.gameButtonA ||
+            k == LogicalKeyboardKey.space) {
+          widget.onPressed?.call();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: AnimatedScale(
+        scale: _focused ? 1.04 : 1.0,
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOutCubic,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            canRequestFocus: false,
+            borderRadius: BorderRadius.circular(999),
+            onTap: widget.onPressed,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(999),
+                color: on ? _LiveChrome.focus : _LiveChrome.glass,
+                border: Border.all(
+                  color: _focused ? _LiveChrome.focus : _LiveChrome.glassBorder,
+                  width: _focused ? 1.3 : 1.0,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    widget.icon,
+                    size: 18,
+                    color: on ? _LiveChrome.background : _LiveChrome.text,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    widget.label,
+                    style: TextStyle(
+                      color: on ? _LiveChrome.background : _LiveChrome.text,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _NowProgressBar extends StatelessWidget {
   final DateTime start;
   final DateTime stop;
+  final bool live;
 
-  const _NowProgressBar({required this.start, required this.stop});
+  const _NowProgressBar({
+    required this.start,
+    required this.stop,
+    this.live = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -574,9 +966,9 @@ class _NowProgressBar extends StatelessWidget {
       borderRadius: BorderRadius.circular(2),
       child: LinearProgressIndicator(
         value: p,
-        minHeight: 3,
+        minHeight: live ? 2 : 3,
         backgroundColor: Colors.white.withValues(alpha: 0.12),
-        color: kColorPrimary,
+        color: live ? _LiveChrome.focus : kColorPrimary,
       ),
     );
   }
@@ -696,6 +1088,7 @@ class TvChannelGrid extends StatelessWidget {
   final ValueChanged<String> onChannelSelected;
   final Widget? header;
   final ValueChanged<TvStreamRecord>? onStreamFocused;
+  final ValueChanged<TvStreamRecord>? onLiveRecordSelected;
   final TvPosterStyle posterStyle;
 
   const TvChannelGrid({
@@ -704,6 +1097,7 @@ class TvChannelGrid extends StatelessWidget {
     required this.onChannelSelected,
     this.header,
     this.onStreamFocused,
+    this.onLiveRecordSelected,
     this.posterStyle = TvPosterStyle.liveLandscape,
   });
 
@@ -712,6 +1106,13 @@ class TvChannelGrid extends StatelessWidget {
     final hasHeader = header != null;
 
     if (rows.isEmpty && !hasHeader) {
+      if (posterStyle == TvPosterStyle.liveLandscape) {
+        return const _LiveQuietEmpty(
+          title: 'No live channels yet',
+          subtitle:
+              'This playlist has not returned live categories. Press Left for the menu, or open Settings to refresh sources.',
+        );
+      }
       return const TvBrandedEmpty(
         title: 'Nothing to browse here',
         subtitle:
@@ -737,7 +1138,7 @@ class TvChannelGrid extends StatelessWidget {
         if (rows.isEmpty && hasHeader) {
           return const Padding(
             padding: EdgeInsets.symmetric(vertical: 24),
-            child: TvBrandedEmpty(
+            child: _LiveQuietEmpty(
               title: 'No live categories yet',
               subtitle:
                   'This playlist has not returned live categories. Press Left for the menu, or open Settings to refresh sources.',
@@ -754,6 +1155,7 @@ class TvChannelGrid extends StatelessWidget {
             row: row,
             onChannelSelected: onChannelSelected,
             onStreamFocused: onStreamFocused,
+            onLiveRecordSelected: onLiveRecordSelected,
             posterStyle: posterStyle,
           ),
         );
@@ -766,12 +1168,14 @@ class _TvStreamRow extends StatelessWidget {
   final TvChannelRow row;
   final ValueChanged<String> onChannelSelected;
   final ValueChanged<TvStreamRecord>? onStreamFocused;
+  final ValueChanged<TvStreamRecord>? onLiveRecordSelected;
   final TvPosterStyle posterStyle;
 
   const _TvStreamRow({
     required this.row,
     required this.onChannelSelected,
     this.onStreamFocused,
+    this.onLiveRecordSelected,
     this.posterStyle = TvPosterStyle.liveLandscape,
   });
 
@@ -779,33 +1183,39 @@ class _TvStreamRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final vod = posterStyle == TvPosterStyle.vodPortrait;
     return SizedBox(
-      height: vod ? 248 : 168,
+      height: vod ? 248 : 186,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           TvRailSectionHeader(
             title: row.title,
-            trailing: '${row.streams.length}',
+            trailing: vod ? '${row.streams.length}' : null,
           ),
           const SizedBox(height: 10),
           Expanded(
             child: ListView.builder(
               scrollCacheExtent: const ScrollCacheExtent.pixels(400.0),
               scrollDirection: Axis.horizontal,
+              clipBehavior: posterStyle == TvPosterStyle.vodPortrait
+                  ? Clip.hardEdge
+                  : Clip.none,
               itemCount: row.streams.length,
               itemBuilder: (context, index) {
                 final stream = row.streams[index];
-                final numbered = vod
-                    ? stream
-                    : (stream.badge != null
-                        ? stream
-                        : stream.copyWith(badge: '${index + 1}'.padLeft(3, '0')));
-
                 return Padding(
-                  padding: const EdgeInsets.only(right: 12, top: 2, bottom: 2),
+                  padding: posterStyle == TvPosterStyle.vodPortrait
+                      ? const EdgeInsets.only(right: 12, top: 2, bottom: 2)
+                      : const EdgeInsets.only(right: 16, top: 6, bottom: 6),
                   child: TvChannelCard(
-                    stream: numbered.copyWith(posterStyle: posterStyle),
-                    onSelected: () => onChannelSelected(numbered.streamUrl),
+                    stream: stream.copyWith(posterStyle: posterStyle),
+                    onSelected: () {
+                      if (posterStyle == TvPosterStyle.liveLandscape &&
+                          onLiveRecordSelected != null) {
+                        onLiveRecordSelected!(stream);
+                      } else {
+                        onChannelSelected(stream.streamUrl);
+                      }
+                    },
                     onFocused: onStreamFocused,
                   ),
                 );
@@ -823,8 +1233,10 @@ class TvChannelCard extends StatefulWidget {
   final VoidCallback onSelected;
   final ValueChanged<TvStreamRecord>? onFocused;
 
-  static const double tileWidth = 168;
-  static const double tileHeight = 118;
+  static const double tileWidth = 176;
+  static const double tileHeight = 132;
+  static const double logoSlotHeight = 86;
+  static const double captionSlotHeight = 36;
   static const double posterWidth = 132;
   static const double posterHeight = 198;
 
@@ -855,9 +1267,115 @@ class _TvChannelCardState extends State<TvChannelCard> {
     return KeyEventResult.ignored;
   }
 
+  Widget _buildLiveCard() {
+    return Focus(
+      onFocusChange: (value) {
+        setState(() => _focused = value);
+        if (value) {
+          widget.onFocused?.call(widget.stream);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            Scrollable.ensureVisible(
+              context,
+              alignment: 0.28,
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+            );
+          });
+        }
+      },
+      onKeyEvent: _onKey,
+      child: AnimatedScale(
+        scale: _focused ? 1.055 : 1.0,
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOutCubic,
+        child: AnimatedSlide(
+          offset: _focused ? const Offset(0, -0.018) : Offset.zero,
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOutCubic,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              canRequestFocus: false,
+              splashColor: Colors.transparent,
+              highlightColor: Colors.transparent,
+              hoverColor: Colors.transparent,
+              overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+              onTap: widget.onSelected,
+              child: SizedBox(
+                width: TvChannelCard.tileWidth,
+                height: TvChannelCard.tileHeight,
+                child: Column(
+                  children: [
+                    SizedBox(
+                      height: TvChannelCard.logoSlotHeight,
+                      width: double.infinity,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        clipBehavior: Clip.none,
+                        children: [
+                          if (_focused)
+                            IgnorePointer(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: RadialGradient(
+                                    colors: [
+                                      Colors.white.withValues(alpha: 0.12),
+                                      Colors.white.withValues(alpha: 0.0),
+                                    ],
+                                  ),
+                                ),
+                                child: const SizedBox(width: 88, height: 88),
+                              ),
+                            ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                            child: _LiveLogoArt(
+                              imageUrl: widget.stream.imageUrl,
+                              channelName: widget.stream.title,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      height: 1.5,
+                      width: _focused ? 36 : 0,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(
+                          alpha: _focused ? 0.55 : 0.0,
+                        ),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    SizedBox(
+                      height: TvChannelCard.captionSlotHeight,
+                      width: double.infinity,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: _LiveCardCaption(
+                          stream: widget.stream,
+                          focused: _focused,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final vod = widget.stream.isVod;
+    if (!vod) return _buildLiveCard();
     return Focus(
       onFocusChange: (value) {
         setState(() {
@@ -1003,7 +1521,7 @@ class _TvChannelCardState extends State<TvChannelCard> {
   String? _visibleBadge() {
     final b = widget.stream.badge;
     if (b == null || b.isEmpty) return null;
-    if (widget.stream.isVod && RegExp(r'^\d{3}$').hasMatch(b)) return null;
+    if (RegExp(r'^\d{3}$').hasMatch(b)) return null;
     return b;
   }
 
@@ -1135,6 +1653,132 @@ class _CardArtwork extends StatelessWidget {
               : const TvArtworkShimmer(
                   borderRadius: BorderRadius.all(Radius.circular(8)),
                 ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LiveLogoArt extends StatelessWidget {
+  final String? imageUrl;
+  final String channelName;
+
+  const _LiveLogoArt({
+    this.imageUrl,
+    required this.channelName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SmartChannelLogo(
+      primaryUrl: imageUrl,
+      channelName: channelName,
+      fit: BoxFit.contain,
+      memCacheWidth: 320,
+      initialsSize: 36,
+      showInitialsFallback: false,
+      placeholder: const SizedBox.shrink(),
+    );
+  }
+}
+
+class _LiveCardCaption extends StatelessWidget {
+  final TvStreamRecord stream;
+  final bool focused;
+
+  const _LiveCardCaption({
+    required this.stream,
+    this.focused = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: XmlTvRepository.instance,
+      builder: (context, _) {
+        final now = XmlTvRepository.instance
+            .nowNext(
+              tvgId: stream.tvgId,
+              channelName: stream.title,
+              streamId: stream.streamId,
+            )
+            ?.now
+            .title;
+        return SizedBox(
+          width: double.infinity,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                stream.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: focused ? Colors.white : _LiveChrome.text,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  height: 1.15,
+                ),
+              ),
+              if (now != null && now.isNotEmpty)
+                Text(
+                  now,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: focused
+                        ? const Color(0xFFD0D0D6)
+                        : _LiveChrome.muted.withValues(alpha: 0.85),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _LiveQuietEmpty extends StatelessWidget {
+  final String title;
+  final String subtitle;
+
+  const _LiveQuietEmpty({required this.title, required this.subtitle});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: _LiveChrome.text,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: _LiveChrome.muted.withValues(alpha: 0.85),
+                fontSize: 14,
+                height: 1.4,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ),
       ),
     );

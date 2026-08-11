@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../helpers/helpers.dart';
 import '../../../repository/models/premium_plus_item.dart';
 import '../../widgets/smart_channel_logo.dart';
 import 'tv_channel_grid.dart';
@@ -25,17 +24,15 @@ class TvPremiumPlusRow extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TvRailSectionHeader(
+        const TvRailSectionHeader(
           title: 'Featured Channels',
-          trailing: 'View All · ${items.length}',
-          icon: Icons.star_rounded,
-          accent: kColorAccentWarm,
         ),
         const SizedBox(height: 10),
         SizedBox(
-          height: TvChannelCard.tileHeight + 8,
+          height: TvChannelCard.tileHeight + 20,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
+            clipBehavior: Clip.none,
             itemCount: items.length,
             itemBuilder: (context, index) {
               final item = items[index];
@@ -47,11 +44,10 @@ class TvPremiumPlusRow extends StatelessWidget {
                     ? ch!.directSource!
                     : (ch?.streamId ?? ''),
                 imageUrl: ch?.streamIcon,
-                badge: '${index + 1}'.padLeft(3, '0'),
                 isHd: item.displayName.toUpperCase().contains('HD'),
               );
               return Padding(
-                padding: const EdgeInsets.only(right: 12, top: 2, bottom: 2),
+                padding: const EdgeInsets.only(right: 16, top: 6, bottom: 6),
                 child: TvChannelCard(
                   stream: stream,
                   onSelected: () {
@@ -116,25 +112,17 @@ class _TvPremiumPlusCardState extends State<TvPremiumPlusCard> {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: _focused
-                ? kColorFocus
-                : kColorPrimary.withValues(alpha: 0.25),
-            width: _focused ? 2.8 : 1.0,
+                ? const Color(0xFFF2F2F5)
+                : Colors.white.withValues(alpha: 0.08),
+            width: _focused ? 1.3 : 1.0,
           ),
-          boxShadow: _focused
-              ? [
-                  BoxShadow(
-                    color: kColorPrimary.withValues(alpha: 0.35),
-                    blurRadius: 22,
-                    spreadRadius: 1,
-                  ),
-                ]
-              : [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.3),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Focus(
           onFocusChange: (focused) => setState(() => _focused = focused),
@@ -149,17 +137,9 @@ class _TvPremiumPlusCardState extends State<TvPremiumPlusCard> {
                 padding: const EdgeInsets.all(14),
                 child: Row(
                   children: [
-                    Container(
+                    SizedBox(
                       width: 72,
                       height: 72,
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.28),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: kColorPrimary.withValues(alpha: 0.2),
-                        ),
-                      ),
                       child: SmartChannelLogo(
                         primaryUrl: iconUrl.isEmpty ? null : iconUrl,
                         channelName: widget.item.displayName,
@@ -191,7 +171,7 @@ class _TvPremiumPlusCardState extends State<TvPremiumPlusCard> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: kColorPrimary.withValues(alpha: 0.85),
+                              color: Colors.white.withValues(alpha: 0.55),
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),

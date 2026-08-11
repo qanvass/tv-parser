@@ -7,9 +7,12 @@ class WelcomeScreen extends StatefulWidget {
   State<WelcomeScreen> createState() => _WelcomeScreenState();
 }
 
-class _WelcomeScreenState extends State<WelcomeScreen> with TickerProviderStateMixin {
+class _WelcomeScreenState extends State<WelcomeScreen>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   bool _showOverlay = true;
   double _progress = 0.0;
+  Timer? _hardDismissTimer;
+  late final DateTime _overlayDeadline;
 
   late AnimationController _fadeController;
   late AnimationController _progressController;
@@ -18,17 +21,20 @@ class _WelcomeScreenState extends State<WelcomeScreen> with TickerProviderStateM
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     context.read<FavoritesCubit>().initialData();
     context.read<WatchingCubit>().initialData();
+    // Wall-clock deadline so screensaver/pause cannot keep this card up.
+    _overlayDeadline = DateTime.now().add(const Duration(seconds: 3));
 
     _fadeController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 300),
     );
 
     _progressController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 3800), // 3.8 seconds progress bar
+      duration: const Duration(milliseconds: 2800),
     )..addListener(() {
         setState(() {
           _progress = _progressController.value;
@@ -42,25 +48,60 @@ class _WelcomeScreenState extends State<WelcomeScreen> with TickerProviderStateM
       upperBound: 1.1,
     )..repeat(reverse: true);
 
-    // Start progress animation
     _progressController.forward();
 
-    // Auto fade-out & dismiss after 4.0 seconds (4000ms)
-    Future.delayed(const Duration(milliseconds: 4000)).then((_) {
-      if (mounted) {
-        _fadeController.forward().then((_) {
-          if (mounted) {
-            setState(() {
-              _showOverlay = false;
-            });
-          }
-        });
+    Future.delayed(const Duration(milliseconds: 2500)).then((_) {
+      if (mounted) _dismissOverlay(fade: true);
+    });
+
+    _hardDismissTimer = Timer.periodic(const Duration(milliseconds: 150), (_) {
+      if (!mounted) return;
+      if (!_showOverlay) {
+        _hardDismissTimer?.cancel();
+        return;
+      }
+      if (!DateTime.now().isBefore(_overlayDeadline)) {
+        _dismissOverlay(fade: false);
       }
     });
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _showOverlay) {
+      // Never return from screensaver still trapping Live behind Hold please.
+      if (!DateTime.now().isBefore(_overlayDeadline)) {
+        _dismissOverlay(fade: false);
+      }
+    }
+  }
+
+  void _dismissOverlay({required bool fade}) {
+    if (!mounted || !_showOverlay) return;
+    _hardDismissTimer?.cancel();
+    if (!fade) {
+      setState(() => _showOverlay = false);
+      LiveBrowseGate.markWelcomeCleared();
+      return;
+    }
+    _fadeController.forward().then((_) {
+      if (mounted && _showOverlay) {
+        setState(() => _showOverlay = false);
+      }
+      LiveBrowseGate.markWelcomeCleared();
+    });
+    Future.delayed(const Duration(milliseconds: 400)).then((_) {
+      if (mounted && _showOverlay) {
+        setState(() => _showOverlay = false);
+      }
+      LiveBrowseGate.markWelcomeCleared();
+    });
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _hardDismissTimer?.cancel();
     _fadeController.dispose();
     _progressController.dispose();
     _pulseController.dispose();
@@ -288,7 +329,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> with TickerProviderStateM
                                   const SizedBox(height: 8),
                                   // Subtitle with exact requested copy
                                   const Text(
-                                    "Loading your provider's stream...\nIt can take up to 60 seconds to find all your 20k plus channels",
+                                    "Loading your Live TV library…\nChannels appear as soon as they are ready",
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       color: Colors.white70,

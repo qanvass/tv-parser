@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
-import '../../../../helpers/helpers.dart';
 import '../../../../repository/models/channel_live.dart';
 import '../../../../repository/models/spotlight_event.dart';
 import '../../../../repository/api/channel_match_service.dart';
@@ -35,7 +34,6 @@ class _TvLiveSpotlightCardState extends State<TvLiveSpotlightCard> {
     );
 
     final bestCh = matchResult.bestChannel;
-    final confidencePct = (matchResult.confidenceScore * 100).toInt();
 
     String formattedTime = 'Live Now';
     try {
@@ -78,20 +76,12 @@ class _TvLiveSpotlightCardState extends State<TvLiveSpotlightCard> {
           margin: const EdgeInsets.only(right: 12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF12353A),
-                Color(0xFF0C1A28),
-                Color(0xFF070D16),
-              ],
-            ),
+            color: const Color(0xFF141418),
             border: Border.all(
-              width: _focused ? 2.8 : 1.0,
+              width: _focused ? 1.3 : 1.0,
               color: _focused
-                  ? kColorFocus
-                  : kColorPrimary.withValues(alpha: 0.28),
+                  ? const Color(0xFFF2F2F5)
+                  : Colors.white.withValues(alpha: 0.08),
             ),
             boxShadow: [
               BoxShadow(
@@ -99,12 +89,6 @@ class _TvLiveSpotlightCardState extends State<TvLiveSpotlightCard> {
                 blurRadius: 12,
                 offset: const Offset(0, 5),
               ),
-              if (_focused)
-                BoxShadow(
-                  color: kColorPrimary.withValues(alpha: 0.38),
-                  blurRadius: 22,
-                  spreadRadius: 0.5,
-                ),
             ],
           ),
           clipBehavior: Clip.antiAlias,
@@ -128,18 +112,18 @@ class _TvLiveSpotlightCardState extends State<TvLiveSpotlightCard> {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: kColorPrimary.withValues(alpha: 0.16),
+                            color: Colors.white.withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(
-                              color: kColorPrimary.withValues(alpha: 0.35),
+                              color: Colors.white.withValues(alpha: 0.16),
                             ),
                           ),
                           child: Text(
                             widget.event.sport.toUpperCase(),
                             style: const TextStyle(
-                              color: kColorPrimary,
+                              color: Color(0xFFF2F2F5),
                               fontSize: 10,
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w800,
                               letterSpacing: 0.4,
                             ),
                           ),
@@ -219,7 +203,7 @@ class _TvLiveSpotlightCardState extends State<TvLiveSpotlightCard> {
                             Icon(
                               Icons.live_tv_rounded,
                               size: 20,
-                              color: kColorPrimary.withValues(alpha: 0.7),
+                              color: Colors.white.withValues(alpha: 0.35),
                             ),
                           const SizedBox(width: 8),
                           Expanded(
@@ -237,13 +221,11 @@ class _TvLiveSpotlightCardState extends State<TvLiveSpotlightCard> {
                                   ),
                                 ),
                                 Text(
-                                  'Matched · $confidencePct%',
+                                  'In playlist',
                                   style: TextStyle(
-                                    color: kColorPrimary.withValues(
-                                      alpha: 0.7,
-                                    ),
+                                    color: Colors.white.withValues(alpha: 0.45),
                                     fontSize: 10,
-                                    fontWeight: FontWeight.w700,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ],
@@ -255,13 +237,11 @@ class _TvLiveSpotlightCardState extends State<TvLiveSpotlightCard> {
                               height: 28,
                               decoration: const BoxDecoration(
                                 shape: BoxShape.circle,
-                                gradient: LinearGradient(
-                                  colors: [kColorPrimaryDark, kColorPrimary],
-                                ),
+                                color: Color(0xFFF2F2F5),
                               ),
                               child: const Icon(
                                 Icons.play_arrow_rounded,
-                                color: Colors.black,
+                                color: Color(0xFF0B0B0E),
                                 size: 18,
                               ),
                             ),

@@ -22,6 +22,22 @@ class _CastSelectionDialogState extends State<CastSelectionDialog> {
   bool _showDiagnostics = false;
   final _focusNode = FocusNode();
   int _focusedIdx = 0;
+  final _backGate = TvBackGate();
+
+  void _closeCast({String source = 'focus'}) {
+    if (!mounted) return;
+    if (!_backGate.allow(screen: 'CastDialog', source: source)) return;
+    if (!Navigator.of(context).canPop()) return;
+    _backGate.markRouteExit();
+    logTvBack(
+      screen: 'CastDialog',
+      source: source,
+      action: 'popRoute',
+      blockedDuplicate: false,
+      routeBefore: Get.currentRoute,
+    );
+    Get.back();
+  }
 
   @override
   void initState() {
@@ -98,8 +114,8 @@ class _CastSelectionDialogState extends State<CastSelectionDialog> {
       _activateFocused();
       return KeyEventResult.handled;
     }
-    if (k == LogicalKeyboardKey.escape) {
-      Get.back();
+    if (isTvBackKey(k)) {
+      _closeCast(source: 'focus');
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
@@ -114,7 +130,7 @@ class _CastSelectionDialogState extends State<CastSelectionDialog> {
     } else if (hasDisconnect && _focusedIdx == _devices.length) {
       _disconnectCast();
     } else {
-      Get.back();
+      _closeCast(source: 'chrome');
     }
   }
 

@@ -68,6 +68,8 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
   int _focusCol = 1; // default: Play
   final _focusNode = FocusNode();
   final Stopwatch _stopwatch = Stopwatch();
+  final _backGate = TvBackGate();
+  bool _progressSavedOnExit = false;
 
   Episode get _currentEp => widget.episodes[_epIdx];
 
@@ -324,12 +326,54 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
     _scheduleHide();
   }
 
-  void _goBack() {
+  /// Hierarchical Back: close subtitle/audio panel first; else leave once.
+  void _handleSeriesBack({required String source}) {
     if (!mounted) return;
+    if (!_backGate.allow(screen: 'SeriesPlayer', source: source)) return;
+
+    if (_trackPanel != null) {
+      setState(() => _trackPanel = null);
+      _scheduleHide();
+      logTvBack(
+        screen: 'SeriesPlayer',
+        source: source,
+        action: 'closePanel',
+        blockedDuplicate: false,
+        routeBefore: Get.currentRoute,
+      );
+      return;
+    }
+    _commitSeriesExit(source: source);
+  }
+
+  void _commitSeriesExit({required String source}) {
+    if (!mounted || _backGate.backInFlight) {
+      logTvBack(
+        screen: 'SeriesPlayer',
+        source: source,
+        action: 'blockedDuplicate',
+        blockedDuplicate: true,
+        routeBefore: Get.currentRoute,
+      );
+      return;
+    }
     if (!Navigator.of(context).canPop()) return;
-    _saveProgress();
+    _backGate.markRouteExit();
+    if (!_progressSavedOnExit) {
+      _progressSavedOnExit = true;
+      _saveProgress();
+    }
+    logTvBack(
+      screen: 'SeriesPlayer',
+      source: source,
+      action: 'popRoute',
+      blockedDuplicate: false,
+      routeBefore: Get.currentRoute,
+    );
     Get.back();
   }
+
+  void _goBack() => _commitSeriesExit(source: 'chrome');
 
   // ── D-pad ─────────────────────────────────────────────────────────────────
 
@@ -356,16 +400,20 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
           setState(() => _trackPanelIdx++);
       } else if (_isSelectKey(k)) {
         if (_trackList.isNotEmpty) _selectTrack(_trackList[_trackPanelIdx].key);
-      } else if (_isBackKey(k) || k == LogicalKeyboardKey.arrowLeft) {
+      } else if (_isBackKey(k)) {
+        _handleSeriesBack(source: 'focus');
+      } else if (k == LogicalKeyboardKey.arrowLeft) {
         setState(() => _trackPanel = null);
         _scheduleHide();
       }
       return KeyEventResult.handled;
     }
 
-    // Back always leaves the player (do not swallow goBack).
+    // goBack: consume so it cannot bubble; PopScope is the sole popper.
     if (_isBackKey(k)) {
-      _goBack();
+      if (k == LogicalKeyboardKey.escape) {
+        _handleSeriesBack(source: 'focus');
+      }
       return KeyEventResult.handled;
     }
 
@@ -560,7 +608,7 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _goBack(); // _goBack guards canPop
+        if (!didPop) _handleSeriesBack(source: 'popScope');
       },
       child: Focus(
         focusNode: _focusNode,
@@ -621,63 +669,8 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
 
                   // 6. Loading screen overlay
                   if (_isCheckingHealth)
-                    Positioned.fill(
-                      child: Container(
-                        color: Colors.black,
-                        child: Stack(
-                          children: [
-                            Positioned.fill(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  gradient: RadialGradient(
-                                    center: Alignment.topCenter,
-                                    radius: 1.3,
-                                    colors: [
-                                      const Color(0xFF25112F).withValues(alpha: 0.4),
-                                      const Color(0xFF08070C),
-                                      const Color(0xFF030305),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Image.asset(
-                                    'assets/images/tv_parser_logo_transparent.png',
-                                    height: 96,
-                                    fit: BoxFit.contain,
-                                    errorBuilder: (_, __, ___) => const Icon(Icons.live_tv_rounded, size: 72, color: Colors.amber),
-                                  ),
-                                  const SizedBox(height: 28),
-                                  const SandTimeclock(size: 36),
-                                  const SizedBox(height: 24),
-                                  const Text(
-                                    "Hold please...",
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: -0.4,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  const Text(
-                                    "Loading your provider's stream...",
-                                    style: TextStyle(
-                                      color: Colors.white60,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                    const Positioned.fill(
+                      child: TvParserStreamLoadingOverlay(),
                     ),
 
                   // 7. Dead Stream Overlay

@@ -10,6 +10,7 @@ import 'package:mbark_iptv/repository/provider/tmdb_client.dart';
 import 'package:mbark_iptv/repository/provider/tmdb_enrichment_worker.dart';
 import 'package:mbark_iptv/repository/provider/tmdb_match.dart';
 import 'package:mbark_iptv/repository/provider/tmdb_metadata_cache.dart';
+import 'package:mbark_iptv/repository/provider/title_normalizer.dart';
 import 'package:mbark_iptv/repository/provider/unified_media_metadata.dart';
 
 class _FakeTmdbHttp {
@@ -284,6 +285,25 @@ https://cdn.example/movie/3
       );
       expect(uiOld, isNot(enqueueOld));
     });
+
+    test('pre-parsed matchTitle emits the same key string', () {
+      final parsed = TitleNormalizer.parse('Batman Caped Crusader S01E03 (2024)');
+      final fromParse = TmdbEnrichmentWorker.cacheKeyFor(
+        parsed.displayTitle,
+        's1',
+        type: ContentType.series,
+        year: parsed.year,
+      );
+      final fromMatch = TmdbEnrichmentWorker.cacheKeyFor(
+        parsed.displayTitle,
+        's1',
+        type: ContentType.series,
+        year: parsed.year,
+        matchTitle: parsed.matchTitle,
+      );
+      expect(fromMatch, fromParse);
+      expect(fromMatch, 'series|s1|batman caped crusader|2024');
+    });
   });
 
   group('worker cache', () {
@@ -319,6 +339,42 @@ https://cdn.example/movie/3
       await Future<void>.delayed(const Duration(milliseconds: 50));
       expect(http.findCalls, 1);
       expect(http.searchCalls, 0);
+    });
+
+    test('cache hit prioritize does not notify listeners', () async {
+      final http = _FakeTmdbHttp()..findBody = _movieFindBody();
+      final client = _client(http);
+      final dir = Directory.systemTemp.createTempSync('tmdb_hit_skip_');
+      addTearDown(() {
+        if (dir.existsSync()) dir.deleteSync(recursive: true);
+      });
+      final cache = TmdbMetadataCache(overrideDir: dir);
+      final worker = TmdbEnrichmentWorker(
+        client: client,
+        cache: cache,
+        enricher: _enricher(client),
+        pumpDelay: Duration.zero,
+      );
+      const req = TmdbEnqueueRequest(
+        rawTitle: 'Deb Is Boss (2026)',
+        type: ContentType.movie,
+        providerId: 'm3u_stream_1',
+        year: 2026,
+        imdbId: 'tt27545912',
+      );
+      await worker.ensureStarted();
+      worker.enqueue(req);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(cache.has(req.key), isTrue);
+
+      var listenerFires = 0;
+      worker.addListener(() => listenerFires++);
+      final notifiesBefore = worker.debugNotifyCount;
+      worker.prioritize(req);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(worker.debugCacheHitSkipCount, greaterThan(0));
+      expect(worker.debugNotifyCount, notifiesBefore);
+      expect(listenerFires, 0);
     });
   });
 }

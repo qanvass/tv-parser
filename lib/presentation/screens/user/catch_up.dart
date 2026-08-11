@@ -65,13 +65,21 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
   bool _isBackKey(LogicalKeyboardKey k) =>
       k == LogicalKeyboardKey.escape || k == LogicalKeyboardKey.goBack;
 
+  final _backGate = TvBackGate();
+
   void _popToShell() {
-    // Guard against double-pop (Focus goBack + system Back in one frame)
-    // which finishes MainActivity → Google TV Home.
     if (!mounted) return;
-    if (Navigator.of(context).canPop()) {
-      Get.back();
-    }
+    if (!_backGate.allow(screen: 'CatchUp', source: 'focus')) return;
+    if (!Navigator.of(context).canPop()) return;
+    _backGate.markRouteExit();
+    logTvBack(
+      screen: 'CatchUp',
+      source: 'focus',
+      action: 'popRoute',
+      blockedDuplicate: false,
+      routeBefore: Get.currentRoute,
+    );
+    Get.back();
   }
 
   KeyEventResult _onKey(FocusNode _, KeyEvent e) {

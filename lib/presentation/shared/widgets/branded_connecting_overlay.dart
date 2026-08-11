@@ -7,6 +7,8 @@ import 'package:mbark_iptv/helpers/helpers.dart';
 import 'package:mbark_iptv/repository/api/playback_url_builder.dart';
 import 'package:mbark_iptv/repository/api/cast_media_service.dart';
 import '../../screens/screens.dart';
+import '../../tv/cinematic/cinematic_tokens.dart';
+import 'tv_parser_stream_loading_overlay.dart';
 
 class BrandedConnectingOverlay extends StatefulWidget {
   final String streamUrl;
@@ -205,165 +207,127 @@ class _BrandedConnectingOverlayState extends State<BrandedConnectingOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    String message = "Hold please...";
-    String subMessage = "Loading your provider's stream...";
+    String message = 'Preparing your stream';
+    String subMessage = 'TV Parser is connecting to your provider';
     bool showActions = false;
 
     if (_secondsElapsed >= 10) {
-      message = "Taking longer than expected";
-      subMessage = "This may be a provider or network delay.";
+      message = 'Taking a little longer';
+      subMessage = 'Your provider may be slow to respond';
       showActions = true;
     } else if (_secondsElapsed >= 4) {
-      message = "Still loading stream...";
-      subMessage = "Checking provider response";
+      message = 'Still preparing your stream';
+      subMessage = 'TV Parser is connecting to your provider';
     }
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF050509),
-      body: Stack(
+    final showDebugCast =
+        kDebugMode && supportsCasting() && CastMediaService().isCasting;
+
+    Widget? footer;
+    if (showDebugCast || showActions) {
+      footer = Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Radial Gradient Background
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment.topCenter,
-                  radius: 1.3,
-                  colors: [
-                    const Color(0xFF25112F).withOpacity(0.4),
-                    const Color(0xFF08070C),
-                    const Color(0xFF030305),
-                  ],
+          if (showDebugCast)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: CinematicTokens.surface,
+                  foregroundColor: CinematicTokens.textPrimary,
+                  minimumSize: const Size(200, 38),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(19),
+                  ),
+                ),
+                onPressed: () async {
+                  final castService = CastMediaService();
+                  await castService.castStream(
+                    'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8',
+                    title: 'HLS Test (Steel)',
+                    streamType: 'BUFFERED',
+                  );
+                  Get.snackbar(
+                    'HLS Test Cast',
+                    'Pushed tears-of-steel HLS to receiver',
+                  );
+                },
+                icon: const Icon(Icons.bug_report_rounded, size: 14),
+                label: const Text(
+                  'Cast Test (HLS)',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
-          ),
-          Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 28),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // TV Parser Logo
-                  Image.asset(
-                    widget.logoAssetPath,
-                    height: 96,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => const Icon(Icons.live_tv_rounded, size: 72, color: Colors.amber),
-                  ),
-                  const SizedBox(height: 28),
-
-                  // Rotating sand hourglass timeclock
-                  if (!showActions)
-                    const SandTimeclock(size: 36),
-                  const SizedBox(height: 24),
-
-                  // Debug Cast Test Button (phone only)
-                  if (kDebugMode && supportsCasting() && CastMediaService().isCasting)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 24),
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.purple.shade700,
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size(200, 38),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(19)),
-                        ),
-                        onPressed: () async {
-                          final castService = CastMediaService();
-                          await castService.castStream(
-                            'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8',
-                            title: 'HLS Test (Steel)',
-                            streamType: 'BUFFERED',
-                          );
-                          Get.snackbar('HLS Test Cast', 'Pushed tears-of-steel HLS to receiver');
-                        },
-                        icon: const Icon(Icons.bug_report_rounded, size: 14),
-                        label: const Text("Cast Test (HLS)", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-
-                  // Message
-                  Text(
-                    message,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.4,
+          if (showActions)
+            Column(
+              children: [
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: CinematicTokens.focus,
+                    foregroundColor: Colors.black,
+                    minimumSize: const Size(180, 44),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(22),
                     ),
                   ),
-                  const SizedBox(height: 8),
-
-                  // Submessage
-                  Text(
-                    subMessage,
-                    textAlign: TextAlign.center,
+                  onPressed: () {
+                    _startTimer();
+                    _checkStreamHealth();
+                  },
+                  icon: const Icon(Icons.refresh_rounded, size: 16),
+                  label: const Text(
+                    'Try Again',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: CinematicTokens.textPrimary,
+                    minimumSize: const Size(180, 44),
+                    side: const BorderSide(color: CinematicTokens.glassBorder),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                  ),
+                  onPressed: () {
+                    Get.to(() => const ConnectionTestScreen());
+                  },
+                  icon: const Icon(Icons.network_check_rounded, size: 16),
+                  label: const Text(
+                    'Connection Test',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text(
+                    'Go Back',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.6),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
+                      color: CinematicTokens.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 36),
-
-                  // Timeout Action Buttons
-                  if (showActions)
-                    AnimatedOpacity(
-                      opacity: 1.0,
-                      duration: const Duration(milliseconds: 300),
-                      child: Column(
-                        children: [
-                          // Try Again
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: Colors.black,
-                              minimumSize: const Size(180, 44),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-                            ),
-                            onPressed: () {
-                              _startTimer();
-                              _checkStreamHealth();
-                            },
-                            icon: const Icon(Icons.refresh_rounded, size: 16),
-                            label: const Text("Try Again", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                          ),
-                          const SizedBox(height: 12),
-
-                          // Connection Test
-                          OutlinedButton.icon(
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              minimumSize: const Size(180, 44),
-                              side: const BorderSide(color: Colors.white24),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-                            ),
-                            onPressed: () {
-                              // Push connection diagnostics screen cleanly
-                              Get.to(() => const ConnectionTestScreen());
-                            },
-                            icon: const Icon(Icons.network_check_rounded, size: 16),
-                            label: const Text("Connection Test", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                          ),
-                          const SizedBox(height: 12),
-
-                          // Back
-                          TextButton(
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                            },
-                            child: const Text("Go Back", style: TextStyle(color: Colors.white38, fontSize: 12, fontWeight: FontWeight.bold)),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ),
         ],
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF070709),
+      body: TvParserStreamLoadingOverlay(
+        title: message,
+        subtitle: subMessage,
+        logoAssetPath: widget.logoAssetPath,
+        showIndicator: !showActions,
+        footer: footer,
       ),
     );
   }

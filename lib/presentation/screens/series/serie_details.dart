@@ -29,6 +29,22 @@ class _SerieContentState extends State<SerieContent> {
 
   bool _isBackFocused = false;
   bool _hasTrailer = false;
+  final _backGate = TvBackGate();
+
+  void _popDetails({String source = 'focus'}) {
+    if (!mounted) return;
+    if (!_backGate.allow(screen: 'SerieContent', source: source)) return;
+    if (!Navigator.of(context).canPop()) return;
+    _backGate.markRouteExit();
+    logTvBack(
+      screen: 'SerieContent',
+      source: source,
+      action: 'popRoute',
+      blockedDuplicate: false,
+      routeBefore: Get.currentRoute,
+    );
+    Get.back();
+  }
 
   List<String> _seasons = [];
   List<Episode> _episodes = [];
@@ -280,7 +296,7 @@ class _SerieContentState extends State<SerieContent> {
         k == LogicalKeyboardKey.enter ||
         k == LogicalKeyboardKey.gameButtonA) {
       if (_isBackFocused) {
-        Get.back();
+        _popDetails(source: 'focus');
       } else if (_panel == 0) {
         _handleButtonPress();
       } else if (_panel == 2) {
@@ -289,8 +305,8 @@ class _SerieContentState extends State<SerieContent> {
       return KeyEventResult.handled;
     }
 
-    if (k == LogicalKeyboardKey.escape) {
-      Get.back();
+    if (isTvBackKey(k)) {
+      _popDetails(source: 'focus');
       return KeyEventResult.handled;
     }
 
@@ -386,7 +402,10 @@ class _SerieContentState extends State<SerieContent> {
               );
             }
             if (!snapshot.hasData) {
-              return _DetailsErrorState(onBack: Get.back, onReload: _reload);
+              return _DetailsErrorState(
+                onBack: () => _popDetails(source: 'chrome'),
+                onReload: _reload,
+              );
             }
 
             final serie = snapshot.data!;
@@ -424,7 +443,7 @@ class _SerieContentState extends State<SerieContent> {
                           children: [
                             // Back button
                             GestureDetector(
-                              onTap: Get.back,
+                              onTap: () => _popDetails(source: 'chrome'),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 150),
                                 padding: const EdgeInsets.all(8),

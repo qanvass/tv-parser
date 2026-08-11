@@ -82,13 +82,22 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
   bool _isBackKey(LogicalKeyboardKey k) =>
       k == LogicalKeyboardKey.escape || k == LogicalKeyboardKey.goBack;
 
+  final _backGate = TvBackGate();
+
   void _popToShell() {
-    // Guard against double-pop (Focus goBack + system Back in one frame)
-    // which finishes MainActivity → Google TV Home.
+    // Focus-only Back (no PopScope). Gate blocks same-press double pop.
     if (!mounted) return;
-    if (Navigator.of(context).canPop()) {
-      Get.back();
-    }
+    if (!_backGate.allow(screen: 'FavouriteScreen', source: 'focus')) return;
+    if (!Navigator.of(context).canPop()) return;
+    _backGate.markRouteExit();
+    logTvBack(
+      screen: 'FavouriteScreen',
+      source: 'focus',
+      action: 'popRoute',
+      blockedDuplicate: false,
+      routeBefore: Get.currentRoute,
+    );
+    Get.back();
   }
 
   KeyEventResult _onKey(FocusNode _, KeyEvent e) {
@@ -497,7 +506,7 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
                   crossAxisCount: 5,
                   crossAxisSpacing: 10,
                   mainAxisSpacing: 10,
-                  childAspectRatio: .7,
+                  childAspectRatio: 2 / 3,
                 ),
                 itemCount: items.length,
                 itemBuilder: (_, i) {
@@ -555,7 +564,7 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
                 crossAxisCount: 5,
                 crossAxisSpacing: 10,
                 mainAxisSpacing: 10,
-                childAspectRatio: .7,
+                childAspectRatio: 2 / 3,
               ),
               itemCount: items.length,
               itemBuilder: (_, i) {
@@ -811,7 +820,10 @@ class _FavPosterItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
+    return AnimatedScale(
+      scale: isFocused ? 1.08 : 1.0,
+      duration: const Duration(milliseconds: 180),
+      child: AnimatedContainer(
       duration: const Duration(milliseconds: 130),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
@@ -822,7 +834,7 @@ class _FavPosterItem extends StatelessWidget {
               : isSelected
               ? kColorPrimary.withValues(alpha: .5)
               : Colors.transparent,
-          width: 1.5,
+          width: isFocused ? 2 : 1.5,
         ),
         boxShadow: isFocused
             ? [
@@ -908,6 +920,7 @@ class _FavPosterItem extends StatelessWidget {
               ),
           ],
         ),
+      ),
       ),
     );
   }

@@ -39,6 +39,9 @@ class TvNavigationRail extends StatelessWidget {
     this.collapsed = false,
   });
 
+  static const Color _surface = Color(0xE6090B0F);
+  static const Duration _motion = Duration(milliseconds: 180);
+
   @override
   Widget build(BuildContext context) {
     final width = collapsed ? 92.0 : 236.0;
@@ -48,26 +51,21 @@ class TvNavigationRail extends StatelessWidget {
       curve: Curves.easeOutCubic,
       width: width,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(22),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: const Color(0xD6050A18),
-              borderRadius: BorderRadius.circular(20),
+              color: _surface,
+              borderRadius: BorderRadius.circular(22),
               border: Border.all(
-                color: kColorPrimary.withValues(alpha: 0.28),
-                width: 1.2,
+                color: Colors.white.withValues(alpha: 0.06),
+                width: 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: kColorPrimary.withValues(alpha: 0.18),
+                  color: Colors.black.withValues(alpha: 0.55),
                   blurRadius: 22,
-                  offset: const Offset(0, 0),
-                ),
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.45),
-                  blurRadius: 18,
                   offset: const Offset(4, 0),
                 ),
               ],
@@ -75,151 +73,115 @@ class TvNavigationRail extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 14),
               child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              collapsed ? 10 : 18,
-              4,
-              collapsed ? 10 : 18,
-              16,
-            ),
-            child: collapsed
-                ? Center(
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: const LinearGradient(
-                          colors: [kColorPrimaryDark, kColorPrimary],
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: kColorPrimary.withValues(alpha: 0.35),
-                            blurRadius: 14,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      collapsed ? 12 : 20,
+                      2,
+                      collapsed ? 12 : 20,
+                      collapsed ? 12 : 10,
+                    ),
+                    child: collapsed
+                        ? const Center(
+                            child: SizedBox(
+                              width: 56,
+                              height: 44,
+                              child: Image(
+                                image: AssetImage(kIconLogoTransparent),
+                                fit: BoxFit.contain,
+                                filterQuality: FilterQuality.medium,
+                                gaplessPlayback: true,
+                              ),
+                            ),
+                          )
+                        : const Column(
+                            children: [
+                              SizedBox(
+                                width: 168,
+                                height: 118,
+                                child: Image(
+                                  image: AssetImage(kIconLogoTransparent),
+                                  fit: BoxFit.contain,
+                                  filterQuality: FilterQuality.medium,
+                                  gaplessPlayback: true,
+                                ),
+                              ),
+                              SizedBox(height: 6),
+                              Text(
+                                'Media Player',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Color(0xB300A3FF),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1.4,
+                                  height: 1.1,
+                                ),
+                              ),
+                            ],
                           ),
+                  ),
+                  // Non-scrolling column so all primary destinations stay visible
+                  // on 1080p TV (Search / Favorites / History must not clip).
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: Column(
+                        children: [
+                          for (var index = 0; index < items.length; index++)
+                            Expanded(
+                              child: _TvNavigationButton(
+                                item: items[index],
+                                selected: selectedIndex == index,
+                                collapsed: collapsed,
+                                compact: true,
+                                focusNode:
+                                    focusNodes != null &&
+                                        index < focusNodes!.length
+                                    ? focusNodes![index]
+                                    : null,
+                                onTap: () => onSelected(index),
+                              ),
+                            ),
                         ],
                       ),
-                      child: const Icon(
-                        Icons.tv_rounded,
-                        color: Colors.black,
-                        size: 24,
-                      ),
                     ),
-                  )
-                : Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          gradient: const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [kColorPrimaryDark, kColorPrimary],
-                          ),
-                        ),
-                        child: const Icon(
-                          Icons.tv_rounded,
-                          color: Colors.black,
-                          size: 22,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'TV Parser',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -0.5,
-                                height: 1.1,
-                              ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              'Media Player',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: kColorPrimary,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.6,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
                   ),
-          ),
-          // Non-scrolling column so all primary destinations stay visible
-          // on 1080p TV (Search / Favorites / History must not clip).
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Column(
-                children: [
-                  for (var index = 0; index < items.length; index++)
-                    Expanded(
-                      child: _TvNavigationButton(
-                        item: items[index],
-                        selected: selectedIndex == index,
-                        collapsed: collapsed,
-                        compact: true,
-                        focusNode:
-                            focusNodes != null && index < focusNodes!.length
-                                ? focusNodes![index]
-                                : null,
-                        onTap: () => onSelected(index),
+                  if (utilityItems.isNotEmpty) ...[
+                    Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: collapsed ? 16 : 22,
+                        vertical: 6,
+                      ),
+                      child: Divider(
+                        height: 1,
+                        color: Colors.white.withValues(alpha: 0.08),
                       ),
                     ),
-                ],
-              ),
-            ),
-          ),
-          if (utilityItems.isNotEmpty) ...[
-            Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: collapsed ? 16 : 22,
-                vertical: 6,
-              ),
-              child: Divider(
-                height: 1,
-                color: Colors.white.withValues(alpha: 0.10),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Column(
-                children: [
-                  for (var i = 0; i < utilityItems.length; i++)
-                    _TvNavigationButton(
-                      item: utilityItems[i],
-                      selected: false,
-                      collapsed: collapsed,
-                      compact: true,
-                      focusNode:
-                          utilityFocusNodes != null &&
-                              i < utilityFocusNodes!.length
-                          ? utilityFocusNodes![i]
-                          : null,
-                      onTap: () => onUtilitySelected?.call(i),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: Column(
+                        children: [
+                          for (var i = 0; i < utilityItems.length; i++)
+                            _TvNavigationButton(
+                              item: utilityItems[i],
+                              selected: false,
+                              collapsed: collapsed,
+                              compact: true,
+                              focusNode:
+                                  utilityFocusNodes != null &&
+                                      i < utilityFocusNodes!.length
+                                  ? utilityFocusNodes![i]
+                                  : null,
+                              onTap: () => onUtilitySelected?.call(i),
+                            ),
+                        ],
+                      ),
                     ),
+                  ],
                 ],
-              ),
-            ),
-          ],
-        ],
               ),
             ),
           ),
@@ -269,10 +231,31 @@ class _TvNavigationButtonState extends State<_TvNavigationButton> {
   Widget build(BuildContext context) {
     final bool focused = _focused;
     final bool selected = widget.selected;
-    final bool lit = selected || focused;
     final vPad = widget.compact ? 8.0 : 15.0;
     final iconSize = widget.compact ? 22.0 : 24.0;
     final fontSize = widget.compact ? 15.0 : 16.0;
+
+    final Color iconColor;
+    final Color labelColor;
+    if (focused) {
+      iconColor = const Color(0xFFF7F7F8);
+      labelColor = const Color(0xFFF7F7F8);
+    } else if (selected) {
+      iconColor = const Color(0xFFE8F4FF);
+      labelColor = const Color(0xFFF2F2F5);
+    } else {
+      iconColor = const Color(0x99FFFFFF);
+      labelColor = const Color(0x8AFFFFFF);
+    }
+
+    final Color? tileColor;
+    if (focused) {
+      tileColor = const Color(0xCC161A22);
+    } else if (selected) {
+      tileColor = const Color(0x9912161C);
+    } else {
+      tileColor = Colors.transparent;
+    }
 
     return Padding(
       padding: EdgeInsets.only(bottom: widget.compact ? 4 : 10),
@@ -285,18 +268,20 @@ class _TvNavigationButtonState extends State<_TvNavigationButton> {
         },
         onKeyEvent: _onKey,
         child: AnimatedScale(
-          scale: focused ? 1.05 : 1.0,
-          duration: const Duration(milliseconds: 160),
+          scale: focused ? 1.03 : 1.0,
+          duration: TvNavigationRail._motion,
           curve: Curves.easeOutCubic,
           child: Material(
             color: Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
             child: InkWell(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(14),
               canRequestFocus: false,
               onTap: widget.onTap,
+              splashColor: Colors.white.withValues(alpha: 0.04),
+              highlightColor: Colors.white.withValues(alpha: 0.03),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 160),
+                duration: TvNavigationRail._motion,
                 curve: Curves.easeOutCubic,
                 alignment: Alignment.centerLeft,
                 padding: EdgeInsets.symmetric(
@@ -304,102 +289,79 @@ class _TvNavigationButtonState extends State<_TvNavigationButton> {
                   vertical: vPad,
                 ),
                 decoration: BoxDecoration(
-                  gradient: lit
-                      ? LinearGradient(
-                          begin: Alignment.centerLeft,
-                          end: Alignment.centerRight,
-                          colors: focused
-                              ? [
-                                  kColorPrimary.withValues(alpha: 0.98),
-                                  kColorPrimaryDark.withValues(alpha: 0.90),
-                                ]
-                              : [
-                                  kColorPrimary.withValues(alpha: 0.38),
-                                  kColorPrimary.withValues(alpha: 0.10),
-                                ],
+                  color: tileColor,
+                  borderRadius: BorderRadius.circular(14),
+                  border: focused
+                      ? Border.all(
+                          width: 1,
+                          color: Colors.white.withValues(alpha: 0.16),
                         )
                       : null,
-                  color: lit ? null : Colors.transparent,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    width: focused ? 2.4 : (selected ? 1.6 : 1.0),
-                    color: focused
-                        ? kColorFocus
-                        : selected
-                            ? kColorPrimary.withValues(alpha: 0.75)
-                            : Colors.white.withValues(alpha: 0.04),
-                  ),
                   boxShadow: focused
                       ? [
                           BoxShadow(
-                            color: kColorPrimary.withValues(alpha: 0.62),
-                            blurRadius: 22,
+                            color: Colors.black.withValues(alpha: 0.40),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
                           ),
                         ]
-                      : selected
-                          ? [
-                              BoxShadow(
-                                color: kColorPrimary.withValues(alpha: 0.48),
-                                blurRadius: 20,
-                                spreadRadius: 0.4,
-                              ),
-                            ]
-                          : null,
+                      : null,
                 ),
-                child: widget.collapsed
-                    ? Center(
-                        child: Icon(
-                          widget.item.icon,
-                          color: lit
-                              ? (focused ? Colors.black : Colors.white)
-                              : Colors.white54,
-                          size: iconSize,
+                child: Stack(
+                  alignment: Alignment.centerLeft,
+                  children: [
+                    if (selected)
+                      Positioned(
+                        left: 0,
+                        top: widget.collapsed ? 2 : 4,
+                        bottom: widget.collapsed ? 2 : 4,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: kColorPrimary.withValues(
+                              alpha: focused ? 0.80 : 0.55,
+                            ),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                          child: const SizedBox(width: 2),
                         ),
-                      )
-                    : Row(
-                        children: [
-                          if (selected && !focused)
-                            Container(
-                              width: 4,
-                              height: 22,
-                              margin: const EdgeInsets.only(right: 8),
-                              decoration: BoxDecoration(
-                                color: kColorPrimary,
-                                borderRadius: BorderRadius.circular(4),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: kColorPrimary.withValues(alpha: 0.8),
-                                    blurRadius: 10,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          Icon(
-                            widget.item.icon,
-                            color: lit
-                                ? (focused ? Colors.black : Colors.white)
-                                : Colors.white54,
-                            size: iconSize,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              widget.item.label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: lit
-                                    ? (focused ? Colors.black : Colors.white)
-                                    : Colors.white60,
-                                fontSize: fontSize,
-                                fontWeight: lit
-                                    ? FontWeight.w800
-                                    : FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
                       ),
+                    widget.collapsed
+                        ? Center(
+                            child: Icon(
+                              widget.item.icon,
+                              color: iconColor,
+                              size: iconSize,
+                            ),
+                          )
+                        : Padding(
+                            padding: EdgeInsets.only(left: selected ? 10 : 0),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  widget.item.icon,
+                                  color: iconColor,
+                                  size: iconSize,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    widget.item.label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: labelColor,
+                                      fontSize: fontSize,
+                                      fontWeight: (focused || selected)
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                  ],
+                ),
               ),
             ),
           ),

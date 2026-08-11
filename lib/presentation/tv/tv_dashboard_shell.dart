@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -41,6 +43,9 @@ import 'widgets/tv_shell_backdrop.dart';
 import 'widgets/tv_status_clock.dart';
 import 'tv_search_screen.dart';
 import 'cinematic/cinematic_movies_page.dart';
+import 'live/live_hero_preview_controller.dart';
+import 'live/live_preview_trace.dart';
+import 'live/live_browse_gate.dart';
 
 /// Primary rail destinations (content panes). Favorites/History deep-link out.
 class _TvNav {
@@ -61,7 +66,8 @@ class TvDashboardShell extends StatefulWidget {
   State<TvDashboardShell> createState() => _TvDashboardShellState();
 }
 
-class _TvDashboardShellState extends State<TvDashboardShell> {
+class _TvDashboardShellState extends State<TvDashboardShell>
+    with WidgetsBindingObserver {
   int _selectedNavIndex = _TvNav.live;
   bool _loading = false;
   bool _isMoviesRefreshing = false;
@@ -93,12 +99,16 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
   List<ChannelLive> _tvAllLiveChannels = [];
   List<PremiumPlusItem> _tvPremiumPlusItems = [];
   TvStreamRecord? _focusedLiveStream;
+  late final LiveHeroPreviewController _livePreview;
   String? _liveCategoryFilter;
   String? _movieCategoryFilter;
+  String? _seriesCategoryFilter;
 
   @override
   void initState() {
     super.initState();
+    _livePreview = LiveHeroPreviewController();
+    WidgetsBinding.instance.addObserver(this);
 
     _navItems = const [
       TvNavigationItem(label: 'Live TV', icon: Icons.live_tv_rounded),
@@ -127,10 +137,139 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
       );
     });
     XmlTvRepository.instance.addListener(_onXmlTvReady);
-    TmdbEnrichmentWorker.instance.addListener(_onTmdbReady);
     IptvProviderSession.instance.onMoviesCatalogReady = _onMoviesCatalogReady;
     IptvProviderSession.instance.onSeriesCatalogReady = _onSeriesCatalogReady;
     FocusManager.instance.addListener(_syncRailCollapse);
+  }
+
+  bool get _liveSurfaceVisible {
+    if (!mounted || _selectedNavIndex != _TvNav.live) return false;
+    final route = ModalRoute.of(context);
+    return route == null || route.isCurrent;
+  }
+
+  void _onLiveChannelFocused(TvStreamRecord stream) {
+    if (!mounted) return;
+    final eligible = LiveHeroPreviewPolicy.isLivePreviewSource(stream);
+    final raw = stream.streamUrl.trim();
+    LivePreviewTrace.log(
+      'focused_record_selected',
+      'channel=${stream.title} hasStreamUrl=${raw.isNotEmpty} '
+      'hash=${LivePreviewTrace.urlHash(raw)} '
+      'isVod=${stream.isVod} eligible=$eligible '
+      'liveVisible=$_liveSurfaceVisible '
+      'looksHttp=${raw.startsWith('http')} len=${raw.length}',
+    );
+    if (!eligible) return;
+    setState(() => _focusedLiveStream = stream);
+    if (_liveSurfaceVisible) {
+      // Never start VLC under the Welcome Hold card — play() can block the
+      // UI thread and freeze that overlay on Chromecast.
+      LiveBrowseGate.whenBrowseReady(() {
+        if (!mounted || !_liveSurfaceVisible) return;
+        if (_focusedLiveStream?.streamUrl != stream.streamUrl) return;
+        _livePreview.request(stream);
+      });
+    }
+  }
+
+  void _syncLivePreview({bool immediate = false}) {
+    if (!_liveSurfaceVisible) {
+      LivePreviewTrace.log(
+        'sync_skipped',
+        'reason=live_not_visible nav=$_selectedNavIndex',
+      );
+      return;
+    }
+    final stream = _focusedLiveStream;
+    if (stream == null) {
+      LivePreviewTrace.log('sync_skipped', 'reason=no_focused_stream');
+      return;
+    }
+    LivePreviewTrace.log(
+      'focused_record_selected',
+      'channel=${stream.title} hasStreamUrl=${stream.streamUrl.trim().isNotEmpty} '
+      'hash=${LivePreviewTrace.urlHash(stream.streamUrl)} '
+      'immediate=$immediate source=sync',
+    );
+    LiveBrowseGate.whenBrowseReady(() {
+      if (!mounted || !_liveSurfaceVisible) return;
+      if (_focusedLiveStream?.streamUrl != stream.streamUrl) return;
+      _livePreview.request(stream, immediate: immediate);
+      unawaited(_livePreview.forceMuted());
+    });
+  }
+
+  /// Explicit Watch Live / Live card handoff.
+  /// Captures this record, releases preview, then plays THIS streamUrl.
+  Future<void> _watchLive(TvStreamRecord active) async {
+    final url = active.streamUrl;
+    final heroHash = _livePreview.activeUrlHash;
+    final watchHash = LivePreviewTrace.urlHash(url);
+    LivePreviewTrace.log(
+      'watch_live_handoff',
+      'channel=${active.title} heroHash=$heroHash watchHash=$watchHash '
+      'match=${heroHash == watchHash} hasStreamUrl=${url.trim().isNotEmpty}',
+    );
+    await _livePreview.stopAndRelease(reason: 'fullscreen_handoff');
+    if (!mounted) return;
+    widget.onChannelSelected(url);
+    unawaited(_resumePreviewWhenDashboardCurrent());
+  }
+
+  /// URL-only Live launches (home/local rows that already hold streamUrl).
+  Future<void> _openPlayback(String streamUrl) async {
+    final heroHash = _livePreview.activeUrlHash;
+    final watchHash = LivePreviewTrace.urlHash(streamUrl);
+    LivePreviewTrace.log(
+      'watch_live_handoff',
+      'source=url_only heroHash=$heroHash watchHash=$watchHash '
+      'match=${heroHash == watchHash}',
+    );
+    await _livePreview.stopAndRelease(reason: 'fullscreen_handoff');
+    if (!mounted) return;
+    widget.onChannelSelected(streamUrl);
+    unawaited(_resumePreviewWhenDashboardCurrent());
+  }
+
+  Future<void> _resumePreviewWhenDashboardCurrent() async {
+    final route = ModalRoute.of(context);
+    if (route == null) return;
+    var covered = false;
+    for (var i = 0; i < 40; i++) {
+      if (!mounted) return;
+      if (!route.isCurrent) {
+        covered = true;
+        break;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    if (!covered) return;
+    while (mounted && !route.isCurrent) {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
+    if (!mounted) return;
+    _syncLivePreview(immediate: true);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    LivePreviewTrace.log(
+      'app_lifecycle',
+      'state=${state.name} liveVisible=$_liveSurfaceVisible '
+      'hash=${_livePreview.activeUrlHash}',
+    );
+    switch (state) {
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        unawaited(_livePreview.release(reason: 'lifecycle'));
+      case AppLifecycleState.resumed:
+        if (_liveSurfaceVisible) {
+          _syncLivePreview(immediate: true);
+        }
+    }
   }
 
   void _loadRealPlaylistContent() async {
@@ -318,7 +457,6 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
                 subtitle: cat.categoryName ?? 'Live',
                 streamUrl: streamUrl,
                 imageUrl: logo.isEmpty ? null : logo,
-                badge: '${i + 1}'.padLeft(3, '0'),
                 isHd: _looksHd(name),
                 tvgId: ch.epgChannelId?.toString(),
                 streamId: ch.streamId,
@@ -357,7 +495,6 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
                   ? ch.directSource!
                   : (ch.streamId ?? ''),
               imageUrl: logo.isEmpty ? null : logo,
-              badge: '${i + 1}'.padLeft(3, '0'),
               isHd: _looksHd(chName),
               tvgId: ch.epgChannelId?.toString(),
               streamId: ch.streamId,
@@ -380,10 +517,12 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
           // Live shell interactive — do not wait on Movies/Series rails.
           _loading = false;
         });
+        _syncLivePreview(immediate: true);
         CatalogPerf.mark('firstLiveMs');
         CatalogPerf.mark('app_shell_ms');
         CatalogPerf.count('liveRowsPublished', rows.length);
         CatalogPerf.count('liveCount', allLives.length);
+        CatalogPerf.count('liveGroups', _liveGroupCount);
         CatalogPerf.flush('first_live_ui');
       }
     } else if (allLives.isNotEmpty && mounted) {
@@ -403,7 +542,6 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
                 ? ch.directSource!
                 : (ch.streamId ?? ''),
             imageUrl: logo.isEmpty ? null : logo,
-            badge: '${i + 1}'.padLeft(3, '0'),
             isHd: _looksHd(chName),
             tvgId: ch.epgChannelId?.toString(),
             streamId: ch.streamId,
@@ -415,6 +553,7 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
         _focusedLiveStream ??= records.isNotEmpty ? records.first : null;
         _loading = false;
       });
+      _syncLivePreview(immediate: true);
       CatalogPerf.mark('firstLiveMs');
       CatalogPerf.mark('app_shell_ms');
       CatalogPerf.count('liveRowsPublished', 1);
@@ -716,12 +855,25 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
       final sortedCats =
           ProviderCurationRules.sortCategoriesForNormalDashboard(normalCats);
       final byCat = <String, List<ChannelSerie>>{};
+      var seriesUnassigned = 0;
       for (final ch in allSeries) {
         final id = ch.categoryId;
-        if (id == null || id.isEmpty) continue;
+        if (id == null || id.isEmpty) {
+          seriesUnassigned++;
+          continue;
+        }
         byCat.putIfAbsent(id, () => []).add(ch);
       }
-      final List<TvChannelRow> rows = [];
+      Map<String, double> watchById = const {};
+      try {
+        final watching = context.read<WatchingCubit>().state.series;
+        watchById = {
+          for (final w in watching)
+            if (w.durationStrm > 0)
+              w.streamId: (w.sliderValue / w.durationStrm).clamp(0.0, 1.0),
+        };
+      } catch (_) {}
+      var rows = <TvChannelRow>[];
       for (final cat in sortedCats) {
         final catId = cat.categoryId;
         if (catId == null) continue;
@@ -733,60 +885,16 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
             profile,
             categories,
           );
-          final List<TvStreamRecord> records = [];
-          Map<String, double> watchById = const {};
-          try {
-            final watching = context.read<WatchingCubit>().state.series;
-            watchById = {
-              for (final w in watching)
-                if (w.durationStrm > 0)
-                  w.streamId: (w.sliderValue / w.durationStrm).clamp(0.0, 1.0),
-            };
-          } catch (_) {}
-          for (final ch in sortedChs) {
-            String streamUrl = '';
-            if (ch.directSource != null && ch.directSource!.isNotEmpty) {
-              streamUrl = ch.directSource!;
-            } else if (ch.seriesId != null) {
-              streamUrl = ch.seriesId!;
-            }
-            final poster = ArtworkUrlResolver.resolveVodPoster(
-              cover: ch.cover,
-            );
-            final parsed = TitleNormalizer.parse(ch.name ?? '');
-            final rating = _parseRating(ch.rating ?? ch.rating5based);
-            final seriesTitle = parsed.displayTitle.isEmpty
-                ? (ch.name ?? 'Series')
-                : parsed.displayTitle;
-            final key = TmdbEnrichmentWorker.cacheKeyFor(
-              seriesTitle,
-              ch.seriesId,
-              type: ContentType.series,
-              year: parsed.year,
-            );
-            records.add(
-              TvStreamRecord(
-                title: seriesTitle,
-                subtitle: cat.categoryName ?? 'Series',
-                streamUrl: streamUrl,
-                imageUrl: poster,
-                backdropUrl: ArtworkUrlResolver.resolveHeroBackdrop(
-                  posterFallback: poster,
-                ),
-                streamId: ch.seriesId,
-                posterStyle: TvPosterStyle.vodPortrait,
-                year: parsed.year,
-                rating: rating,
-                qualityLabel: parsed.qualityLabel,
-                season: parsed.season,
-                episode: parsed.episode,
-                badge: parsed.episodeBadge,
-                overview: ch.plot,
+          final records = <TvStreamRecord>[
+            for (final ch in sortedChs)
+              _seriesStreamRecord(
+                ch,
+                cat.categoryName ?? 'Series',
+                providerCategoryId: cat.categoryId,
+                providerCategoryName: cat.categoryName,
                 watchProgress: watchById[ch.seriesId ?? ''],
-                enrichmentKey: key,
               ),
-            );
-          }
+          ];
           if (records.isNotEmpty) {
             rows.add(
               TvChannelRow(
@@ -797,6 +905,66 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
           }
         } catch (_) {}
       }
+
+      // FIX 2: category metadata missing or produced zero rails.
+      // Content data > category metadata — never publish an empty Series
+      // tab when valid series records exist.
+      if (rows.isEmpty && allSeries.isNotEmpty) {
+        final nameById = <String, String>{
+          for (final c in [
+            ...categories,
+            ...LocaleApi.getM3uSeriesCategories(),
+          ])
+            if (c.categoryId != null && c.categoryId!.isNotEmpty)
+              c.categoryId!: (c.categoryName != null &&
+                      c.categoryName!.trim().isNotEmpty)
+                  ? c.categoryName!
+                  : 'All Series',
+        };
+        final byOwn = <String, List<ChannelSerie>>{};
+        seriesUnassigned = 0;
+        for (final ch in allSeries) {
+          final id = ch.categoryId;
+          if (id == null || id.isEmpty) {
+            seriesUnassigned++;
+            byOwn.putIfAbsent('_none', () => []).add(ch);
+          } else {
+            byOwn.putIfAbsent(id, () => []).add(ch);
+          }
+        }
+        for (final entry in byOwn.entries) {
+          final label = nameById[entry.key] ?? 'All Series';
+          final records = <TvStreamRecord>[
+            for (final ch in entry.value)
+              _seriesStreamRecord(
+                ch,
+                label,
+                providerCategoryId:
+                    entry.key == '_none' ? ch.categoryId : entry.key,
+                providerCategoryName: label,
+                watchProgress: watchById[ch.seriesId ?? ''],
+              ),
+          ];
+          if (records.isNotEmpty) {
+            rows.add(
+              TvChannelRow(
+                title: label,
+                streams: SeriesRailGrouper.groupForRail(records),
+              ),
+            );
+          }
+        }
+      }
+
+      final assigned = rows.fold<int>(0, (n, r) => n + r.streams.length);
+      debugPrint(
+        '[SERIES_PIPE] rawSeries=${allSeries.length} '
+        'seriesCategories=${categories.length} '
+        'generatedSeriesRows=${rows.length} '
+        'seriesAssignedToRows=$assigned '
+        'seriesUnassigned=$seriesUnassigned '
+        'shelfTitles=${rows.map((r) => r.title).join('|')}',
+      );
       CatalogPerf.span('series_group_ms', seriesGroupWatch.elapsedMilliseconds);
       CatalogPerf.timeline('SERIES_GROUP_READY');
       if (mounted) {
@@ -834,7 +1002,7 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
     debugPrint(
       '[MOVIES_PIPE] movieCategories=${cats.length} (bloc hydrate after movies)',
     );
-    if (_movieRows.isEmpty && LocaleApi.getM3uMovies().isNotEmpty) {
+    if (_movieRows.isEmpty && LocaleApi.getM3uMovieCount() > 0) {
       _loadMovieRails(
         api: IpTvApi(),
         profile: UserPreferenceProfile.load(),
@@ -851,7 +1019,7 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
     debugPrint(
       '[SERIES_PIPE] seriesCategories=${cats.length} (bloc hydrate after series)',
     );
-    if (_seriesRows.isEmpty && LocaleApi.getM3uSeries().isNotEmpty) {
+    if (_seriesRows.isEmpty && LocaleApi.getM3uSeriesCount() > 0) {
       _loadSeriesRails(
         api: IpTvApi(),
         profile: UserPreferenceProfile.load(),
@@ -861,10 +1029,6 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
   }
 
   void _onXmlTvReady() {
-    if (mounted) setState(() {});
-  }
-
-  void _onTmdbReady() {
     if (mounted) setState(() {});
   }
 
@@ -924,6 +1088,59 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
       enrichmentKey: key,
       providerCategoryId: providerCategoryId ?? ch.categoryId,
       providerCategoryName: providerName,
+    );
+  }
+
+  /// Poster/year/TMDB optional — never drop a playable series row.
+  TvStreamRecord _seriesStreamRecord(
+    ChannelSerie ch,
+    String subtitle, {
+    String? providerCategoryId,
+    String? providerCategoryName,
+    double? watchProgress,
+  }) {
+    String streamUrl = '';
+    if (ch.directSource != null && ch.directSource!.isNotEmpty) {
+      streamUrl = ch.directSource!;
+    } else if (ch.seriesId != null) {
+      streamUrl = ch.seriesId!;
+    }
+    final poster = ArtworkUrlResolver.resolveVodPoster(
+      cover: ch.cover,
+    );
+    final parsed = TitleNormalizer.parse(ch.name ?? '');
+    final rating = _parseRating(ch.rating ?? ch.rating5based);
+    final seriesTitle = parsed.displayTitle.isEmpty
+        ? (ch.name ?? 'Series')
+        : parsed.displayTitle;
+    final key = TmdbEnrichmentWorker.cacheKeyFor(
+      seriesTitle,
+      ch.seriesId,
+      type: ContentType.series,
+      year: parsed.year,
+      matchTitle: parsed.matchTitle,
+    );
+    return TvStreamRecord(
+      title: seriesTitle,
+      subtitle: providerCategoryName ?? subtitle,
+      streamUrl: streamUrl,
+      imageUrl: poster,
+      backdropUrl: ArtworkUrlResolver.resolveHeroBackdrop(
+        posterFallback: poster,
+      ),
+      streamId: ch.seriesId,
+      posterStyle: TvPosterStyle.vodPortrait,
+      year: parsed.year,
+      rating: rating,
+      qualityLabel: parsed.qualityLabel,
+      season: parsed.season,
+      episode: parsed.episode,
+      badge: parsed.episodeBadge,
+      overview: ch.plot,
+      watchProgress: watchProgress,
+      enrichmentKey: key,
+      providerCategoryId: providerCategoryId ?? ch.categoryId,
+      providerCategoryName: providerCategoryName ?? subtitle,
     );
   }
 
@@ -998,7 +1215,9 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
 
   void _onPrimarySelected(int index) {
     if (index == _TvNav.favorites) {
+      unawaited(_livePreview.release(reason: 'navigation'));
       Get.toNamed(screenFavourite)?.then((result) {
+        TvBackGate.noteRoutePopped();
         if (!mounted) return;
         if (result == 'live') {
           _onPrimarySelected(_TvNav.live);
@@ -1009,16 +1228,22 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
         } else {
           _navFocusNodes[_TvNav.favorites].requestFocus();
         }
+        _syncLivePreview(immediate: true);
       });
       return;
     }
     if (index == _TvNav.history) {
+      unawaited(_livePreview.release(reason: 'navigation'));
       Get.toNamed(screenCatchUp)?.then((_) {
+        TvBackGate.noteRoutePopped();
         if (mounted) _navFocusNodes[_TvNav.history].requestFocus();
+        _syncLivePreview(immediate: true);
       });
       return;
     }
 
+    final leavingLive = _selectedNavIndex == _TvNav.live && index != _TvNav.live;
+    final enteringLive = _selectedNavIndex != _TvNav.live && index == _TvNav.live;
     if (index == _TvNav.movies) {
       CatalogPerf.anchor('movies_tab');
     }
@@ -1026,14 +1251,22 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
       _selectedNavIndex = index;
       _railCollapsed = index == _TvNav.search;
     });
+    if (leavingLive) {
+      unawaited(_livePreview.release(reason: 'navigation'));
+    } else if (enteringLive) {
+      _syncLivePreview(immediate: true);
+    }
   }
 
   void _onUtilitySelected(int index) {
     if (index == 0) {
+      unawaited(_livePreview.release(reason: 'navigation'));
       Get.toNamed(screenSettings)?.then((_) {
+        TvBackGate.noteRoutePopped();
         if (mounted && _utilityFocusNodes.isNotEmpty) {
           _utilityFocusNodes.first.requestFocus();
         }
+        _syncLivePreview(immediate: true);
       });
     }
   }
@@ -1071,6 +1304,7 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
         _selectedNavIndex = _TvNav.live;
         _railCollapsed = false;
       });
+      _syncLivePreview(immediate: true);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _navFocusNodes[_TvNav.live].requestFocus();
       });
@@ -1080,6 +1314,26 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
     if (!_railHasFocus) {
       final idx = _selectedNavIndex.clamp(0, _navFocusNodes.length - 1);
       _navFocusNodes[idx].requestFocus();
+      logTvBack(
+        screen: 'TvShell',
+        source: 'focus',
+        action: 'returnToRail',
+        blockedDuplicate: false,
+        routeBefore: Get.currentRoute,
+      );
+      return KeyEventResult.handled;
+    }
+
+    // Rail already focused. Swallow a leftover Back from a just-popped
+    // child route so it cannot finish the Activity on the same press.
+    if (TvBackGate.shouldSuppressShellExit()) {
+      logTvBack(
+        screen: 'TvShell',
+        source: 'focus',
+        action: 'blockedDuplicate',
+        blockedDuplicate: true,
+        routeBefore: Get.currentRoute,
+      );
       return KeyEventResult.handled;
     }
 
@@ -1088,6 +1342,8 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _livePreview.dispose();
     FocusManager.instance.removeListener(_syncRailCollapse);
     for (final node in _navFocusNodes) {
       node.dispose();
@@ -1097,7 +1353,6 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
     }
     _retryFocus.dispose();
     XmlTvRepository.instance.removeListener(_onXmlTvReady);
-    TmdbEnrichmentWorker.instance.removeListener(_onTmdbReady);
     if (identical(
         IptvProviderSession.instance.onMoviesCatalogReady, _onMoviesCatalogReady)) {
       IptvProviderSession.instance.onMoviesCatalogReady = null;
@@ -1127,21 +1382,19 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
             body: Stack(
               fit: StackFit.expand,
               children: [
-                TvShellBackdrop(imageUrl: _focusedBackdropUrl()),
+                ListenableBuilder(
+                  listenable: TmdbEnrichmentWorker.instance,
+                  builder: (context, _) =>
+                      TvShellBackdrop(imageUrl: _focusedBackdropUrl()),
+                ),
                 const Positioned(
                   top: 0,
                   left: 0,
                   right: 0,
-                  height: 4,
+                  height: 1,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Color(0xFF00A3FF),
-                          Color(0xFF00D2FF),
-                          Color(0x0000A3FF),
-                        ],
-                      ),
+                      color: Color(0x14FFFFFF),
                     ),
                   ),
                 ),
@@ -1170,21 +1423,14 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              if (_selectedNavIndex != _TvNav.movies) ...[
+                              if (_selectedNavIndex != _TvNav.movies &&
+                                  _selectedNavIndex != _TvNav.series) ...[
                                 _Header(
                                   selectedLabel:
                                       _navItems[_selectedNavIndex].label,
                                   subtitle: _headerSubtitle(),
-                                  categoryCount:
-                                      _selectedNavIndex == _TvNav.live
-                                          ? (_liveGroupCount > 0
-                                              ? _liveGroupCount
-                                              : _liveRows.length)
-                                          : null,
-                                  channelCount:
-                                      _selectedNavIndex == _TvNav.live
-                                          ? _tvAllLiveChannels.length
-                                          : null,
+                                  liveTone:
+                                      _selectedNavIndex == _TvNav.live,
                                 ),
                                 const SizedBox(height: 22),
                               ],
@@ -1217,31 +1463,22 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(
-              width: 48,
-              height: 48,
+            const SizedBox(
+              width: 28,
+              height: 28,
               child: CircularProgressIndicator(
-                strokeWidth: 3,
-                color: kColorPrimary.withValues(alpha: 0.85),
-                backgroundColor: Colors.white.withValues(alpha: 0.08),
+                strokeWidth: 2,
+                color: Color(0xCCF2F2F5),
+                backgroundColor: Color(0x22FFFFFF),
               ),
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 18),
             const Text(
-              'Building your guide…',
+              'Loading live TV',
               style: TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Loading live categories and channel logos',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.55),
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
+                color: Color(0xFFF7F7F8),
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ],
@@ -1253,7 +1490,7 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
     final isLive = _selectedNavIndex == _TvNav.live;
     final isMoviesTab = _selectedNavIndex == _TvNav.movies;
     final rawMovieCount =
-        isMoviesTab ? LocaleApi.getM3uMovies().length : 0;
+        isMoviesTab ? LocaleApi.getM3uMovieCount() : 0;
 
     // FIX 4: Movies empty pane only when load is done AND raw count is 0.
     if (isMoviesTab &&
@@ -1288,7 +1525,7 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
 
     final isSeriesTab = _selectedNavIndex == _TvNav.series;
     final rawSeriesCount =
-        isSeriesTab ? LocaleApi.getM3uSeries().length : 0;
+        isSeriesTab ? LocaleApi.getM3uSeriesCount() : 0;
     if (isSeriesTab &&
         rows.isEmpty &&
         (_loading || _isSeriesRefreshing || rawSeriesCount > 0)) {
@@ -1457,12 +1694,10 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
       posterStyle: isVod
           ? TvPosterStyle.vodPortrait
           : TvPosterStyle.liveLandscape,
-      onChannelSelected: widget.onChannelSelected,
+      onChannelSelected: isLive ? _openPlayback : widget.onChannelSelected,
+      onLiveRecordSelected: isLive ? _watchLive : null,
       onStreamFocused: isLive
-          ? (stream) {
-              if (!mounted) return;
-              setState(() => _focusedLiveStream = stream);
-            }
+          ? _onLiveChannelFocused
           : isVod
               ? (stream) {
                   if (!mounted) return;
@@ -1547,19 +1782,11 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
       children: [
         TvLiveFocusHero(
           stream: focused,
+          livePreview: _livePreview,
           kicker: 'LIVE',
           onWatch: focused == null || focused.streamUrl.isEmpty
               ? null
-              : () => widget.onChannelSelected(focused.streamUrl),
-        ),
-        const SizedBox(height: 14),
-        TvStatsStrip(
-          liveGroups: _liveGroupCount > 0 ? _liveGroupCount : _liveRows.length,
-          movies: LocaleApi.getM3uMovies().length,
-          series: LocaleApi.getM3uSeries().length,
-          playlistEntries: _tvAllLiveChannels.length +
-              LocaleApi.getM3uMovies().length +
-              LocaleApi.getM3uSeries().length,
+              : () => _watchLive(focused),
         ),
         const SizedBox(height: 14),
         TvLiveCategoryChips(
@@ -1573,17 +1800,14 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
         const SizedBox(height: 18),
         TvHomeRows(
           allLiveChannels: _tvAllLiveChannels,
-          onChannelSelected: widget.onChannelSelected,
-          onStreamFocused: (stream) {
-            if (!mounted) return;
-            setState(() => _focusedLiveStream = stream);
-          },
+          onChannelSelected: _openPlayback,
+          onStreamFocused: _onLiveChannelFocused,
         ),
         if (hasSpotlight) ...[
           TvLiveSpotlightRow(
             events: _tvSpotlightEvents,
             allLiveChannels: _tvAllLiveChannels,
-            onChannelSelected: widget.onChannelSelected,
+            onChannelSelected: _openPlayback,
           ),
           const SizedBox(height: 22),
         ],
@@ -1594,26 +1818,20 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
               if (ch is ChannelLive &&
                   ch.directSource != null &&
                   ch.directSource!.isNotEmpty) {
-                widget.onChannelSelected(ch.directSource!);
+                unawaited(_openPlayback(ch.directSource!));
               } else if (ch is ChannelLive && ch.streamId != null) {
-                widget.onChannelSelected(ch.streamId!);
+                unawaited(_openPlayback(ch.streamId!));
               }
             },
-            onStreamFocused: (stream) {
-              if (!mounted) return;
-              setState(() => _focusedLiveStream = stream);
-            },
+            onStreamFocused: _onLiveChannelFocused,
           ),
           const SizedBox(height: 22),
         ],
         if (hasLocal) ...[
           TvLocalTvRow(
             allLiveChannels: _tvAllLiveChannels,
-            onChannelSelected: widget.onChannelSelected,
-            onStreamFocused: (stream) {
-              if (!mounted) return;
-              setState(() => _focusedLiveStream = stream);
-            },
+            onChannelSelected: _openPlayback,
+            onStreamFocused: _onLiveChannelFocused,
           ),
           const SizedBox(height: 22),
         ],
@@ -1634,7 +1852,10 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
             .where((r) => r.title == _movieCategoryFilter)
             .toList(growable: false);
       case _TvNav.series:
-        return _seriesRows;
+        if (_seriesCategoryFilter == null) return _seriesRows;
+        return _seriesRows
+            .where((r) => r.title == _seriesCategoryFilter)
+            .toList(growable: false);
       default:
         return _liveRows;
     }
@@ -1665,7 +1886,7 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
   String _headerSubtitle() {
     switch (_selectedNavIndex) {
       case _TvNav.live:
-        return 'Watch live channels from your playlist';
+        return '';
       case _TvNav.movies:
         return 'Browse movies in your connected catalog';
       case _TvNav.series:
@@ -1679,7 +1900,9 @@ class _TvDashboardShellState extends State<TvDashboardShell> {
 }
 
 class _AppBuildBadge extends StatefulWidget {
-  const _AppBuildBadge();
+  final bool quiet;
+
+  const _AppBuildBadge({this.quiet = false});
 
   @override
   State<_AppBuildBadge> createState() => _AppBuildBadgeState();
@@ -1703,8 +1926,10 @@ class _AppBuildBadgeState extends State<_AppBuildBadge> {
     if (_label.isEmpty) return const SizedBox(width: 36, height: 22);
     return Text(
       _label,
-      style: const TextStyle(
-        color: Color(0xFF00D2FF),
+      style: TextStyle(
+        color: widget.quiet
+            ? const Color(0xFFF2F2F5)
+            : const Color(0xFF00D2FF),
         fontSize: 13,
         fontWeight: FontWeight.w900,
         letterSpacing: 0.8,
@@ -1716,38 +1941,29 @@ class _AppBuildBadgeState extends State<_AppBuildBadge> {
 class _Header extends StatelessWidget {
   final String selectedLabel;
   final String? subtitle;
-  final int? categoryCount;
-  final int? channelCount;
+  final bool liveTone;
 
   const _Header({
     required this.selectedLabel,
     this.subtitle,
-    this.categoryCount,
-    this.channelCount,
+    this.liveTone = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final hasLiveMeta =
-        (categoryCount != null && categoryCount! > 0) ||
-        (channelCount != null && channelCount! > 0);
-    final metaParts = <String>[
-      if (subtitle != null && subtitle!.isNotEmpty) subtitle!,
-      if (hasLiveMeta && categoryCount != null && categoryCount! > 0)
-        '$categoryCount live groups',
-      if (hasLiveMeta && channelCount != null && channelCount! > 0)
-        '$channelCount channels',
-    ];
+    final meta = subtitle != null && subtitle!.isNotEmpty ? subtitle! : null;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(
-          Icons.sensors_rounded,
-          color: kColorPrimary.withValues(alpha: 0.9),
-          size: 22,
-        ),
-        const SizedBox(width: 10),
+        if (!liveTone) ...[
+          Icon(
+            Icons.sensors_rounded,
+            color: kColorPrimary.withValues(alpha: 0.9),
+            size: 22,
+          ),
+          const SizedBox(width: 10),
+        ],
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1756,18 +1972,18 @@ class _Header extends StatelessWidget {
                 selectedLabel.toUpperCase(),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
+                style: TextStyle(
+                  color: liveTone ? const Color(0xFFF7F7F8) : Colors.white,
+                  fontSize: liveTone ? 22 : 28,
                   fontWeight: FontWeight.w900,
                   letterSpacing: -0.6,
                   height: 1.05,
                 ),
               ),
-              if (metaParts.isNotEmpty) ...[
+              if (meta != null) ...[
                 const SizedBox(height: 4),
                 Text(
-                  metaParts.join(' · '),
+                  meta,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -1784,13 +2000,19 @@ class _Header extends StatelessWidget {
           margin: const EdgeInsets.only(right: 14),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
-            color: const Color(0x3300A3FF),
+            color: liveTone
+                ? Colors.white.withValues(alpha: 0.06)
+                : const Color(0x3300A3FF),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: kColorPrimary.withValues(alpha: 0.7)),
+            border: Border.all(
+              color: liveTone
+                  ? Colors.white.withValues(alpha: 0.22)
+                  : kColorPrimary.withValues(alpha: 0.7),
+            ),
           ),
-          child: const _AppBuildBadge(),
+          child: _AppBuildBadge(quiet: liveTone),
         ),
-        const TvStatusClock(),
+        TvStatusClock(neutral: liveTone),
       ],
     );
   }

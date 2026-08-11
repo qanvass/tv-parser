@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../helpers/helpers.dart';
-
 /// Horizontal filter chips built from real playlist group titles only.
 class TvLiveCategoryChips extends StatelessWidget {
   final List<String> categories;
@@ -88,16 +86,16 @@ class _ChipState extends State<_Chip> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
-                color: widget.selected
-                    ? kColorPrimary.withValues(alpha: 0.22)
-                    : Colors.white.withValues(alpha: 0.06),
+                color: widget.selected || _focused
+                    ? Colors.white.withValues(alpha: 0.14)
+                    : Colors.white.withValues(alpha: 0.05),
                 border: Border.all(
-                  width: _focused ? 2 : 1,
+                  width: _focused ? 1.3 : 1,
                   color: _focused
-                      ? kColorFocus
+                      ? const Color(0xFFF2F2F5)
                       : widget.selected
-                          ? kColorPrimary.withValues(alpha: 0.7)
-                          : Colors.white.withValues(alpha: 0.16),
+                          ? Colors.white.withValues(alpha: 0.28)
+                          : Colors.white.withValues(alpha: 0.12),
                 ),
               ),
               child: Text(

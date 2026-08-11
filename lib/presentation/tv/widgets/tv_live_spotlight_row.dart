@@ -27,10 +27,8 @@ class TvLiveSpotlightRow extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TvRailSectionHeader(
+          const TvRailSectionHeader(
             title: 'Live Tonight',
-            trailing: 'View All · ${events.length}',
-            icon: Icons.bolt_rounded,
           ),
           const SizedBox(height: 10),
           Expanded(

@@ -399,6 +399,10 @@ class LocaleApi {
         decodeMsKey: 'movie_json_decode_ms',
       );
 
+  /// UI-only length. Does not copy the catalog ([getM3uMovies] still does).
+  static int getM3uMovieCount() =>
+      _m3uMoviesMem?.length ?? getM3uMovies().length;
+
   static Future<bool> saveM3uSeriesCategories(
     List<CategoryModel> categories,
   ) async {
@@ -440,6 +444,10 @@ class LocaleApi {
         assign: (list) => _m3uSeriesMem = list,
         decodeMsKey: 'series_json_decode_ms',
       );
+
+  /// UI-only length. Does not copy the catalog ([getM3uSeries] still does).
+  static int getM3uSeriesCount() =>
+      _m3uSeriesMem?.length ?? getM3uSeries().length;
 
   static Future<bool> _writeM3uJson(
     String fileName,

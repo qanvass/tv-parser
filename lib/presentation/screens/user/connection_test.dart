@@ -15,6 +15,22 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
   // Interactive TV focus management
   int _focusedBtnIdx = 0; // 0 = Run Diagnostics, 1 = Back Button
   final _screenFocusNode = FocusNode();
+  final _backGate = TvBackGate();
+
+  void _popTest({String source = 'focus'}) {
+    if (!mounted) return;
+    if (!_backGate.allow(screen: 'ConnectionTest', source: source)) return;
+    if (!Navigator.of(context).canPop()) return;
+    _backGate.markRouteExit();
+    logTvBack(
+      screen: 'ConnectionTest',
+      source: source,
+      action: 'popRoute',
+      blockedDuplicate: false,
+      routeBefore: Get.currentRoute,
+    );
+    Get.back();
+  }
 
   // Test Results
   String _connectionType = "Unknown";
@@ -536,8 +552,8 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     final k = event.logicalKey;
 
-    if (k == LogicalKeyboardKey.escape || k == LogicalKeyboardKey.gameButtonB) {
-      Get.back();
+    if (isTvBackKey(k) || k == LogicalKeyboardKey.gameButtonB) {
+      _popTest(source: 'focus');
       return KeyEventResult.handled;
     }
     
@@ -552,7 +568,7 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
       if (_focusedBtnIdx == 0) {
         _runAllDiagnostics();
       } else {
-        Get.back();
+        _popTest(source: 'focus');
       }
       return KeyEventResult.handled;
     }
@@ -590,7 +606,7 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
                     children: [
                       // Back Button
                       GestureDetector(
-                        onTap: Get.back,
+                        onTap: () => _popTest(source: 'chrome'),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 150),
                           width: 40,

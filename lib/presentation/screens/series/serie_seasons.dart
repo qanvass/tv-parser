@@ -23,6 +23,22 @@ class _SerieSeasonsState extends State<SerieSeasons> {
   final _episodeScroll = ScrollController();
 
   bool _isBackFocused = false;
+  final _backGate = TvBackGate();
+
+  void _popSeasons({String source = 'focus'}) {
+    if (!mounted) return;
+    if (!_backGate.allow(screen: 'SerieSeasons', source: source)) return;
+    if (!Navigator.of(context).canPop()) return;
+    _backGate.markRouteExit();
+    logTvBack(
+      screen: 'SerieSeasons',
+      source: source,
+      action: 'popRoute',
+      blockedDuplicate: false,
+      routeBefore: Get.currentRoute,
+    );
+    Get.back();
+  }
 
   @override
   void initState() {
@@ -144,7 +160,7 @@ class _SerieSeasonsState extends State<SerieSeasons> {
         k == LogicalKeyboardKey.enter ||
         k == LogicalKeyboardKey.gameButtonA) {
       if (_isBackFocused) {
-        Get.back();
+        _popSeasons(source: 'focus');
       } else if (_selectedPanel == 1) {
         _loadEpisodes(_seasons[_seasonIdx]);
       } else if (_selectedPanel == 2) {
@@ -153,8 +169,8 @@ class _SerieSeasonsState extends State<SerieSeasons> {
       return KeyEventResult.handled;
     }
 
-    if (k == LogicalKeyboardKey.escape) {
-      Get.back();
+    if (isTvBackKey(k)) {
+      _popSeasons(source: 'focus');
       return KeyEventResult.handled;
     }
 
@@ -267,7 +283,7 @@ class _SerieSeasonsState extends State<SerieSeasons> {
       child: Row(
         children: [
           GestureDetector(
-            onTap: () => Get.back(),
+            onTap: () => _popSeasons(source: 'chrome'),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
               padding: const EdgeInsets.all(8),

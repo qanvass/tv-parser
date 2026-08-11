@@ -6,7 +6,6 @@ import '../../../../repository/models/channel_live.dart';
 import '../../../../repository/api/local_market_service.dart';
 import '../../../../repository/models/user_preference_profile.dart';
 import '../../../../logic/blocs/auth/auth_bloc.dart';
-import '../../../../helpers/helpers.dart';
 import 'tv_channel_grid.dart';
 
 class TvLocalTvRow extends StatelessWidget {
@@ -58,33 +57,30 @@ class TvLocalTvRow extends StatelessWidget {
           subtitle: 'Local · HD',
           streamUrl: streamUrl,
           imageUrl: ch.streamIcon,
-          badge: '${i + 1}'.padLeft(3, '0'),
           isHd: true,
         ),
       );
     }
 
     return SizedBox(
-      height: 168,
+      height: 186,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           TvRailSectionHeader(
             title: 'Local TV · ${activeMarket.displayName}',
-            trailing: 'View All · ${streamRecords.length}',
-            icon: Icons.location_on_rounded,
-            accent: kColorAccentWarm,
           ),
           const SizedBox(height: 10),
           Expanded(
             child: ListView.builder(
               scrollCacheExtent: const ScrollCacheExtent.pixels(300.0),
               scrollDirection: Axis.horizontal,
+              clipBehavior: Clip.none,
               itemCount: streamRecords.length,
               itemBuilder: (context, index) {
                 final stream = streamRecords[index];
                 return Padding(
-                  padding: const EdgeInsets.only(right: 12, top: 2, bottom: 2),
+                  padding: const EdgeInsets.only(right: 16, top: 6, bottom: 6),
                   child: TvChannelCard(
                     stream: stream,
                     onSelected: () => onChannelSelected(stream.streamUrl),

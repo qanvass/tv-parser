@@ -34,6 +34,22 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
   bool _keepSearchOnFocusLoss = false;
   final _searchCtrl = NativeTextFieldController();
   final _searchFocus = FocusNode();
+  final _backGate = TvBackGate();
+
+  void _popCategories({String source = 'focus'}) {
+    if (!mounted) return;
+    if (!_backGate.allow(screen: 'MovieCategories', source: source)) return;
+    if (!Navigator.of(context).canPop()) return;
+    _backGate.markRouteExit();
+    logTvBack(
+      screen: 'MovieCategories',
+      source: source,
+      action: 'popRoute',
+      blockedDuplicate: false,
+      routeBefore: Get.currentRoute,
+    );
+    Get.back();
+  }
 
   @override
   void initState() {
@@ -131,8 +147,8 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
           k == LogicalKeyboardKey.enter ||
           k == LogicalKeyboardKey.gameButtonA) {
         _onAppbarSelect();
-      } else if (k == LogicalKeyboardKey.escape) {
-        Get.back();
+      } else if (isTvBackKey(k)) {
+        _popCategories(source: 'focus');
       }
       return KeyEventResult.handled;
     }
@@ -173,12 +189,16 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
       _dpadSelect();
       return KeyEventResult.handled;
     }
+    if (isTvBackKey(k)) {
+      _popCategories(source: 'focus');
+      return KeyEventResult.handled;
+    }
     return KeyEventResult.ignored;
   }
 
   void _onAppbarSelect() {
     if (_appbarIdx == 0) {
-      Get.back();
+      _popCategories(source: 'chrome');
       return;
     }
     if (_showSearch) {
@@ -381,7 +401,7 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
     return IptvAppBar(
       title: 'Movies',
       icon: FontAwesomeIcons.film.data,
-      onBack: Get.back,
+      onBack: () => _popCategories(source: 'chrome'),
       focusedIndex: _appbarActive ? _appbarIdx : null,
       showSearch: _showSearch,
       isSearchEditing: _isSearchEditing,

@@ -20,6 +20,7 @@ class CinematicHero extends StatelessWidget {
   final VoidCallback? onWatch;
   final VoidCallback? onMyList;
   final bool inMyList;
+  final String eyebrow;
 
   const CinematicHero({
     super.key,
@@ -29,6 +30,7 @@ class CinematicHero extends StatelessWidget {
     this.onWatch,
     this.onMyList,
     this.inMyList = false,
+    this.eyebrow = 'MOVIES',
   });
 
   @override
@@ -127,7 +129,7 @@ class CinematicHero extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'MOVIES',
+                              eyebrow,
                               style: TextStyle(
                                 color: CinematicTokens.textSecondary
                                     .withValues(alpha: 0.9),
@@ -254,7 +256,7 @@ class _TitleText extends StatelessWidget {
   }
 }
 
-class _HeroStage extends StatelessWidget {
+class _HeroStage extends StatefulWidget {
   final CinematicArtwork art;
   final String title;
   final bool kenBurns;
@@ -266,32 +268,88 @@ class _HeroStage extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final landscape = art.hasBackdrop ? art.backdrop : null;
-    final poster = art.poster;
-    final Widget stage;
+  State<_HeroStage> createState() => _HeroStageState();
+}
+
+class _HeroStageState extends State<_HeroStage> {
+  late Widget _first;
+  late Widget _second;
+  late String _slotKey;
+  CrossFadeState _fade = CrossFadeState.showFirst;
+
+  @override
+  void initState() {
+    super.initState();
+    _first = _buildStage(widget);
+    _second = _first;
+    _slotKey = _stageKey(widget);
+  }
+
+  @override
+  void didUpdateWidget(covariant _HeroStage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final nextKey = _stageKey(widget);
+    if (nextKey == _slotKey) return;
+    final next = _buildStage(widget);
+    setState(() {
+      if (_fade == CrossFadeState.showFirst) {
+        _second = next;
+        _fade = CrossFadeState.showSecond;
+      } else {
+        _first = next;
+        _fade = CrossFadeState.showFirst;
+      }
+      _slotKey = nextKey;
+    });
+  }
+
+  static String _stageKey(_HeroStage w) {
+    final landscape = w.art.hasBackdrop ? w.art.backdrop : null;
     if (ArtworkUrlResolver.isUsableImageUrl(landscape)) {
-      stage = kenBurns
-          ? _KenBurnsStill(key: ValueKey('bd-$landscape'), url: landscape!)
-          : _StillImage(key: ValueKey('still-$landscape'), url: landscape!);
-    } else if (ArtworkUrlResolver.isUsableImageUrl(poster)) {
-      stage = _PortraitCinematicBg(
-        key: ValueKey('pt-$poster'),
-        url: poster!,
-        kenBurns: kenBurns,
-      );
-    } else {
-      stage = _KenBurnsChild(
-        key: ValueKey('ph-$title'),
-        enabled: kenBurns,
-        child: CinematicTitlePlaceholder(title: title, hero: true),
-      );
+      return 'bd-$landscape';
     }
-    return AnimatedSwitcher(
+    if (ArtworkUrlResolver.isUsableImageUrl(w.art.poster)) {
+      return 'pt-${w.art.poster}';
+    }
+    return 'ph-${w.title}';
+  }
+
+  static Widget _buildStage(_HeroStage w) {
+    final landscape = w.art.hasBackdrop ? w.art.backdrop : null;
+    final poster = w.art.poster;
+    if (ArtworkUrlResolver.isUsableImageUrl(landscape)) {
+      return w.kenBurns
+          ? _KenBurnsStill(url: landscape!)
+          : _StillImage(url: landscape!);
+    }
+    if (ArtworkUrlResolver.isUsableImageUrl(poster)) {
+      return _PortraitCinematicBg(url: poster!, kenBurns: w.kenBurns);
+    }
+    return _KenBurnsChild(
+      enabled: w.kenBurns,
+      child: CinematicTitlePlaceholder(title: w.title, hero: true),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedCrossFade(
+      firstChild: SizedBox.expand(child: _first),
+      secondChild: SizedBox.expand(child: _second),
+      crossFadeState: _fade,
       duration: CinematicMotion.backdrop,
-      switchInCurve: CinematicMotion.standard,
-      switchOutCurve: Curves.easeIn,
-      child: stage,
+      firstCurve: CinematicMotion.standard,
+      secondCurve: CinematicMotion.standard,
+      sizeCurve: CinematicMotion.standard,
+      layoutBuilder: (top, topKey, bottom, bottomKey) {
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned.fill(key: bottomKey, child: bottom),
+            Positioned.fill(key: topKey, child: top),
+          ],
+        );
+      },
     );
   }
 }
@@ -299,7 +357,7 @@ class _HeroStage extends StatelessWidget {
 class _StillImage extends StatelessWidget {
   final String url;
 
-  const _StillImage({super.key, required this.url});
+  const _StillImage({required this.url});
 
   @override
   Widget build(BuildContext context) {
@@ -320,7 +378,7 @@ class _StillImage extends StatelessWidget {
 class _KenBurnsStill extends StatelessWidget {
   final String url;
 
-  const _KenBurnsStill({super.key, required this.url});
+  const _KenBurnsStill({required this.url});
 
   @override
   Widget build(BuildContext context) {
@@ -338,7 +396,6 @@ class _KenBurnsChild extends StatefulWidget {
   final bool enabled;
 
   const _KenBurnsChild({
-    super.key,
     required this.child,
     required this.enabled,
   });
@@ -414,7 +471,6 @@ class _PortraitCinematicBg extends StatelessWidget {
   final bool kenBurns;
 
   const _PortraitCinematicBg({
-    super.key,
     required this.url,
     required this.kenBurns,
   });

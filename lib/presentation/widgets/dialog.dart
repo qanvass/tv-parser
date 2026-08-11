@@ -22,6 +22,22 @@ class _DialogTrailerYoutubeState extends State<DialogTrailerYoutube> {
 
   // 0 = play/pause, 1 = close
   int _focusedBtn = 0;
+  final _backGate = TvBackGate();
+
+  void _closeTrailer({String source = 'focus'}) {
+    if (!mounted) return;
+    if (!_backGate.allow(screen: 'DialogTrailer', source: source)) return;
+    if (!Navigator.of(context).canPop()) return;
+    _backGate.markRouteExit();
+    logTvBack(
+      screen: 'DialogTrailer',
+      source: source,
+      action: 'popRoute',
+      blockedDuplicate: false,
+      routeBefore: Get.currentRoute,
+    );
+    Get.back();
+  }
 
   @override
   void initState() {
@@ -62,12 +78,12 @@ class _DialogTrailerYoutubeState extends State<DialogTrailerYoutube> {
       if (_focusedBtn == 0) {
         _togglePlay();
       } else {
-        Get.back();
+        _closeTrailer(source: 'focus');
       }
       return KeyEventResult.handled;
     }
-    if (k == LogicalKeyboardKey.escape) {
-      Get.back();
+    if (isTvBackKey(k)) {
+      _closeTrailer(source: 'focus');
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;

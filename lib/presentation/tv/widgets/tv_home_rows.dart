@@ -40,7 +40,6 @@ class TvHomeRows extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 22),
               child: _HomeRail(
                 title: 'Continue Watching',
-                icon: Icons.play_circle_outline_rounded,
                 streams: continueItems,
                 onChannelSelected: onChannelSelected,
                 onStreamFocused: onStreamFocused,
@@ -54,7 +53,7 @@ class TvHomeRows extends StatelessWidget {
               ...favState.lives.take(10).map(
                 (ch) => TvStreamRecord(
                   title: ch.name ?? 'Live',
-                  subtitle: 'Favorite · Live',
+                  subtitle: 'Live',
                   streamUrl: ch.directSource?.isNotEmpty == true
                       ? ch.directSource!
                       : (ch.streamId ?? ''),
@@ -65,7 +64,7 @@ class TvHomeRows extends StatelessWidget {
               ...favState.movies.take(8).map(
                 (m) => TvStreamRecord(
                   title: m.name ?? 'Movie',
-                  subtitle: 'Favorite · Movie',
+                  subtitle: 'Movie',
                   streamUrl: m.directSource?.isNotEmpty == true
                       ? m.directSource!
                       : (m.streamId ?? ''),
@@ -78,7 +77,7 @@ class TvHomeRows extends StatelessWidget {
               ...favState.series.take(8).map(
                 (s) => TvStreamRecord(
                   title: s.name ?? 'Series',
-                  subtitle: 'Favorite · Series',
+                  subtitle: 'Series',
                   streamUrl: s.seriesId ?? '',
                   imageUrl: s.cover,
                 ),
@@ -91,7 +90,6 @@ class TvHomeRows extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 22),
               child: _HomeRail(
                 title: 'Favorites',
-                icon: Icons.favorite_rounded,
                 streams: favs,
                 onChannelSelected: onChannelSelected,
                 onStreamFocused: onStreamFocused,
@@ -110,7 +108,6 @@ class TvHomeRows extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 22),
               child: _HomeRail(
                 title: 'Recent Live',
-                icon: Icons.history_rounded,
                 streams: recentLive,
                 onChannelSelected: onChannelSelected,
                 onStreamFocused: onStreamFocused,
@@ -134,7 +131,6 @@ class TvHomeRows extends StatelessWidget {
 
 class _HomeRail extends StatelessWidget {
   final String title;
-  final IconData? icon;
   final List<TvStreamRecord> streams;
   final ValueChanged<String> onChannelSelected;
   final ValueChanged<TvStreamRecord>? onStreamFocused;
@@ -143,31 +139,29 @@ class _HomeRail extends StatelessWidget {
     required this.title,
     required this.streams,
     required this.onChannelSelected,
-    this.icon,
     this.onStreamFocused,
   });
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 168,
+      height: 186,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           TvRailSectionHeader(
             title: title,
-            trailing: 'View All · ${streams.length}',
-            icon: icon,
           ),
           const SizedBox(height: 10),
           Expanded(
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
+              clipBehavior: Clip.none,
               itemCount: streams.length,
               itemBuilder: (context, index) {
                 final stream = streams[index];
                 return Padding(
-                  padding: const EdgeInsets.only(right: 12, top: 2, bottom: 2),
+                  padding: const EdgeInsets.only(right: 16, top: 6, bottom: 6),
                   child: TvChannelCard(
                     stream: stream,
                     onSelected: () => _play(stream),

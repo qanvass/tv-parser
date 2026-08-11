@@ -22,6 +22,22 @@ class _MovieContentState extends State<MovieContent> {
   int _selectedButton = -1;
   bool _isBackFocused = false;
   bool _hasTrailer = false;
+  final _backGate = TvBackGate();
+
+  void _popDetails({String source = 'focus'}) {
+    if (!mounted) return;
+    if (!_backGate.allow(screen: 'MovieContent', source: source)) return;
+    if (!Navigator.of(context).canPop()) return;
+    _backGate.markRouteExit();
+    logTvBack(
+      screen: 'MovieContent',
+      source: source,
+      action: 'popRoute',
+      blockedDuplicate: false,
+      routeBefore: Get.currentRoute,
+    );
+    Get.back();
+  }
 
   @override
   void initState() {
@@ -139,15 +155,15 @@ class _MovieContentState extends State<MovieContent> {
         k == LogicalKeyboardKey.enter ||
         k == LogicalKeyboardKey.gameButtonA) {
       if (_isBackFocused) {
-        Get.back();
+        _popDetails(source: 'focus');
       } else {
         _onButtonPressed();
       }
       return KeyEventResult.handled;
     }
 
-    if (k == LogicalKeyboardKey.escape) {
-      Get.back();
+    if (isTvBackKey(k)) {
+      _popDetails(source: 'focus');
       return KeyEventResult.handled;
     }
 
@@ -226,7 +242,10 @@ class _MovieContentState extends State<MovieContent> {
               );
             }
             if (!snapshot.hasData) {
-              return _DetailsErrorState(onBack: Get.back, onReload: _reload);
+              return _DetailsErrorState(
+                onBack: () => _popDetails(source: 'chrome'),
+                onReload: _reload,
+              );
             }
 
             final movie = snapshot.data!;
@@ -264,7 +283,7 @@ class _MovieContentState extends State<MovieContent> {
                           spacing: 5,
                           children: [
                             GestureDetector(
-                              onTap: () => Get.back(),
+                              onTap: () => _popDetails(source: 'chrome'),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 150),
                                 padding: const EdgeInsets.all(8),

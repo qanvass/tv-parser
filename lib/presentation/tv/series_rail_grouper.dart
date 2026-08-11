@@ -35,9 +35,15 @@ class SeriesRailGrouper {
     return out;
   }
 
+  static bool _alreadyParsed(TvStreamRecord item) =>
+      item.year != null ||
+      item.season != null ||
+      item.episode != null ||
+      item.badge != null ||
+      item.qualityLabel != null;
+
   static TvStreamRecord _collapse(List<TvStreamRecord> group) {
     final first = group.first;
-    final parsed = TitleNormalizer.parse(first.title);
     var best = first;
     for (final item in group) {
       if ((item.imageUrl ?? '').isNotEmpty) {
@@ -46,18 +52,24 @@ class SeriesRailGrouper {
       }
     }
     final single = group.length == 1;
-    final ep = TitleNormalizer.parse(best.title);
+    final parsed = _alreadyParsed(first) ? null : TitleNormalizer.parse(first.title);
+    final ep = single && !_alreadyParsed(best)
+        ? TitleNormalizer.parse(best.title)
+        : null;
     return best.copyWith(
-      title: parsed.displayTitle.isEmpty ? best.title : parsed.displayTitle,
-      year: best.year ?? parsed.year,
-      season: single ? ep.season : null,
-      episode: single ? ep.episode : null,
-      badge: single ? ep.episodeBadge : null,
+      title: parsed == null
+          ? first.title
+          : (parsed.displayTitle.isEmpty ? best.title : parsed.displayTitle),
+      year: best.year ?? first.year ?? parsed?.year,
+      season: single ? (best.season ?? ep?.season) : null,
+      episode: single ? (best.episode ?? ep?.episode) : null,
+      badge: single ? (best.badge ?? ep?.episodeBadge) : null,
       groupedEpisodes: group.length > 1 ? group : const [],
     );
   }
 
   static TvStreamRecord _withParsedBadge(TvStreamRecord item) {
+    if (_alreadyParsed(item)) return item;
     final parsed = TitleNormalizer.parse(item.title);
     return item.copyWith(
       title: parsed.displayTitle.isEmpty ? item.title : parsed.displayTitle,

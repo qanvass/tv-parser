@@ -46,6 +46,51 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
 
   final NativeTextFieldController _searchCtrl = NativeTextFieldController();
   final FocusNode _searchFocus = FocusNode();
+  final _backGate = TvBackGate();
+
+  bool _clearLiveSearch() {
+    if (_isSearchEditing) {
+      _searchFocus.unfocus();
+      setState(() => _isSearchEditing = false);
+      return true;
+    }
+    if (_chSearch.isNotEmpty) {
+      _searchCtrl.clear();
+      setState(() {
+        _chSearch = '';
+        _showSearch = false;
+        _chIdx = 0;
+      });
+      _navFocus.requestFocus();
+      return true;
+    }
+    return false;
+  }
+
+  void _handleLiveCategoriesBack({required String source}) {
+    if (!mounted) return;
+    if (!_backGate.allow(screen: 'LiveCategories', source: source)) return;
+    if (_clearLiveSearch()) {
+      logTvBack(
+        screen: 'LiveCategories',
+        source: source,
+        action: 'closePanel',
+        blockedDuplicate: false,
+        routeBefore: Get.currentRoute,
+      );
+      return;
+    }
+    if (!Navigator.of(context).canPop()) return;
+    _backGate.markRouteExit();
+    logTvBack(
+      screen: 'LiveCategories',
+      source: source,
+      action: 'popRoute',
+      blockedDuplicate: false,
+      routeBefore: Get.currentRoute,
+    );
+    Get.back();
+  }
 
   // TV Grid parameters
   static const int _gridColumns = 4;
@@ -213,26 +258,14 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
     if (e is! KeyDownEvent) return KeyEventResult.ignored;
     final k = e.logicalKey;
 
-    // ESC or Back key behavior
-    if (k == LogicalKeyboardKey.escape) {
-      if (_isSearchEditing) {
-        _searchFocus.unfocus();
-        setState(() {
-          _isSearchEditing = false;
-        });
-        return KeyEventResult.handled;
+    if (isTvBackKey(k)) {
+      // Overlay/search: Focus may clear. Route pop is PopScope-only so
+      // Focus Get.back + system popRoute cannot finish the Activity.
+      if (_isSearchEditing || _chSearch.isNotEmpty) {
+        _handleLiveCategoriesBack(source: 'focus');
+      } else if (k == LogicalKeyboardKey.escape) {
+        _handleLiveCategoriesBack(source: 'focus');
       }
-      if (_chSearch.isNotEmpty) {
-        _searchCtrl.clear();
-        setState(() {
-          _chSearch = '';
-          _showSearch = false;
-          _chIdx = 0;
-        });
-        _navFocus.requestFocus();
-        return KeyEventResult.handled;
-      }
-      Get.back();
       return KeyEventResult.handled;
     }
 
@@ -346,7 +379,7 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
 
   void _onAppbarSelect() {
     if (_appbarIdx == 0) {
-      Get.back();
+      _handleLiveCategoriesBack(source: 'chrome');
       return;
     }
     if (_showSearch) {
@@ -403,24 +436,9 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
     final displayStreams = _displayStreams;
 
     return PopScope(
-      canPop: _chSearch.isEmpty && !_isSearchEditing,
+      canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) {
-          if (_isSearchEditing) {
-            _searchFocus.unfocus();
-            setState(() {
-              _isSearchEditing = false;
-            });
-          } else if (_chSearch.isNotEmpty) {
-            _searchCtrl.clear();
-            setState(() {
-              _chSearch = '';
-              _showSearch = false;
-              _chIdx = 0;
-            });
-            _navFocus.requestFocus();
-          }
-        }
+        if (!didPop) _handleLiveCategoriesBack(source: 'popScope');
       },
       child: BlocListener<LiveCatyBloc, LiveCatyState>(
         listener: (_, s) {

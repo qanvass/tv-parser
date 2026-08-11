@@ -18,6 +18,7 @@ import '../../../repository/models/user_preference_profile.dart';
 import '../../../repository/provider/title_normalizer.dart';
 import '../screens/screens.dart';
 import '../shared/widgets/stream_launcher.dart';
+import 'cinematic/cinematic_poster_card.dart';
 import 'widgets/tv_channel_grid.dart';
 
 /// Android TV search destination backed by [SearchIndexService] + M3U/session catalog.
@@ -55,6 +56,7 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
   bool _hasSearched = false;
   String _activeQuery = '';
   List<String> _recentSearches = [];
+  int _resultTab = 0;
 
   @override
   void initState() {
@@ -193,6 +195,7 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
         _seriesResults = [];
         _hasSearched = false;
         _activeQuery = '';
+        _resultTab = 0;
       });
       return;
     }
@@ -237,6 +240,7 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
       _seriesResults = series;
       _hasSearched = true;
       _activeQuery = clean;
+      _resultTab = 0;
       _indexReady = SearchIndexService.isReady;
       _recentSearches = UserPreferenceProfile.load().lastSearches;
     });
@@ -599,11 +603,19 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
               year: parsed.year,
               badge: parsed.episodeBadge,
               posterStyle: TvPosterStyle.vodPortrait,
+              streamId: s.seriesId,
             );
           }).toList(),
         ),
       );
     }
+
+    final tabs = rows;
+    if (tabs.isEmpty) return _buildEmptyState();
+    final tab = _resultTab.clamp(0, tabs.length - 1);
+    final row = tabs[tab];
+    final isVod = row.streams.isNotEmpty &&
+        row.streams.first.posterStyle == TvPosterStyle.vodPortrait;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -618,57 +630,104 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
         ),
         const SizedBox(height: 16),
         Expanded(
-          child: ListView.builder(
-            itemCount: rows.length,
-            itemBuilder: (context, index) {
-              final row = rows[index];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 28),
-                child: SizedBox(
-                  height: row.streams.isNotEmpty && row.streams.first.isVod
-                      ? 268
-                      : 200,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        row.title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Expanded(
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: row.streams.length,
-                          itemBuilder: (context, i) {
-                            final stream = row.streams[i];
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 18),
-                              child: TvChannelCard(
-                                stream: stream,
-                                onSelected: () {
-                                  if (row.title.startsWith('Live')) {
-                                    _playLive(_liveResults[i]);
-                                  } else if (row.title.startsWith('Movies')) {
-                                    _playMovie(_movieResults[i]);
-                                  } else {
-                                    _openSeries(_seriesResults[i]);
-                                  }
-                                },
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                width: 220,
+                child: ListView.separated(
+                  itemCount: tabs.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final on = index == tab;
+                    return Focus(
+                      onKeyEvent: (node, event) {
+                        if (event is! KeyDownEvent) {
+                          return KeyEventResult.ignored;
+                        }
+                        if (event.logicalKey == LogicalKeyboardKey.select ||
+                            event.logicalKey == LogicalKeyboardKey.enter) {
+                          setState(() => _resultTab = index);
+                          return KeyEventResult.handled;
+                        }
+                        return KeyEventResult.ignored;
+                      },
+                      child: Builder(
+                        builder: (context) {
+                          final focused = Focus.of(context).hasFocus;
+                          return GestureDetector(
+                            onTap: () => setState(() => _resultTab = index),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 160),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 14,
                               ),
-                            );
-                          },
-                        ),
+                              decoration: BoxDecoration(
+                                color: focused || on
+                                    ? Colors.white.withValues(alpha: 0.12)
+                                    : Colors.white.withValues(alpha: 0.04),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  width: focused ? 2 : 1,
+                                  color: focused
+                                      ? Colors.white
+                                      : Colors.white24,
+                                ),
+                              ),
+                              child: Text(
+                                tabs[index].title,
+                                style: TextStyle(
+                                  color: focused || on
+                                      ? Colors.white
+                                      : Colors.white70,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
-              );
-            },
+              ),
+              const SizedBox(width: 22),
+              Expanded(
+                child: GridView.builder(
+                  padding: const EdgeInsets.only(right: 8, bottom: 24),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: isVod ? 5 : 4,
+                    crossAxisSpacing: 14,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: isVod ? 0.52 : 1.15,
+                  ),
+                  itemCount: row.streams.length,
+                  itemBuilder: (context, i) {
+                    final stream = row.streams[i];
+                    final onSelected = () {
+                      if (row.title.startsWith('Live')) {
+                        _playLive(_liveResults[i]);
+                      } else if (row.title.startsWith('Movies')) {
+                        _playMovie(_movieResults[i]);
+                      } else {
+                        _openSeries(_seriesResults[i]);
+                      }
+                    };
+                    return stream.posterStyle == TvPosterStyle.vodPortrait
+                        ? CinematicPosterCard(
+                            stream: stream,
+                            onSelected: onSelected,
+                          )
+                        : TvChannelCard(
+                            stream: stream,
+                            onSelected: onSelected,
+                          );
+                  },
+                ),
+              ),
+            ],
           ),
         ),
       ],

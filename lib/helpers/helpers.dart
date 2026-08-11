@@ -7,6 +7,8 @@ import 'package:intl/intl.dart';
 import 'package:responsive_sizer/responsive_sizer.dart';
 import 'package:get_storage/get_storage.dart';
 
+export 'tv_back_navigation.dart';
+
 part 'colors.dart';
 part 'constants.dart';
 part 'date_format.dart';
