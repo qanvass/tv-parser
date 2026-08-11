@@ -26,6 +26,13 @@ class _CastSelectionDialogState extends State<CastSelectionDialog> {
   @override
   void initState() {
     super.initState();
+    // TV gate: Cast dialog should never appear on leanback devices.
+    if (!supportsCasting()) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) Navigator.of(context).pop();
+      });
+      return;
+    }
     _startScanning();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _focusNode.requestFocus();

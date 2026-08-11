@@ -1,16 +1,21 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import '../../../helpers/helpers.dart';
 import '../../../repository/models/premium_plus_item.dart';
+import '../../widgets/smart_channel_logo.dart';
+import 'tv_channel_grid.dart';
 
 class TvPremiumPlusRow extends StatelessWidget {
   final List<PremiumPlusItem> items;
   final ValueChanged<dynamic> onPlayChannel;
+  final ValueChanged<TvStreamRecord>? onStreamFocused;
 
   const TvPremiumPlusRow({
     super.key,
     required this.items,
     required this.onPlayChannel,
+    this.onStreamFocused,
   });
 
   @override
@@ -20,28 +25,40 @@ class TvPremiumPlusRow extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Featured Channels',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 24,
-            fontWeight: FontWeight.w800,
-          ),
+        TvRailSectionHeader(
+          title: 'Featured Channels',
+          trailing: 'View All · ${items.length}',
+          icon: Icons.star_rounded,
+          accent: kColorAccentWarm,
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 10),
         SizedBox(
-          height: 154,
+          height: TvChannelCard.tileHeight + 8,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             itemCount: items.length,
             itemBuilder: (context, index) {
               final item = items[index];
-              return TvPremiumPlusCard(
-                item: item,
-                onTap: () {
-                  final channel = item.matchedChannel;
-                  if (channel != null) onPlayChannel(channel);
-                },
+              final ch = item.matchedChannel;
+              final stream = TvStreamRecord(
+                title: item.displayName,
+                subtitle: item.category,
+                streamUrl: ch?.directSource?.isNotEmpty == true
+                    ? ch!.directSource!
+                    : (ch?.streamId ?? ''),
+                imageUrl: ch?.streamIcon,
+                badge: '${index + 1}'.padLeft(3, '0'),
+                isHd: item.displayName.toUpperCase().contains('HD'),
+              );
+              return Padding(
+                padding: const EdgeInsets.only(right: 12, top: 2, bottom: 2),
+                child: TvChannelCard(
+                  stream: stream,
+                  onSelected: () {
+                    if (ch != null) onPlayChannel(ch);
+                  },
+                  onFocused: onStreamFocused,
+                ),
               );
             },
           ),
@@ -51,6 +68,7 @@ class TvPremiumPlusRow extends StatelessWidget {
   }
 }
 
+/// Wider featured tile used when a richer card is preferred over the dense tile.
 class TvPremiumPlusCard extends StatefulWidget {
   final PremiumPlusItem item;
   final VoidCallback onTap;
@@ -64,100 +82,126 @@ class TvPremiumPlusCard extends StatefulWidget {
 class _TvPremiumPlusCardState extends State<TvPremiumPlusCard> {
   bool _focused = false;
 
+  KeyEventResult _onKey(FocusNode _, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (widget.item.matchedChannel == null) return KeyEventResult.ignored;
+    final k = event.logicalKey;
+    if (k == LogicalKeyboardKey.select ||
+        k == LogicalKeyboardKey.enter ||
+        k == LogicalKeyboardKey.gameButtonA) {
+      widget.onTap();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
   @override
   Widget build(BuildContext context) {
     final iconUrl = widget.item.matchedChannel?.streamIcon?.trim() ?? '';
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 140),
-      width: 310,
-      margin: const EdgeInsets.only(right: 18, bottom: 6),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF2D2242), Color(0xFF17121F)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    return AnimatedScale(
+      scale: _focused ? 1.05 : 1.0,
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOutCubic,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 280,
+        margin: const EdgeInsets.only(right: 12, bottom: 4, top: 2),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF1A3040), Color(0xFF0C1622)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: _focused
+                ? kColorFocus
+                : kColorPrimary.withValues(alpha: 0.25),
+            width: _focused ? 2.8 : 1.0,
+          ),
+          boxShadow: _focused
+              ? [
+                  BoxShadow(
+                    color: kColorPrimary.withValues(alpha: 0.35),
+                    blurRadius: 22,
+                    spreadRadius: 1,
+                  ),
+                ]
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
         ),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: _focused ? Colors.white : Colors.white.withValues(alpha: 0.08),
-          width: _focused ? 3 : 1,
-        ),
-        boxShadow: _focused
-            ? [
-                BoxShadow(
-                  color: const Color(0xFFFFC107).withValues(alpha: 0.3),
-                  blurRadius: 20,
-                  spreadRadius: 2,
-                ),
-              ]
-            : null,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
+        child: Focus(
           onFocusChange: (focused) => setState(() => _focused = focused),
-          onTap: widget.item.matchedChannel == null ? null : widget.onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Row(
-              children: [
-                Container(
-                  width: 84,
-                  height: 84,
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.25),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: iconUrl.isEmpty
-                      ? const Icon(
-                          Icons.live_tv_rounded,
-                          color: Colors.white70,
-                          size: 38,
-                        )
-                      : CachedNetworkImage(
-                          imageUrl: iconUrl,
-                          fit: BoxFit.contain,
-                          errorWidget: (_, __, ___) => const Icon(
-                            Icons.live_tv_rounded,
-                            color: Colors.white70,
-                            size: 38,
+          onKeyEvent: _onKey,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              canRequestFocus: false,
+              onTap: widget.item.matchedChannel == null ? null : widget.onTap,
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 72,
+                      height: 72,
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.28),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: kColorPrimary.withValues(alpha: 0.2),
+                        ),
+                      ),
+                      child: SmartChannelLogo(
+                        primaryUrl: iconUrl.isEmpty ? null : iconUrl,
+                        channelName: widget.item.displayName,
+                        fit: BoxFit.contain,
+                        memCacheWidth: 180,
+                        initialsSize: 28,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.item.displayName,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              height: 1.2,
+                            ),
                           ),
-                        ),
-                ),
-                const SizedBox(width: 18),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.item.displayName,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 19,
-                          fontWeight: FontWeight.w800,
-                        ),
+                          const SizedBox(height: 6),
+                          Text(
+                            widget.item.category,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: kColorPrimary.withValues(alpha: 0.85),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        widget.item.category,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.55),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),

@@ -166,8 +166,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> with TickerProviderStateM
             _showTvAdultPinDialog(context);
           } else {
             final streamId = extractStreamIdFromUrl(url);
-            final isLivePath = url.contains('/live/') || streamId != null;
-            if (isLivePath) {
+            // M3U providers (e.g. /api/stream/.../*.m3u8) are not Xtream /live/<id>.
+            if (isLikelyLiveStreamUrl(url)) {
               Get.to(
                 () => LivePlayerScreen(
                   link: url,
@@ -229,8 +229,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> with TickerProviderStateM
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                   colors: [
-                                    Color(0xFF221C35),
-                                    Color(0xFF13101E),
+                                    Color(0xFF0A1628),
+                                    Color(0xFF050A18),
                                   ],
                                 ),
                                 borderRadius: BorderRadius.circular(28),

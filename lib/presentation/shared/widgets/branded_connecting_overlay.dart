@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:dio/dio.dart';
+import 'package:mbark_iptv/helpers/helpers.dart';
 import 'package:mbark_iptv/repository/api/playback_url_builder.dart';
 import 'package:mbark_iptv/repository/api/cast_media_service.dart';
 import '../../screens/screens.dart';
@@ -63,8 +64,9 @@ class _BrandedConnectingOverlayState extends State<BrandedConnectingOverlay> {
 
     debugPrint("[TV_PARSER_PERF] Connecting overlay shown. Instantly launching player route.");
 
+    // TV gate: always play locally on Android TV / Google TV.
     final castService = CastMediaService();
-    if (castService.isCasting) {
+    if (supportsCasting() && castService.isCasting) {
       final uri = Uri.tryParse(widget.streamUrl);
       if (uri != null && uri.pathSegments.length >= 4) {
         final type = uri.pathSegments[0]; // live, movie, series
@@ -256,8 +258,8 @@ class _BrandedConnectingOverlayState extends State<BrandedConnectingOverlay> {
                     const SandTimeclock(size: 36),
                   const SizedBox(height: 24),
 
-                  // Debug Cast Test Button
-                  if (kDebugMode && CastMediaService().isCasting)
+                  // Debug Cast Test Button (phone only)
+                  if (kDebugMode && supportsCasting() && CastMediaService().isCasting)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 24),
                       child: ElevatedButton.icon(

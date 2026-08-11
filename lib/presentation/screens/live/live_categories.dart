@@ -80,15 +80,14 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
   Future<void> _buildSearchIndex() async {
     try {
       final api = IpTvApi();
-      final results = await Future.wait([
-        api.getLiveChannels(""),
-        api.getMovieChannels(""),
-        api.getSeriesChannels(""),
-      ]);
+      final lives = await api.getLiveChannels("");
+      final movies = await api.getMovieChannels("");
+      await SearchIndexService.indexMovies(movies: movies);
+      final series = await api.getSeriesChannels("");
       await SearchIndexService.buildIndex(
-        liveChannels: results[0] as List<ChannelLive>,
-        movies: results[1] as List<ChannelMovie>,
-        series: results[2] as List<ChannelSerie>,
+        liveChannels: lives,
+        movies: movies,
+        series: series,
       );
     } catch (_) {}
   }
@@ -189,9 +188,10 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
   }
 
   Future<void> _play(ChannelLive ch) async {
-    final user = await LocaleApi.getUser();
-    final url =
-        '${user!.serverInfo!.serverUrl}/${user.userInfo!.username}/${user.userInfo!.password}/${ch.streamId}';
+    // M3U: use playlist directSource (/api/stream/.../livetv.epg/*.m3u8) as-is.
+    // Never concatenate onto m3u:// markers or invent Xtream /live/ paths.
+    final url = await PlaybackUrlBuilder.resolveLivePlaybackUrl(ch);
+    if (url.isEmpty) return;
 
     StreamLauncher.openStreamWithBrandedLoading(
       context: context,
@@ -200,6 +200,7 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
         link: url,
         title: ch.name ?? '',
         streamIcon: ch.streamIcon,
+        streamId: ch.streamId,
       ),
     );
   }

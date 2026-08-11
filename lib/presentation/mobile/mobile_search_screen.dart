@@ -63,17 +63,20 @@ class _MobileSearchScreenState extends State<MobileSearchScreen> {
     try {
       final api = IpTvApi();
 
-      final results = await Future.wait([
-        api.getLiveChannels(""),
-        api.getMovieChannels(""),
-        api.getSeriesChannels(""),
-      ]);
+      final lives = await api.getLiveChannels("");
+      final movies = await api.getMovieChannels("");
+      if (mounted) {
+        setState(() {
+          _allLiveChannels = lives;
+          _allMovies = movies;
+        });
+        await SearchIndexService.indexMovies(movies: movies);
+      }
+      final series = await api.getSeriesChannels("");
 
       if (mounted) {
         setState(() {
-          _allLiveChannels = results[0] as List<ChannelLive>;
-          _allMovies = results[1] as List<ChannelMovie>;
-          _allSeries = results[2] as List<ChannelSerie>;
+          _allSeries = series;
           _loading = false;
         });
 
@@ -711,31 +714,19 @@ class _MobileSearchScreenState extends State<MobileSearchScreen> {
     );
   }
 
-  void _onLiveChannelTap(ChannelLive channel) {
-    if (channel.directSource != null && channel.directSource!.isNotEmpty) {
-      final streamUrl = channel.directSource!;
-      StreamLauncher.openStreamWithBrandedLoading(
-        context: context,
-        streamUrl: streamUrl,
-        playerBuilder: () =>
-            MoviePlayerScreen(link: streamUrl, title: channel.name ?? 'Stream'),
-      );
-    } else if (channel.streamId != null) {
-      final authState = context.read<AuthBloc>().state;
-      if (authState is AuthSuccess) {
-        final user = authState.user;
-        final streamUrl =
-            "${user.serverInfo?.serverUrl}/live/${user.userInfo?.username}/${user.userInfo?.password}/${channel.streamId}.ts";
-        StreamLauncher.openStreamWithBrandedLoading(
-          context: context,
-          streamUrl: streamUrl,
-          playerBuilder: () => MoviePlayerScreen(
-            link: streamUrl,
-            title: channel.name ?? 'Stream',
-          ),
-        );
-      }
-    }
+  Future<void> _onLiveChannelTap(ChannelLive channel) async {
+    final streamUrl = await PlaybackUrlBuilder.resolveLivePlaybackUrl(channel);
+    if (streamUrl.isEmpty || !mounted) return;
+    StreamLauncher.openStreamWithBrandedLoading(
+      context: context,
+      streamUrl: streamUrl,
+      playerBuilder: () => LivePlayerScreen(
+        link: streamUrl,
+        title: channel.name ?? 'Stream',
+        streamIcon: channel.streamIcon,
+        streamId: channel.streamId,
+      ),
+    );
   }
 
   void _onMoviePlayTap(ChannelMovie movie) {

@@ -243,6 +243,10 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
     final dio = Dio(BaseOptions(
       connectTimeout: const Duration(seconds: 5),
       receiveTimeout: const Duration(seconds: 5),
+      headers: {
+        'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
     ));
 
     String? providerUrl;
@@ -261,34 +265,44 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
       return;
     }
 
-    // Standardize URL format
-    var targetUrl = providerUrl;
+    // M3U sessions store `m3u://https://host/...` — do not prepend http:// or host becomes "m3u".
+    final playlistUrl = m3uPlaylistUrlFromServerUrl(providerUrl);
+    final isM3uSession = playlistUrl != null;
+    var targetUrl = playlistUrl ?? providerUrl;
     if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
       targetUrl = "http://$targetUrl";
     }
 
-    Uri uri;
     try {
-      uri = Uri.parse(targetUrl);
+      final uri = Uri.parse(targetUrl);
       setState(() {
-        _providerHost = uri.host;
+        _providerHost = uri.host.isNotEmpty
+            ? (isM3uSession ? "${uri.host} (M3U)" : uri.host)
+            : providerUrl;
       });
     } catch (_) {
       setState(() {
-        _providerHost = providerUrl;
+        _providerHost = isM3uSession ? "M3U playlist" : providerUrl;
       });
     }
 
-    _log("• IPTV Portal URL: $targetUrl");
+    _log(isM3uSession
+        ? "• M3U playlist URL: $targetUrl"
+        : "• IPTV Portal URL: $targetUrl");
     final stopwatch = Stopwatch()..start();
     try {
-      await dio.get(targetUrl);
+      final res = await dio.get(targetUrl);
       stopwatch.stop();
+      final body = res.data?.toString() ?? '';
+      final looksLikeM3u = body.contains('#EXTM3U');
       setState(() {
         _providerState = DiagnosticState.success;
         _providerLatency = stopwatch.elapsedMilliseconds;
       });
-      _log("  Provider API Ping Success: ${_providerLatency}ms");
+      _log(isM3uSession
+          ? "  M3U Playlist Ping Success: ${_providerLatency}ms"
+              "${looksLikeM3u ? ' (#EXTM3U OK)' : ''}"
+          : "  Provider API Ping Success: ${_providerLatency}ms");
     } catch (e) {
       stopwatch.stop();
       if (e is DioException && e.response != null) {
@@ -312,11 +326,15 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
     final dio = Dio(BaseOptions(
       connectTimeout: const Duration(seconds: 6),
       receiveTimeout: const Duration(seconds: 6),
+      headers: {
+        'User-Agent': 'VLC/3.0.21 LibVLC/3.0.21',
+      },
     ));
 
     // We verify:
     // 1. Connection to public video stream (kDemoUrl)
     // 2. Connection to IPTV server streaming ports if authenticated
+    // 3. For M3U: playlist host + sample channel directSource (not XC player_api)
     bool publicOk = false;
     _log("• Testing public stable stream reachability: $kDemoUrl");
     try {
@@ -332,30 +350,104 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
     }
 
     bool providerPortalOk = false;
+    String? providerDetail;
     final authBloc = context.read<AuthBloc>();
     if (authBloc.state is AuthSuccess) {
       final user = (authBloc.state as AuthSuccess).user;
       final server = user.serverInfo?.serverUrl ?? user.serverInfo?.url;
-      final username = user.userInfo?.username;
-      final password = user.userInfo?.password;
+      final playlistUrl = m3uPlaylistUrlFromServerUrl(server);
 
-      if (server != null && username != null && password != null) {
-        var cleanServer = server;
-        if (!cleanServer.startsWith("http://") && !cleanServer.startsWith("https://")) {
-          cleanServer = "http://$cleanServer";
-        }
-        final testUrl = "$cleanServer/player_api.php?username=$username&password=$password";
-        _log("• Handshaking provider stream portal credentials...");
+      if (playlistUrl != null) {
+        _log("• M3U session: probing playlist + sample live URL...");
         try {
-          final res = await dio.get(testUrl);
-          if (res.statusCode == 200) {
+          final res = await dio.get(playlistUrl);
+          final body = res.data?.toString() ?? '';
+          if (res.statusCode == 200 && body.contains('#EXTM3U')) {
             providerPortalOk = true;
-            _log("  Provider Stream Portal: OK (Authentication Validated)");
+            providerDetail = "M3U playlist reachable";
+            _log("  M3U Playlist: OK (#EXTM3U)");
           } else {
-            _log("  Provider Stream Portal: Returned Status ${res.statusCode}");
+            _log("  M3U Playlist: status=${res.statusCode}");
           }
         } catch (e) {
-          _log("  Provider Stream Portal: Failed: $e");
+          _log("  M3U Playlist: Failed: $e");
+        }
+
+        final channels = LocaleApi.getM3uChannels();
+        String? sample;
+        for (final c in channels) {
+          final u = c.directSource;
+          if (u != null && u.startsWith('http')) {
+            sample = u;
+            break;
+          }
+        }
+        if (sample != null) {
+          _log("• Probing sample M3U stream (first bytes)...");
+          try {
+            final streamRes = await dio.get<List<int>>(
+              sample,
+              options: Options(
+                responseType: ResponseType.bytes,
+                validateStatus: (s) => s != null && s < 500,
+              ),
+            );
+            final bytes = streamRes.data ?? const <int>[];
+            final preview = String.fromCharCodes(
+              bytes.take(80).where((b) => b >= 9 && b < 127),
+            );
+            if (streamRes.statusCode == 200 &&
+                (preview.contains('#EXTM3U') ||
+                    preview.contains('#EXTINF') ||
+                    bytes.isNotEmpty && !preview.contains('message'))) {
+              providerPortalOk = true;
+              providerDetail = "M3U sample stream OK";
+              _log("  Sample stream: OK (${streamRes.statusCode})");
+            } else if (preview.toLowerCase().contains('subscription')) {
+              providerDetail =
+                  "Playlist OK; sample stream gated (subscriptions only)";
+              _log(
+                "  Sample stream: ${streamRes.statusCode} — provider gate: $preview",
+              );
+              // Playlist login works; treat panel as reachable for diagnostics.
+              providerPortalOk = true;
+            } else {
+              _log(
+                "  Sample stream: status=${streamRes.statusCode} preview=$preview",
+              );
+            }
+          } catch (e) {
+            _log("  Sample stream: Failed: $e");
+          }
+        }
+      } else {
+        final username = user.userInfo?.username;
+        final password = user.userInfo?.password;
+
+        if (server != null &&
+            username != null &&
+            password != null &&
+            password.isNotEmpty) {
+          var cleanServer = server;
+          if (!cleanServer.startsWith("http://") &&
+              !cleanServer.startsWith("https://")) {
+            cleanServer = "http://$cleanServer";
+          }
+          final testUrl =
+              "$cleanServer/player_api.php?username=$username&password=$password";
+          _log("• Handshaking provider stream portal credentials...");
+          try {
+            final res = await dio.get(testUrl);
+            if (res.statusCode == 200) {
+              providerPortalOk = true;
+              providerDetail = "XC player_api OK";
+              _log("  Provider Stream Portal: OK (Authentication Validated)");
+            } else {
+              _log("  Provider Stream Portal: Returned Status ${res.statusCode}");
+            }
+          } catch (e) {
+            _log("  Provider Stream Portal: Failed: $e");
+          }
         }
       }
     }
@@ -363,12 +455,16 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
     setState(() {
       if (publicOk || providerPortalOk) {
         _streamState = DiagnosticState.success;
-        if (publicOk && providerPortalOk) {
-          _streamReachabilityDetails = "IPTV Panel & Public Streams OK";
+        if (providerDetail != null && providerDetail.contains('gated')) {
+          _streamReachabilityDetails = providerDetail;
+        } else if (publicOk && providerPortalOk) {
+          _streamReachabilityDetails =
+              providerDetail ?? "IPTV Panel & Public Streams OK";
         } else if (publicOk) {
           _streamReachabilityDetails = "Public Streams OK, IPTV Panel Offline";
         } else {
-          _streamReachabilityDetails = "IPTV Panel OK, Public Streams Error";
+          _streamReachabilityDetails =
+              providerDetail ?? "IPTV Panel OK, Public Streams Error";
         }
       } else {
         _streamState = DiagnosticState.failed;
@@ -737,7 +833,16 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
                     const SizedBox(height: 6),
                     _buildTextRow("Ping Latency:", _providerLatency != null ? "${_providerLatency}ms" : "—"),
                     const SizedBox(height: 8),
-                    _buildTextRow("Panel State:", _providerState == DiagnosticState.success ? "Online" : _providerState == DiagnosticState.failed ? "Offline/No Login" : "—"),
+                    _buildTextRow(
+                      "Panel State:",
+                      _providerState == DiagnosticState.success
+                          ? ((_providerHost ?? '').contains('M3U')
+                              ? "M3U Online"
+                              : "Online")
+                          : _providerState == DiagnosticState.failed
+                              ? "Offline/No Login"
+                              : "—",
+                    ),
                   ],
                 ),
               ),
@@ -759,7 +864,16 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
                   children: [
                     _buildTextRow("Public stream port:", "Reachable (200)"),
                     const SizedBox(height: 6),
-                    _buildTextRow("Provider API hand:", _providerState == DiagnosticState.success ? "Authenticated" : "Unverified"),
+                    _buildTextRow(
+                      "Provider API hand:",
+                      (_streamReachabilityDetails ?? '').toLowerCase().contains('gated')
+                          ? "Playlist OK; live gated"
+                          : _providerState == DiagnosticState.success
+                              ? ((_providerHost ?? '').contains('M3U')
+                                  ? "M3U playlist OK"
+                                  : "Authenticated")
+                              : "Unverified",
+                    ),
                     const SizedBox(height: 8),
                     Text(
                       _streamReachabilityDetails ?? "Handshake queued...",
@@ -768,7 +882,7 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
                         fontWeight: FontWeight.w600,
                         color: Colors.black87,
                       ),
-                      maxLines: 2,
+                      maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],

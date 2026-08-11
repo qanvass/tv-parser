@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:mbark_iptv/repository/api/trailer_lookup_service.dart';
 import 'package:mbark_iptv/repository/cache/trailer_cache_service.dart';
 import 'package:get_storage/get_storage.dart';
-import 'dart:io';
+
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

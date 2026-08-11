@@ -29,20 +29,27 @@ class ChannelLive {
     this.tvArchiveDuration,
   });
 
+  static String? _str(dynamic v) {
+    if (v == null) return null;
+    final s = v.toString().trim();
+    if (s.isEmpty || s == 'null' || s == 'undefined') return null;
+    return s;
+  }
+
   ChannelLive.fromJson(Map<String, dynamic> json)
-      : num = json['num'].toString(),
-        name = json['name'].toString(),
-        streamType = json['stream_type'].toString(),
-        streamId = json['stream_id'].toString(),
-        streamIcon = json['stream_icon'].toString(),
-        epgChannelId = json['epg_channel_id'].toString(),
-        added = json['added'].toString(),
-        isAdult = json['is_adult'].toString(),
-        categoryId = json['category_id'].toString(),
-        customSid = json['custom_sid'].toString(),
-        tvArchive = json['tv_archive'].toString(),
-        directSource = json['direct_source'].toString(),
-        tvArchiveDuration = json['tv_archive_duration'].toString();
+      : num = _str(json['num']),
+        name = _str(json['name']),
+        streamType = _str(json['stream_type']),
+        streamId = _str(json['stream_id']),
+        streamIcon = _str(json['stream_icon']),
+        epgChannelId = _str(json['epg_channel_id']),
+        added = _str(json['added']),
+        isAdult = _str(json['is_adult']),
+        categoryId = _str(json['category_id']),
+        customSid = _str(json['custom_sid']),
+        tvArchive = _str(json['tv_archive']),
+        directSource = _str(json['direct_source']),
+        tvArchiveDuration = _str(json['tv_archive_duration']);
 
   Map<String, dynamic> toJson() => {
         'num': num,

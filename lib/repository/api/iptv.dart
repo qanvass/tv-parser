@@ -5,11 +5,13 @@ class IpTvApi {
   Future<List<CategoryModel>> getCategories(String type) async {
     final user = await LocaleApi.getUser();
     if (user != null &&
-        user.serverInfo?.serverUrl?.startsWith('m3u:') == true) {
-      if (type == 'get_live_categories') {
-        return LocaleApi.getM3uCategories();
-      }
-      return [];
+        IptvProviderSession.isM3uServerUrl(user.serverInfo?.serverUrl)) {
+      final cats = IptvProviderSession.instance.categoriesForAction(type);
+      debugPrint(
+        "[IPTV_WIRING] getCategories action=$type count=${cats.length} "
+        "kind=${IptvProviderSession.instance.kind}",
+      );
+      return cats;
     }
 
     try {
@@ -54,12 +56,14 @@ class IpTvApi {
   Future<List<ChannelLive>> getLiveChannels(String catyId) async {
     final user = await LocaleApi.getUser();
     if (user != null &&
-        user.serverInfo?.serverUrl?.startsWith('m3u:') == true) {
-      final allChannels = LocaleApi.getM3uChannels();
-      if (catyId.isEmpty || catyId == 'all') {
-        return allChannels;
-      }
-      return allChannels.where((ch) => ch.categoryId == catyId).toList();
+        IptvProviderSession.isM3uServerUrl(user.serverInfo?.serverUrl)) {
+      final list =
+          IptvProviderSession.instance.liveChannels(categoryId: catyId);
+      debugPrint(
+        "[IPTV_WIRING] getLiveChannels caty=${catyId.isEmpty ? 'all' : catyId} "
+        "count=${list.length}",
+      );
+      return list;
     }
 
     try {
@@ -102,8 +106,14 @@ class IpTvApi {
   Future<List<ChannelMovie>> getMovieChannels(String catyId) async {
     final user = await LocaleApi.getUser();
     if (user != null &&
-        user.serverInfo?.serverUrl?.startsWith('m3u:') == true) {
-      return [];
+        IptvProviderSession.isM3uServerUrl(user.serverInfo?.serverUrl)) {
+      final list =
+          IptvProviderSession.instance.movieChannels(categoryId: catyId);
+      debugPrint(
+        "[IPTV_WIRING] getMovieChannels caty=${catyId.isEmpty ? 'all' : catyId} "
+        "count=${list.length}",
+      );
+      return list;
     }
 
     try {
@@ -146,8 +156,14 @@ class IpTvApi {
   Future<List<ChannelSerie>> getSeriesChannels(String catyId) async {
     final user = await LocaleApi.getUser();
     if (user != null &&
-        user.serverInfo?.serverUrl?.startsWith('m3u:') == true) {
-      return [];
+        IptvProviderSession.isM3uServerUrl(user.serverInfo?.serverUrl)) {
+      final list =
+          IptvProviderSession.instance.seriesChannels(categoryId: catyId);
+      debugPrint(
+        "[IPTV_WIRING] getSeriesChannels caty=${catyId.isEmpty ? 'all' : catyId} "
+        "count=${list.length}",
+      );
+      return list;
     }
 
     try {
@@ -191,7 +207,7 @@ class IpTvApi {
     try {
       final user = await LocaleApi.getUser();
       if (user != null &&
-          user.serverInfo?.serverUrl?.startsWith('m3u:') == true) {
+          IptvProviderSession.isM3uServerUrl(user.serverInfo?.serverUrl)) {
         return null;
       }
 
@@ -232,7 +248,7 @@ class IpTvApi {
     try {
       final user = await LocaleApi.getUser();
       if (user != null &&
-          user.serverInfo?.serverUrl?.startsWith('m3u:') == true) {
+          IptvProviderSession.isM3uServerUrl(user.serverInfo?.serverUrl)) {
         return null;
       }
 
@@ -272,8 +288,8 @@ class IpTvApi {
     try {
       final user = await LocaleApi.getUser();
       if (user != null &&
-          user.serverInfo?.serverUrl?.startsWith('m3u:') == true) {
-        return [];
+          IptvProviderSession.isM3uServerUrl(user.serverInfo?.serverUrl)) {
+        return _xmlTvNowNextForM3u(streamId);
       }
 
       if (user == null) {
@@ -308,6 +324,39 @@ class IpTvApi {
       debugPrint("Error EPG Series $streamId: $e");
       return [];
     }
+  }
+
+  /// M3U path: match playlist tvg-id / name against cached XMLTV. Never invent.
+  static List<EpgModel> _xmlTvNowNextForM3u(String streamId) {
+    if (!XmlTvRepository.isFeatureEnabled) return const [];
+    final repo = XmlTvRepository.instance;
+    if (!repo.isReady) {
+      // Kick a background load; caller can retry after notifyListeners.
+      final url = IptvProviderSession.instance.playlistUrl;
+      // ignore: unawaited_futures
+      repo.ensureLoaded(playlistUrl: url);
+      return const [];
+    }
+    final ch = _liveChannelForEpgKey(streamId);
+    return repo.nowNextAsEpgModels(
+      tvgId: ch?.epgChannelId?.toString(),
+      channelId: ch?.streamId,
+      channelName: ch?.name,
+      streamId: ch?.streamId ?? streamId,
+    );
+  }
+
+  static ChannelLive? _liveChannelForEpgKey(String key) {
+    final needle = key.trim();
+    if (needle.isEmpty) return null;
+    final channels = LocaleApi.getM3uChannels();
+    for (final ch in channels) {
+      if (ch.streamId == needle) return ch;
+      if (ch.directSource == needle) return ch;
+      final tvg = ch.epgChannelId?.toString();
+      if (tvg != null && tvg == needle) return ch;
+    }
+    return null;
   }
 }
 

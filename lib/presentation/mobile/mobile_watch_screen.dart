@@ -619,15 +619,10 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
 
     try {
       final api = IpTvApi();
-      final results = await Future.wait([
-        api.getLiveChannels(""),
-        api.getMovieChannels(""),
-        api.getSeriesChannels(""),
-      ]);
-
-      final allLives = results[0] as List<ChannelLive>;
-      final allMovies = results[1] as List<ChannelMovie>;
-      final allSeries = results[2] as List<ChannelSerie>;
+      final allLives = await api.getLiveChannels("");
+      final allMovies = await api.getMovieChannels("");
+      await SearchIndexService.indexMovies(movies: allMovies);
+      final allSeries = await api.getSeriesChannels("");
 
       final profile = UserPreferenceProfile.load();
 

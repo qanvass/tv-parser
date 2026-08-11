@@ -9,6 +9,8 @@ class ChannelSerie {
   final String? rating5based;
 
   final String? categoryId;
+  /// M3U direct stream URL when the playlist embeds episode/media links.
+  final String? directSource;
 
   ChannelSerie({
     this.num,
@@ -19,17 +21,26 @@ class ChannelSerie {
     this.rating,
     this.rating5based,
     this.categoryId,
+    this.directSource,
   });
 
+  static String? _str(dynamic v) {
+    if (v == null) return null;
+    final s = v.toString().trim();
+    if (s.isEmpty || s == 'null' || s == 'undefined') return null;
+    return s;
+  }
+
   ChannelSerie.fromJson(Map<String, dynamic> json)
-      : num = json['num'].toString(),
-        name = json['name'].toString(),
-        seriesId = json['series_id'].toString(),
-        cover = json['cover'].toString(),
-        plot = json['plot'].toString(),
-        rating = json['rating'].toString(),
-        rating5based = json['rating_5based'].toString(),
-        categoryId = json['category_id'].toString();
+      : num = _str(json['num']),
+        name = _str(json['name']),
+        seriesId = _str(json['series_id']),
+        cover = _str(json['cover']),
+        plot = _str(json['plot']),
+        rating = _str(json['rating']),
+        rating5based = _str(json['rating_5based']),
+        categoryId = _str(json['category_id']),
+        directSource = _str(json['direct_source']);
 
   Map<String, dynamic> toJson() => {
         'num': num,
@@ -39,6 +50,7 @@ class ChannelSerie {
         'plot': plot,
         'rating': rating,
         'rating_5based': rating5based,
-        'category_id': categoryId
+        'category_id': categoryId,
+        'direct_source': directSource,
       };
 }

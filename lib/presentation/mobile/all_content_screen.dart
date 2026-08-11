@@ -74,15 +74,14 @@ class _AllContentScreenState extends State<AllContentScreen> {
   Future<void> _buildSearchIndex() async {
     try {
       final api = IpTvApi();
-      final results = await Future.wait([
-        api.getLiveChannels(""),
-        api.getMovieChannels(""),
-        api.getSeriesChannels(""),
-      ]);
+      final lives = await api.getLiveChannels("");
+      final movies = await api.getMovieChannels("");
+      await SearchIndexService.indexMovies(movies: movies);
+      final series = await api.getSeriesChannels("");
       await SearchIndexService.buildIndex(
-        liveChannels: results[0] as List<ChannelLive>,
-        movies: results[1] as List<ChannelMovie>,
-        series: results[2] as List<ChannelSerie>,
+        liveChannels: lives,
+        movies: movies,
+        series: series,
       );
     } catch (_) {}
   }

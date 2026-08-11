@@ -8,11 +8,39 @@ import android.text.TextWatcher
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.TextView
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.platform.PlatformView
+
+/**
+ * EditText that does **not** consume DPAD keys.
+ *
+ * Stock EditText handles DPAD for caret movement, which steals arrows from the
+ * Android TV / Chromecast soft keyboard (Gboard) so only Back works.
+ * Returning false lets the system IME navigate on-screen keys.
+ */
+private class TvImeEditText(context: Context) : EditText(context) {
+    private fun isDpad(keyCode: Int): Boolean {
+        return keyCode == KeyEvent.KEYCODE_DPAD_UP ||
+            keyCode == KeyEvent.KEYCODE_DPAD_DOWN ||
+            keyCode == KeyEvent.KEYCODE_DPAD_LEFT ||
+            keyCode == KeyEvent.KEYCODE_DPAD_RIGHT ||
+            keyCode == KeyEvent.KEYCODE_DPAD_CENTER
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (event != null && isDpad(keyCode)) return false
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        if (event != null && isDpad(keyCode)) return false
+        return super.onKeyUp(keyCode, event)
+    }
+}
 
 class NativeTextfieldTvView(
     private val context: Context,
@@ -25,7 +53,7 @@ class NativeTextfieldTvView(
     private val methodChannel: MethodChannel
 
     init {
-        editText = EditText(context).apply {
+        editText = TvImeEditText(context).apply {
             // Initial text & hint
             val initialText = creationParams?.get("initialText") as? String
             if (initialText != null) setText(initialText)
@@ -43,24 +71,22 @@ class NativeTextfieldTvView(
             if (textSizeSp != null) textSize = textSizeSp
 
             // Initial colors
-          // Get color from creationParams safely
-val textColorValue = creationParams?.get("textColor")
-val textColor = when (textColorValue) {
-    is Int -> textColorValue
-    is Long -> textColorValue.toInt()
-    else -> Color.WHITE
-}
-setTextColor(textColor)
-setHintTextColor(textColor)
+            val textColorValue = creationParams?.get("textColor")
+            val textColor = when (textColorValue) {
+                is Int -> textColorValue
+                is Long -> textColorValue.toInt()
+                else -> Color.WHITE
+            }
+            setTextColor(textColor)
+            setHintTextColor(textColor)
 
-val bgColorValue = creationParams?.get("backgroundColor")
-val bgColor = when (bgColorValue) {
-    is Int -> bgColorValue
-    is Long -> bgColorValue.toInt()
-    else -> Color.BLACK
-}
-setBackgroundColor(bgColor)
-
+            val bgColorValue = creationParams?.get("backgroundColor")
+            val bgColor = when (bgColorValue) {
+                is Int -> bgColorValue
+                is Long -> bgColorValue.toInt()
+                else -> Color.BLACK
+            }
+            setBackgroundColor(bgColor)
 
             // Input type
             inputType = android.text.InputType.TYPE_CLASS_TEXT
@@ -74,11 +100,22 @@ setBackgroundColor(bgColor)
             val maxLines = creationParams?.get("maxLines") as? Int ?: 1
             setLines(maxLines)
 
+            // TV remotes: keep EditText focusable so system IME (Gboard)
+            // receives D-pad for on-screen key navigation.
+            isFocusable = true
+            isFocusableInTouchMode = true
+            isCursorVisible = true
+
             imeOptions = EditorInfo.IME_ACTION_DONE
+            // Prefer the fullscreen/extract-friendly TV IME when available.
+            setRawInputType(inputType)
 
             // onSubmitted callback
             setOnEditorActionListener { _: TextView, actionId: Int, _: KeyEvent? ->
-                if (actionId == EditorInfo.IME_ACTION_DONE) {
+                if (actionId == EditorInfo.IME_ACTION_DONE ||
+                    actionId == EditorInfo.IME_ACTION_GO ||
+                    actionId == EditorInfo.IME_ACTION_NEXT
+                ) {
                     val instanceId = creationParams?.get("instanceId") as? Int
                     methodChannel.invokeMethod("onSubmitted", mapOf(
                         "instanceId" to instanceId,
@@ -123,8 +160,33 @@ setBackgroundColor(bgColor)
     // Flutter calls
     fun setText(text: String) { editText.setText(text) }
     fun getText(): String = editText.text.toString()
-    fun requestFocus() { editText.requestFocus() }
-    fun clearFocus() { editText.clearFocus() }
+
+    /**
+     * Give Android focus to the native EditText and show the system IME.
+     * Required on Chromecast/Google TV so D-pad navigates Gboard keys
+     * (Flutter TextField InputConnectionAdaptor swallows arrows).
+     */
+    fun requestFocus() {
+        editText.post {
+            editText.isFocusable = true
+            editText.isFocusableInTouchMode = true
+            editText.requestFocus()
+            val imm =
+                context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+            // SHOW_FORCED helps Chromecast/Google TV keep Gboard up for DPAD nav.
+            imm?.showSoftInput(editText, InputMethodManager.SHOW_FORCED)
+        }
+    }
+
+    fun clearFocus() {
+        editText.post {
+            val imm =
+                context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+            imm?.hideSoftInputFromWindow(editText.windowToken, 0)
+            editText.clearFocus()
+        }
+    }
+
     fun setEnabled(enabled: Boolean) { editText.isEnabled = enabled }
     fun setHint(hint: String?) { editText.hint = hint }
 

@@ -103,18 +103,11 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
 
     // [TV_PARSER_PERF] Bypass blocking pre-playback health checks to initialize VLC player instantly.
     // This aligns with MoviePlayerScreen and LivePlayerScreen designs and avoids false negatives.
-    final buffers = getStreamQualityBuffers(isLive: false);
     _ctrl = VlcPlayerController.network(
       _currentUrl,
       hwAcc: HwAcc.auto,
       autoPlay: true,
-      options: VlcPlayerOptions(
-        advanced: VlcAdvancedOptions([
-          VlcAdvancedOptions.networkCaching(buffers["network"]!),
-          VlcAdvancedOptions.liveCaching(buffers["live"]!),
-          VlcAdvancedOptions.fileCaching(buffers["file"]!),
-        ]),
-      ),
+      options: buildVlcPlaybackOptions(isLive: false, streamUrl: _currentUrl),
     );
     _ctrl.addListener(_onVlc);
     OrientationGuard.applyPlayerOrientation();
@@ -332,6 +325,8 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
   }
 
   void _goBack() {
+    if (!mounted) return;
+    if (!Navigator.of(context).canPop()) return;
     _saveProgress();
     Get.back();
   }
@@ -341,7 +336,12 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
   bool _isFocused(int row, int col) =>
       _showControls && _focusRow == row && _focusCol == col;
 
-  int _maxColForRow(int row) => row == 1 ? 1 : (row == 0 ? 3 : 3);
+  // TV: Back/SUB/AUD (no Cast). Mobile: Back/Cast/SUB/AUD.
+  int _maxColForRow(int row) =>
+      row == 1 ? 1 : (row == 0 ? (supportsCasting() ? 3 : 2) : 3);
+
+  bool _isBackKey(LogicalKeyboardKey k) =>
+      k == LogicalKeyboardKey.escape || k == LogicalKeyboardKey.goBack;
 
   KeyEventResult _onKey(FocusNode _, KeyEvent e) {
     if (e is! KeyDownEvent) return KeyEventResult.ignored;
@@ -356,15 +356,20 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
           setState(() => _trackPanelIdx++);
       } else if (_isSelectKey(k)) {
         if (_trackList.isNotEmpty) _selectTrack(_trackList[_trackPanelIdx].key);
-      } else if (k == LogicalKeyboardKey.escape ||
-          k == LogicalKeyboardKey.arrowLeft) {
+      } else if (_isBackKey(k) || k == LogicalKeyboardKey.arrowLeft) {
         setState(() => _trackPanel = null);
         _scheduleHide();
       }
       return KeyEventResult.handled;
     }
 
-    // Controls hidden: any key shows them
+    // Back always leaves the player (do not swallow goBack).
+    if (_isBackKey(k)) {
+      _goBack();
+      return KeyEventResult.handled;
+    }
+
+    // Controls hidden: directional / select shows them
     if (!_showControls) {
       setState(() => _showControls = true);
       _scheduleHide();
@@ -393,13 +398,15 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
       _scheduleHide();
     } else if (_isSelectKey(k)) {
       _activate();
-    } else if (k == LogicalKeyboardKey.escape) {
-      _goBack();
+    } else {
+      return KeyEventResult.ignored;
     }
     return KeyEventResult.handled;
   }
 
   void _openCastDialog() {
+    // TV gate: Cast is phone→TV only.
+    if (!supportsCasting()) return;
     _hideTimer?.cancel();
     showDialog(
       context: context,
@@ -417,15 +424,27 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
 
   void _activate() {
     if (_focusRow == 0) {
-      switch (_focusCol) {
-        case 0:
-          _goBack();
-        case 1:
-          _openCastDialog();
-        case 2:
-          if (_subtitleTracks.isNotEmpty) _openTrackPanel('sub');
-        case 3:
-          if (_audioTracks.isNotEmpty) _openTrackPanel('audio');
+      if (supportsCasting()) {
+        switch (_focusCol) {
+          case 0:
+            _goBack();
+          case 1:
+            _openCastDialog();
+          case 2:
+            if (_subtitleTracks.isNotEmpty) _openTrackPanel('sub');
+          case 3:
+            if (_audioTracks.isNotEmpty) _openTrackPanel('audio');
+        }
+      } else {
+        // TV chrome: Back, SUB, AUD (Cast removed).
+        switch (_focusCol) {
+          case 0:
+            _goBack();
+          case 1:
+            if (_subtitleTracks.isNotEmpty) _openTrackPanel('sub');
+          case 2:
+            if (_audioTracks.isNotEmpty) _openTrackPanel('audio');
+        }
       }
     } else if (_focusRow == 1) {
       switch (_focusCol) {
@@ -541,7 +560,7 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _goBack();
+        if (!didPop) _goBack(); // _goBack guards canPop
       },
       child: Focus(
         focusNode: _focusNode,
@@ -731,7 +750,7 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
                     ),
 
                   // 8. Chromecast Overlay
-                  if (!_isCheckingHealth && !_isDeadStream && _castDevice != null)
+                  if (!_isCheckingHealth && !_isDeadStream && supportsCasting() && _castDevice != null)
                     Positioned.fill(
                       child: _buildCastOverlay(context),
                     ),
@@ -807,21 +826,23 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
               ),
             ),
             SizedBox(width: 12),
-            // Chromecast
-            _FsBtn(
-              icon: FontAwesomeIcons.chromecast.data,
-              label: 'Cast',
-              isFocused: _isFocused(0, 1),
-              onTap: _openCastDialog,
-            ),
-            const SizedBox(width: 8),
+            // Chromecast — phone/tablet only (not on Android TV / Google TV).
+            if (supportsCasting()) ...[
+              _FsBtn(
+                icon: FontAwesomeIcons.chromecast.data,
+                label: 'Cast',
+                isFocused: _isFocused(0, 1),
+                onTap: _openCastDialog,
+              ),
+              const SizedBox(width: 8),
+            ],
             _FsBtn(
               icon: FontAwesomeIcons.closedCaptioning.data,
               label: 'SUB',
               badge: _subtitleTracks.isNotEmpty
                   ? '${_subtitleTracks.length}'
                   : null,
-              isFocused: _isFocused(0, 2),
+              isFocused: _isFocused(0, supportsCasting() ? 2 : 1),
               isDisabled: _subtitleTracks.isEmpty,
               onTap: () => _openTrackPanel('sub'),
             ),
@@ -830,7 +851,7 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
               icon: FontAwesomeIcons.volumeHigh.data,
               label: 'AUD',
               badge: _audioTracks.isNotEmpty ? '${_audioTracks.length}' : null,
-              isFocused: _isFocused(0, 3),
+              isFocused: _isFocused(0, supportsCasting() ? 3 : 2),
               isDisabled: _audioTracks.isEmpty,
               onTap: () => _openTrackPanel('audio'),
             ),

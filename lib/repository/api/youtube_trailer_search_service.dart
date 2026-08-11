@@ -1,6 +1,8 @@
 import 'dart:developer';
 import 'package:dio/dio.dart';
 
+import 'gemini_channel_intelligence_service.dart';
+
 class YouTubeTrailerSearchService {
   /// Feature flag for experimental client-side YouTube HTML scraping.
   /// Keep disabled (false) by default in production.
@@ -44,7 +46,47 @@ class YouTubeTrailerSearchService {
 
   /// Stubbed backend AI search endpoint request
   static Future<String?> _queryBackendAiEndpoint(String cleanTitle, String? year) async {
-    // Return null since no production backend is configured for the serverless client
+    final query = await GeminiChannelIntelligenceService.suggestTrailerSearchQuery(
+      title: cleanTitle,
+      year: year,
+    );
+    if (query == null || query.trim().isEmpty) return null;
+
+    // Resolve query via experimental scraper when enabled; otherwise return null
+    // so UI can open YouTube search fallback URL.
+    if (enableExperimentalClientYoutubeHtmlSearch) {
+      return _performClientSearchScrapeWithQuery(query);
+    }
+    return null;
+  }
+
+  static Future<String?> _performClientSearchScrapeWithQuery(String queryStr) async {
+    final dio = Dio();
+    final url =
+        "https://www.youtube.com/results?search_query=${Uri.encodeComponent(queryStr)}";
+    try {
+      final response = await dio.get(
+        url,
+        options: Options(
+          headers: {
+            "User-Agent":
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9",
+          },
+          sendTimeout: const Duration(seconds: 4),
+          receiveTimeout: const Duration(seconds: 4),
+        ),
+      );
+      if (response.statusCode != 200 || response.data == null) return null;
+      final html = response.data.toString();
+      final videoIdRegex = RegExp(r'"videoId"\s*:\s*"([a-zA-Z0-9_-]{11})"');
+      for (final m in videoIdRegex.allMatches(html)) {
+        final id = m.group(1);
+        if (id != null && _isValidYoutubeId(id)) return id;
+      }
+    } catch (e) {
+      log("[YOUTUBE_SEARCH] Scraping error: $e");
+    }
     return null;
   }
 

@@ -1,4 +1,9 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../../../helpers/helpers.dart';
 
 class TvNavigationItem {
   final String label;
@@ -36,42 +41,125 @@ class TvNavigationRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final width = collapsed ? 88.0 : 220.0;
+    final width = collapsed ? 92.0 : 236.0;
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOut,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
       width: width,
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0A0A0F).withValues(alpha: 0.96),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.08),
-        ),
-      ),
-      child: Column(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: const Color(0xD6050A18),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: kColorPrimary.withValues(alpha: 0.28),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: kColorPrimary.withValues(alpha: 0.18),
+                  blurRadius: 22,
+                  offset: const Offset(0, 0),
+                ),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.45),
+                  blurRadius: 18,
+                  offset: const Offset(4, 0),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
             padding: EdgeInsets.fromLTRB(
-              collapsed ? 12 : 22,
-              2,
-              collapsed ? 12 : 22,
-              12,
+              collapsed ? 10 : 18,
+              4,
+              collapsed ? 10 : 18,
+              16,
             ),
             child: collapsed
-                ? const Icon(Icons.tv_rounded, color: Colors.white, size: 26)
-                : const Text(
-                    'TV Parser',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.6,
+                ? Center(
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          colors: [kColorPrimaryDark, kColorPrimary],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: kColorPrimary.withValues(alpha: 0.35),
+                            blurRadius: 14,
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.tv_rounded,
+                        color: Colors.black,
+                        size: 24,
+                      ),
                     ),
+                  )
+                : Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [kColorPrimaryDark, kColorPrimary],
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.tv_rounded,
+                          color: Colors.black,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'TV Parser',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.5,
+                                height: 1.1,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Media Player',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: kColorPrimary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.6,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
           ),
           // Non-scrolling column so all primary destinations stay visible
@@ -101,10 +189,13 @@ class TvNavigationRail extends StatelessWidget {
           ),
           if (utilityItems.isNotEmpty) ...[
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 4),
+              padding: EdgeInsets.symmetric(
+                horizontal: collapsed ? 16 : 22,
+                vertical: 6,
+              ),
               child: Divider(
                 height: 1,
-                color: Colors.white.withValues(alpha: 0.08),
+                color: Colors.white.withValues(alpha: 0.10),
               ),
             ),
             Padding(
@@ -129,6 +220,10 @@ class TvNavigationRail extends StatelessWidget {
             ),
           ],
         ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -158,9 +253,23 @@ class _TvNavigationButton extends StatefulWidget {
 class _TvNavigationButtonState extends State<_TvNavigationButton> {
   bool _focused = false;
 
+  KeyEventResult _onKey(FocusNode _, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final k = event.logicalKey;
+    if (k == LogicalKeyboardKey.select ||
+        k == LogicalKeyboardKey.enter ||
+        k == LogicalKeyboardKey.gameButtonA) {
+      widget.onTap();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final bool active = widget.selected || _focused;
+    final bool focused = _focused;
+    final bool selected = widget.selected;
+    final bool lit = selected || focused;
     final vPad = widget.compact ? 8.0 : 15.0;
     final iconSize = widget.compact ? 22.0 : 24.0;
     final fontSize = widget.compact ? 15.0 : 16.0;
@@ -174,49 +283,102 @@ class _TvNavigationButtonState extends State<_TvNavigationButton> {
             _focused = value;
           });
         },
+        onKeyEvent: _onKey,
         child: AnimatedScale(
-          scale: _focused ? 1.04 : 1.0,
-          duration: const Duration(milliseconds: 150),
-          curve: Curves.easeOut,
+          scale: focused ? 1.05 : 1.0,
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOutCubic,
           child: Material(
             color: Colors.transparent,
             borderRadius: BorderRadius.circular(16),
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
+              canRequestFocus: false,
               onTap: widget.onTap,
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                curve: Curves.easeOut,
+                duration: const Duration(milliseconds: 160),
+                curve: Curves.easeOutCubic,
                 alignment: Alignment.centerLeft,
                 padding: EdgeInsets.symmetric(
-                  horizontal: widget.collapsed ? 12 : 14,
+                  horizontal: widget.collapsed ? 10 : 12,
                   vertical: vPad,
                 ),
                 decoration: BoxDecoration(
-                  color: active
-                      ? Colors.white.withValues(alpha: 0.13)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(16),
+                  gradient: lit
+                      ? LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          colors: focused
+                              ? [
+                                  kColorPrimary.withValues(alpha: 0.98),
+                                  kColorPrimaryDark.withValues(alpha: 0.90),
+                                ]
+                              : [
+                                  kColorPrimary.withValues(alpha: 0.38),
+                                  kColorPrimary.withValues(alpha: 0.10),
+                                ],
+                        )
+                      : null,
+                  color: lit ? null : Colors.transparent,
+                  borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    width: active ? 2.5 : 1.0,
-                    color: active
-                        ? Colors.white
-                        : Colors.white.withValues(alpha: 0.06),
+                    width: focused ? 2.4 : (selected ? 1.6 : 1.0),
+                    color: focused
+                        ? kColorFocus
+                        : selected
+                            ? kColorPrimary.withValues(alpha: 0.75)
+                            : Colors.white.withValues(alpha: 0.04),
                   ),
+                  boxShadow: focused
+                      ? [
+                          BoxShadow(
+                            color: kColorPrimary.withValues(alpha: 0.62),
+                            blurRadius: 22,
+                          ),
+                        ]
+                      : selected
+                          ? [
+                              BoxShadow(
+                                color: kColorPrimary.withValues(alpha: 0.48),
+                                blurRadius: 20,
+                                spreadRadius: 0.4,
+                              ),
+                            ]
+                          : null,
                 ),
                 child: widget.collapsed
                     ? Center(
                         child: Icon(
                           widget.item.icon,
-                          color: active ? Colors.white : Colors.white54,
+                          color: lit
+                              ? (focused ? Colors.black : Colors.white)
+                              : Colors.white54,
                           size: iconSize,
                         ),
                       )
                     : Row(
                         children: [
+                          if (selected && !focused)
+                            Container(
+                              width: 4,
+                              height: 22,
+                              margin: const EdgeInsets.only(right: 8),
+                              decoration: BoxDecoration(
+                                color: kColorPrimary,
+                                borderRadius: BorderRadius.circular(4),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: kColorPrimary.withValues(alpha: 0.8),
+                                    blurRadius: 10,
+                                  ),
+                                ],
+                              ),
+                            ),
                           Icon(
                             widget.item.icon,
-                            color: active ? Colors.white : Colors.white54,
+                            color: lit
+                                ? (focused ? Colors.black : Colors.white)
+                                : Colors.white54,
                             size: iconSize,
                           ),
                           const SizedBox(width: 12),
@@ -226,9 +388,11 @@ class _TvNavigationButtonState extends State<_TvNavigationButton> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: active ? Colors.white : Colors.white60,
+                                color: lit
+                                    ? (focused ? Colors.black : Colors.white)
+                                    : Colors.white60,
                                 fontSize: fontSize,
-                                fontWeight: active
+                                fontWeight: lit
                                     ? FontWeight.w800
                                     : FontWeight.w600,
                               ),

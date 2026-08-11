@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../repository/api/api.dart';
+import '../../../repository/api/intelligent_preference_bridge.dart';
 import '../../../repository/models/channel_live.dart';
 import '../../../repository/models/channel_movie.dart';
 import '../../../repository/models/channel_serie.dart';
@@ -12,11 +13,19 @@ class FavoritesCubit extends Cubit<FavoritesState> {
   FavoritesCubit(this.favoriteLocale) : super(FavoritesState.defaultData());
 
   void initialData() async {
+    final series = await favoriteLocale.getFavSeries();
+    final movies = await favoriteLocale.getFavMovies();
+    final lives = await favoriteLocale.getFavLives();
     emit(FavoritesState(
-      series: await favoriteLocale.getFavSeries(),
-      movies: await favoriteLocale.getFavMovies(),
-      lives: await favoriteLocale.getFavLives(),
+      series: series,
+      movies: movies,
+      lives: lives,
     ));
+    await IntelligentPreferenceBridge.rebuildFavoritesFromStorage(
+      liveIds: lives.map((e) => e.streamId ?? '').where((id) => id.isNotEmpty).toList(),
+      movieIds: movies.map((e) => e.streamId ?? '').where((id) => id.isNotEmpty).toList(),
+      seriesIds: series.map((e) => e.seriesId ?? '').where((id) => id.isNotEmpty).toList(),
+    );
   }
 
   void addMovie(ChannelMovie? value, {required bool isAdd}) async {
@@ -31,6 +40,13 @@ class FavoritesCubit extends Cubit<FavoritesState> {
     }
 
     await favoriteLocale.saveFavoriteMovie(newList);
+
+    if (value?.streamId != null) {
+      await IntelligentPreferenceBridge.syncFavoriteId(
+        id: value!.streamId!,
+        isAdd: isAdd,
+      );
+    }
 
     emit(FavoritesState(
       movies: newList,
@@ -51,6 +67,12 @@ class FavoritesCubit extends Cubit<FavoritesState> {
     }
 
     await favoriteLocale.saveFavoriteSerie(newList);
+    if (value?.seriesId != null) {
+      await IntelligentPreferenceBridge.syncFavoriteId(
+        id: value!.seriesId!,
+        isAdd: isAdd,
+      );
+    }
     emit(FavoritesState(
       series: newList,
       movies: state.movies,
@@ -70,6 +92,12 @@ class FavoritesCubit extends Cubit<FavoritesState> {
     }
 
     await favoriteLocale.saveFavoriteLives(newList);
+    if (value?.streamId != null) {
+      await IntelligentPreferenceBridge.syncFavoriteId(
+        id: value!.streamId!,
+        isAdd: isAdd,
+      );
+    }
     emit(FavoritesState(
       lives: newList,
       series: state.series,

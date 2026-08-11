@@ -3,6 +3,8 @@
 .env.*
 !.env.example
 *.env
+.secrets/
+!.secrets/*.example.json
 secrets.json
 credentials.json
 service-account*.json

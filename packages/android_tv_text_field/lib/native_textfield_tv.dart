@@ -52,6 +52,11 @@ class NativeTextField extends StatefulWidget {
   final Color textColor;
   final double? textSize;
 
+  /// When false, losing Flutter [focusNode] focus does **not** clear the native
+  /// EditText / hide IME. Needed so we can release Flutter key ownership while
+  /// Gboard keeps Android focus for DPAD key navigation.
+  final bool clearNativeOnUnfocus;
+
   const NativeTextField({
     super.key,
     this.controller,
@@ -69,6 +74,7 @@ class NativeTextField extends StatefulWidget {
     this.backgroundColor = Colors.black,
     this.textColor = Colors.white,
     this.textSize,
+    this.clearNativeOnUnfocus = true,
   });
 
   @override
@@ -113,7 +119,7 @@ class _NativeTextFieldState extends State<NativeTextField> {
   void _onFocusNodeChange() {
     if (widget.focusNode!.hasFocus) {
       requestFocus();
-    } else {
+    } else if (widget.clearNativeOnUnfocus) {
       clearFocus();
     }
   }
@@ -190,6 +196,10 @@ class _NativeTextFieldState extends State<NativeTextField> {
   @override
   void dispose() {
     widget.focusNode?.removeListener(_onFocusNodeChange);
+    // Best-effort hide IME when the PlatformView goes away (e.g. dialog close).
+    try {
+      _channel.invokeMethod('clearFocus', {'instanceId': _instanceId});
+    } catch (_) {}
     _instances.remove(_instanceId);
     if (_instances.isEmpty) _channel.setMethodCallHandler(null);
     _controller.removeListener(_onControllerTextChanged);
@@ -264,6 +274,12 @@ class AndroidTVTextField extends StatefulWidget {
   final ValueChanged<String>? onSubmitted;
   final Widget? postFixWidget;
 
+  /// When true (login edit dialogs on Chromecast/Google TV):
+  /// - Do not remap Left/Right to caret moves (that steals Gboard DPAD).
+  /// - Losing Flutter [focusNode] does not dismiss the native IME, so we can
+  ///   release Flutter key ownership after native EditText is focused.
+  final bool deferDpadToIme;
+
   const AndroidTVTextField(
       {super.key,
       required this.focusNode,
@@ -282,7 +298,8 @@ class AndroidTVTextField extends StatefulWidget {
       this.textSize,
       this.borderRadius,
       this.padding,
-      this.postFixWidget});
+      this.postFixWidget,
+      this.deferDpadToIme = false});
 
   @override
   State<AndroidTVTextField> createState() => _DpadNativeTextFieldState();
@@ -304,7 +321,7 @@ class _DpadNativeTextFieldState extends State<AndroidTVTextField> {
       setState(() {
         if (widget.focusNode.hasFocus) {
           _nativeTextFieldKey.currentState?.requestFocus();
-        } else {
+        } else if (!widget.deferDpadToIme) {
           _nativeTextFieldKey.currentState?.clearFocus();
         }
       });
@@ -317,8 +334,83 @@ class _DpadNativeTextFieldState extends State<AndroidTVTextField> {
     super.dispose();
   }
 
+  bool _isDpad(LogicalKeyboardKey key) {
+    return key == LogicalKeyboardKey.arrowLeft ||
+        key == LogicalKeyboardKey.arrowRight ||
+        key == LogicalKeyboardKey.arrowUp ||
+        key == LogicalKeyboardKey.arrowDown ||
+        key == LogicalKeyboardKey.select ||
+        key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.gameButtonA;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final field = Stack(
+      alignment: Alignment.centerRight,
+      children: [
+        Builder(builder: (context) {
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              height: widget.height,
+              decoration: BoxDecoration(
+                borderRadius: widget.borderRadius ?? BorderRadius.circular(10),
+                color: widget.backgroundColor,
+                border: Border.all(
+                  color: widget.focusNode.hasFocus || widget.deferDpadToIme
+                      ? widget.focuesedBorderColor
+                      : widget.unFocuesedBorderColor,
+                  width: 1,
+                ),
+              ),
+              padding: widget.padding ??
+                  EdgeInsets.only(
+                      left: 5,
+                      right: widget.postFixWidget == null ? 5 : 50,
+                      top: 5,
+                      bottom: 5),
+              child: NativeTextField(
+                key: _nativeTextFieldKey,
+                // Bridge FocusNode so late PlatformView creation still
+                // forwards focus → native EditText (IME gets D-pad).
+                focusNode: widget.focusNode,
+                controller: widget.controller,
+                width: double.infinity,
+                height: widget.height,
+                obscureText: widget.obscureText,
+                hint: widget.hint,
+                maxLines: widget.maxLines,
+                backgroundColor: widget.backgroundColor,
+                textColor: widget.textColor,
+                textSize: widget.textSize,
+                onChanged: widget.onChanged,
+                onSubmitted: widget.onSubmitted,
+                clearNativeOnUnfocus: !widget.deferDpadToIme,
+              ),
+            ),
+          );
+        }),
+        Positioned(right: 10, child: widget.postFixWidget ?? SizedBox()),
+      ],
+    );
+
+    // IME owns DPAD: never install KeyboardListener caret remaps, and never
+    // mark directional keys as handled so FlutterView can fall through to the
+    // native EditText / Gboard.
+    if (widget.deferDpadToIme) {
+      return Focus(
+        focusNode: widget.focusNode,
+        onKeyEvent: (node, event) {
+          if (_isDpad(event.logicalKey)) {
+            return KeyEventResult.ignored;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: field,
+      );
+    }
+
     return KeyboardListener(
       focusNode: widget.focusNode,
       onKeyEvent: (event) {
@@ -333,51 +425,7 @@ class _DpadNativeTextFieldState extends State<AndroidTVTextField> {
           }
         }
       },
-      child: Stack(
-        alignment: Alignment.centerRight,
-        children: [
-          Builder(builder: (context) {
-            return ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                height: widget.height,
-                decoration: BoxDecoration(
-                  borderRadius:
-                      widget.borderRadius ?? BorderRadius.circular(10),
-                  color: widget.backgroundColor,
-                  border: Border.all(
-                    color: widget.focusNode.hasFocus
-                        ? widget.focuesedBorderColor
-                        : widget.unFocuesedBorderColor,
-                    width: 1,
-                  ),
-                ),
-                padding: widget.padding ??
-                    EdgeInsets.only(
-                        left: 5,
-                        right: widget.postFixWidget == null ? 5 : 50,
-                        top: 5,
-                        bottom: 5),
-                child: NativeTextField(
-                  key: _nativeTextFieldKey,
-                  controller: widget.controller,
-                  width: double.infinity,
-                  height: widget.height,
-                  obscureText: widget.obscureText,
-                  hint: widget.hint,
-                  maxLines: widget.maxLines,
-                  backgroundColor: widget.backgroundColor,
-                  textColor: widget.textColor,
-                  textSize: widget.textSize,
-                  onChanged: widget.onChanged,
-                  onSubmitted: widget.onSubmitted,
-                ),
-              ),
-            );
-          }),
-          Positioned(right: 10, child: widget.postFixWidget ?? SizedBox()),
-        ],
-      ),
+      child: field,
     );
   }
 }

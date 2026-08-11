@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:cast/cast.dart';
+import 'package:mbark_iptv/helpers/helpers.dart';
 
 class CastDiagnosticsService {
   static final List<String> history = [];
@@ -56,6 +57,11 @@ class CastMediaService {
 
   /// Start discovery of Chromecast devices
   Future<List<CastDevice>> discoverDevices() async {
+    // TV gate: never scan for Cast receivers while already running on a TV.
+    if (!supportsCasting()) {
+      CastDiagnosticsService.log('Skipping Chromecast scan on TV device.');
+      return [];
+    }
     CastDiagnosticsService.log('Starting Chromecast device scan...');
     try {
       final devices = await CastDiscoveryService().search(timeout: const Duration(seconds: 4));
@@ -69,6 +75,11 @@ class CastMediaService {
 
   /// Connect to a specific Chromecast device and launch default media receiver app
   Future<bool> connectToDevice(CastDevice device) async {
+    // TV gate: Cast is phone→TV only.
+    if (!supportsCasting()) {
+      CastDiagnosticsService.log('Blocked Cast connect on TV device.');
+      return false;
+    }
     CastDiagnosticsService.log('Connecting to device: ${device.name} (${device.host}:${device.port})...');
     try {
       await disconnect();

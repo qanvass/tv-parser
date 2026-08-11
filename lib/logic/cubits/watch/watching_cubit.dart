@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../repository/api/api.dart';
+import '../../../repository/api/intelligent_preference_bridge.dart';
 
 import '../../../repository/models/watching.dart';
 
@@ -25,6 +26,7 @@ class WatchingCubit extends Cubit<WatchingState> {
     editList.insert(0, movie);
 
     await favoriteLocale.saveWatchingMovie(editList);
+    await IntelligentPreferenceBridge.syncRecentWatchId(movie.streamId);
     emit(WatchingState(
       movies: editList,
       series: state.series,
@@ -39,6 +41,7 @@ class WatchingCubit extends Cubit<WatchingState> {
     editList.insert(0, serie);
 
     await favoriteLocale.saveWatchSerie(editList);
+    await IntelligentPreferenceBridge.syncRecentWatchId(serie.streamId);
     emit(WatchingState(
       movies: state.movies,
       series: editList,
@@ -52,6 +55,7 @@ class WatchingCubit extends Cubit<WatchingState> {
         .toList();
     editList.insert(0, live);
     await favoriteLocale.saveWatchLive(editList);
+    await IntelligentPreferenceBridge.syncRecentWatchId(live.streamId);
     emit(WatchingState(
       movies: state.movies,
       series: state.series,

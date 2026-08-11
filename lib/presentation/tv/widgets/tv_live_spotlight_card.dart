@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+
+import '../../../../helpers/helpers.dart';
 import '../../../../repository/models/channel_live.dart';
 import '../../../../repository/models/spotlight_event.dart';
 import '../../../../repository/api/channel_match_service.dart';
@@ -26,7 +29,6 @@ class _TvLiveSpotlightCardState extends State<TvLiveSpotlightCard> {
 
   @override
   Widget build(BuildContext context) {
-    // Perform fuzzy match logic
     final matchResult = ChannelMatchService.matchEvent(
       event: widget.event,
       allLiveChannels: widget.allLiveChannels,
@@ -35,12 +37,20 @@ class _TvLiveSpotlightCardState extends State<TvLiveSpotlightCard> {
     final bestCh = matchResult.bestChannel;
     final confidencePct = (matchResult.confidenceScore * 100).toInt();
 
-    // Format Start Time
-    String formattedTime = "Live Now";
+    String formattedTime = 'Live Now';
     try {
       final startTime = DateTime.parse(widget.event.startTimeLocal);
       formattedTime = DateFormat('h:mm a').format(startTime);
     } catch (_) {}
+
+    void playBest() {
+      if (bestCh == null) return;
+      if (bestCh.directSource != null && bestCh.directSource!.isNotEmpty) {
+        widget.onChannelSelected(bestCh.directSource!);
+      } else if (bestCh.streamId != null) {
+        widget.onChannelSelected(bestCh.streamId!);
+      }
+    }
 
     return Focus(
       onFocusChange: (value) {
@@ -48,34 +58,52 @@ class _TvLiveSpotlightCardState extends State<TvLiveSpotlightCard> {
           _focused = value;
         });
       },
+      onKeyEvent: (node, event) {
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        final k = event.logicalKey;
+        if (k == LogicalKeyboardKey.select ||
+            k == LogicalKeyboardKey.enter ||
+            k == LogicalKeyboardKey.gameButtonA) {
+          playBest();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
       child: AnimatedScale(
         scale: _focused ? 1.06 : 1.0,
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.easeOut,
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOutCubic,
         child: Container(
-          width: 280,
-          margin: const EdgeInsets.only(right: 18),
+          width: 268,
+          margin: const EdgeInsets.only(right: 12),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(14),
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color(0xFF281E46),
-                Color(0xFF140F22),
-                Color(0xFF0A0811),
+                Color(0xFF12353A),
+                Color(0xFF0C1A28),
+                Color(0xFF070D16),
               ],
             ),
             border: Border.all(
-              width: _focused ? 2.5 : 1.0,
-              color: _focused ? Colors.white : Colors.white.withValues(alpha: 0.08),
+              width: _focused ? 2.8 : 1.0,
+              color: _focused
+                  ? kColorFocus
+                  : kColorPrimary.withValues(alpha: 0.28),
             ),
             boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.35),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
+              ),
               if (_focused)
                 BoxShadow(
-                  color: Colors.white.withValues(alpha: 0.18),
-                  blurRadius: 28,
-                  spreadRadius: 1,
+                  color: kColorPrimary.withValues(alpha: 0.38),
+                  blurRadius: 22,
+                  spreadRadius: 0.5,
                 ),
             ],
           ),
@@ -83,99 +111,116 @@ class _TvLiveSpotlightCardState extends State<TvLiveSpotlightCard> {
           child: Material(
             color: Colors.transparent,
             child: InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: () {
-                if (bestCh != null) {
-                  // Resolve stream URL using bestChannel source
-                  if (bestCh.directSource != null && bestCh.directSource!.isNotEmpty) {
-                    widget.onChannelSelected(bestCh.directSource!);
-                  } else if (bestCh.streamId != null) {
-                    // Try to generate standard playback link locally or let parent handle it
-                    // We call onChannelSelected with streamUrl as required
-                    widget.onChannelSelected(bestCh.streamId!);
-                  }
-                }
-              },
+              borderRadius: BorderRadius.circular(14),
+              canRequestFocus: false,
+              onTap: playBest,
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.all(14.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Header tag and networks
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
-                            color: Colors.amber.withValues(alpha: 0.15),
+                            color: kColorPrimary.withValues(alpha: 0.16),
                             borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: kColorPrimary.withValues(alpha: 0.35),
+                            ),
                           ),
                           child: Text(
                             widget.event.sport.toUpperCase(),
                             style: const TextStyle(
-                              color: Colors.amber,
+                              color: kColorPrimary,
                               fontSize: 10,
                               fontWeight: FontWeight.w900,
+                              letterSpacing: 0.4,
                             ),
                           ),
                         ),
-                        Text(
-                          widget.event.networks.join(" | "),
-                          style: const TextStyle(
-                            color: Colors.white38,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
+                        Flexible(
+                          child: Text(
+                            widget.event.networks.join(' · '),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.45),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 14),
-
-                    // Title
                     Text(
                       widget.event.title,
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 16,
+                        fontSize: 17,
                         fontWeight: FontWeight.w900,
+                        height: 1.2,
                       ),
                     ),
-                    const SizedBox(height: 4),
-
-                    // Time
+                    const SizedBox(height: 6),
                     Row(
                       children: [
-                        const Icon(Icons.access_time_rounded, size: 12, color: Colors.white30),
+                        Icon(
+                          Icons.access_time_rounded,
+                          size: 13,
+                          color: Colors.white.withValues(alpha: 0.4),
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           formattedTime,
-                          style: const TextStyle(color: Colors.white30, fontSize: 11, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.45),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ],
                     ),
                     const Spacer(),
-
-                    // Playlist Matching info
                     if (bestCh != null) ...[
                       Row(
                         children: [
-                          if (bestCh.streamIcon != null && bestCh.streamIcon!.isNotEmpty)
+                          if (bestCh.streamIcon != null &&
+                              bestCh.streamIcon!.isNotEmpty)
                             ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(6),
                               child: CachedNetworkImage(
                                 imageUrl: bestCh.streamIcon!,
-                                width: 22,
-                                height: 22,
-                                fit: BoxFit.cover,
-                                placeholder: (_, __) => const Icon(Icons.live_tv_rounded, size: 12, color: Colors.white24),
-                                errorWidget: (_, __, ___) => const Icon(Icons.live_tv_rounded, size: 12, color: Colors.white24),
+                                width: 26,
+                                height: 26,
+                                fit: BoxFit.contain,
+                                placeholder: (_, _) => Icon(
+                                  Icons.live_tv_rounded,
+                                  size: 14,
+                                  color: Colors.white.withValues(alpha: 0.35),
+                                ),
+                                errorWidget: (_, _, _) => Icon(
+                                  Icons.live_tv_rounded,
+                                  size: 14,
+                                  color: Colors.white.withValues(alpha: 0.35),
+                                ),
                               ),
                             )
                           else
-                            const Icon(Icons.live_tv_rounded, size: 18, color: Colors.white60),
+                            Icon(
+                              Icons.live_tv_rounded,
+                              size: 20,
+                              color: kColorPrimary.withValues(alpha: 0.7),
+                            ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Column(
@@ -185,21 +230,51 @@ class _TvLiveSpotlightCardState extends State<TvLiveSpotlightCard> {
                                   bestCh.name ?? 'Live Channel',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                                 ),
                                 Text(
-                                  "Match • $confidencePct% Confidence",
-                                  style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 9, fontWeight: FontWeight.bold),
+                                  'Matched · $confidencePct%',
+                                  style: TextStyle(
+                                    color: kColorPrimary.withValues(
+                                      alpha: 0.7,
+                                    ),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                               ],
                             ),
                           ),
+                          if (_focused)
+                            Container(
+                              width: 28,
+                              height: 28,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: LinearGradient(
+                                  colors: [kColorPrimaryDark, kColorPrimary],
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.play_arrow_rounded,
+                                color: Colors.black,
+                                size: 18,
+                              ),
+                            ),
                         ],
                       ),
                     ] else ...[
                       Text(
-                        "Not in playlist",
-                        style: TextStyle(color: Colors.white.withValues(alpha: 0.2), fontSize: 11, fontWeight: FontWeight.bold),
+                        'Not in playlist',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.28),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ],
                   ],

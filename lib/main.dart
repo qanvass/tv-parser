@@ -28,6 +28,9 @@ void main() async {
   await GetStorage.init("favorites");
   await GetStorage.init("preferences");
   await GetStorage.init("youtube_trailer_cache");
+  await GetStorage.init("channel_intelligence");
+  // Do not await M3U warm/hydrate here — it holds the native window
+  // (and used to show the logo splash) before the first Flutter frame.
 
   final prefs = GetStorage("preferences");
   prefs.writeIfNull("allowMobileLandscape", false);
@@ -70,6 +73,20 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _configureSystemUI();
+    // Defer huge Movies/Series JSON warm until after first frame so splash
+    // can play and Live shell can appear without main-isolate stalls.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await LocaleApi.warmM3uCache();
+      await IptvProviderSession.instance.hydrateFromLocale();
+      // ignore: unawaited_futures
+      LocaleApi.warmM3uMovieCache();
+      // ignore: unawaited_futures
+      LocaleApi.warmM3uSeriesCache();
+      // ignore: unawaited_futures
+      XmlTvRepository.instance.ensureLoaded(
+        playlistUrl: IptvProviderSession.instance.playlistUrl,
+      );
+    });
   }
 
   /// Configures system UI overlays for an immersive, distraction-free playback experience.
@@ -105,10 +122,18 @@ class _MyAppState extends State<MyApp> {
           BlocProvider<VideoCubit>(create: (context) => VideoCubit()),
           BlocProvider<SettingsCubit>(create: (context) => SettingsCubit()),
           BlocProvider<WatchingCubit>(
-            create: (context) => WatchingCubit(widget.watchingLocale),
+            create: (context) {
+              final cubit = WatchingCubit(widget.watchingLocale);
+              cubit.initialData();
+              return cubit;
+            },
           ),
           BlocProvider<FavoritesCubit>(
-            create: (context) => FavoritesCubit(widget.favoriteLocale),
+            create: (context) {
+              final cubit = FavoritesCubit(widget.favoriteLocale);
+              cubit.initialData();
+              return cubit;
+            },
           ),
         ],
         child: ResponsiveSizer(

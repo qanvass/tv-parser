@@ -130,7 +130,11 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
           k == LogicalKeyboardKey.select ||
           k == LogicalKeyboardKey.enter ||
           k == LogicalKeyboardKey.gameButtonA) {
-        setState(() => _panel = 2);
+        // Stay on sidebar when section is empty — avoids a focus trap with
+        // no selectable items and no visible focus ring.
+        if (_getCount() > 0) {
+          setState(() => _panel = 2);
+        }
       } else if (_isBackKey(k)) {
         _popToShell();
       }
@@ -195,6 +199,19 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
     return KeyEventResult.ignored;
   }
 
+  Future<void> _playLiveFavorite(ChannelLive ch) async {
+    final link = await PlaybackUrlBuilder.resolveLivePlaybackUrl(ch);
+    if (link.isEmpty || !mounted) return;
+    Get.to(
+      () => LivePlayerScreen(
+        link: link,
+        title: ch.name ?? '',
+        streamIcon: ch.streamIcon,
+        streamId: ch.streamId,
+      ),
+    );
+  }
+
   void _handleSelect() {
     final authState = context.read<AuthBloc>().state;
     if (authState is! AuthSuccess) return;
@@ -203,15 +220,7 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
     if (_tabIdx == 0) {
       if (_liveIdx >= favState.lives.length) return;
       final ch = favState.lives[_liveIdx];
-      final link =
-          '${authState.user.serverInfo!.serverUrl}/${authState.user.userInfo!.username}/${authState.user.userInfo!.password}/${ch.streamId}';
-      Get.to(
-        () => LivePlayerScreen(
-          link: link,
-          title: ch.name ?? '',
-          streamIcon: ch.streamIcon,
-        ),
-      );
+      _playLiveFavorite(ch);
     } else if (_tabIdx == 1) {
       if (_movieIdx >= favState.movies.length) return;
       final m = favState.movies[_movieIdx];
@@ -286,7 +295,12 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
   }
 
   Widget _buildSidebar() {
-    final labels = ['Live TV', 'Movies', 'Series'];
+    final fav = context.watch<FavoritesCubit>().state;
+    final labels = [
+      'Live TV (${fav.lives.length})',
+      'Movies (${fav.movies.length})',
+      'Series (${fav.series.length})',
+    ];
     final icons = [
       FontAwesomeIcons.tv.data,
       FontAwesomeIcons.film.data,
@@ -406,15 +420,7 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
                         _liveIdx = i;
                         _panel = 2;
                       });
-                      final link =
-                          '${authState.user.serverInfo!.serverUrl}/${authState.user.userInfo!.username}/${authState.user.userInfo!.password}/${items[i].streamId}';
-                      Get.to(
-                        () => LivePlayerScreen(
-                          link: link,
-                          title: items[i].name ?? '',
-                          streamIcon: items[i].streamIcon,
-                        ),
-                      );
+                      _playLiveFavorite(items[i]);
                     },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 130),
@@ -585,31 +591,99 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
   }
 
   Widget _emptyState(IconData icon, String label) {
-    return Center(
-      child: Column(
+    WatchingState? watch;
+    try {
+      watch = context.read<WatchingCubit>().state;
+    } catch (_) {}
+    final recs = <WatchingModel>[
+      ...?watch?.live,
+      ...?watch?.movies,
+      ...?watch?.series,
+    ].take(8).toList();
+
+    return TvBrandedEmpty(
+      icon: Icons.favorite_rounded,
+      title: label,
+      subtitle:
+          'Add items from Live TV, Movies, or Series. Build your list for quick access anytime.',
+      extra: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: kColorPrimary.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-              border: Border.all(color: kColorPrimary.withValues(alpha: 0.2)),
-            ),
-            child: Icon(
-              icon,
-              size: 32,
-              color: kColorPrimary.withValues(alpha: 0.5),
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: _FavJumpTile(
+                  icon: Icons.live_tv_rounded,
+                  label: 'Add favorite channels',
+                  onTap: () => Get.back(result: 'live'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _FavJumpTile(
+                  icon: Icons.local_movies_rounded,
+                  label: 'Save movies',
+                  onTap: () => Get.back(result: 'movies'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _FavJumpTile(
+                  icon: Icons.tv_rounded,
+                  label: 'Follow series',
+                  onTap: () => Get.back(result: 'series'),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 14),
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.35),
-              fontSize: 14,
+          if (recs.isNotEmpty) ...[
+            const SizedBox(height: 22),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'From your watch history',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.7),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ),
-          ),
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 118,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: recs.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                itemBuilder: (_, i) {
+                  final w = recs[i];
+                  return SizedBox(
+                    width: 168,
+                    child: TvChannelCard(
+                      stream: TvStreamRecord(
+                        title: TitleNormalizer.parse(w.title).displayTitle,
+                        subtitle: 'Recently watched',
+                        streamUrl: w.stream.isNotEmpty ? w.stream : w.streamId,
+                        imageUrl: w.image.isNotEmpty ? w.image : null,
+                      ),
+                      onSelected: () {
+                        if (w.stream.isNotEmpty) {
+                          Get.to(
+                            () => LivePlayerScreen(
+                              link: w.stream,
+                              title: w.title,
+                              streamId: w.streamId,
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -624,7 +698,96 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
     StreamLauncher.openStreamWithBrandedLoading(
       context: context,
       streamUrl: streamUrl,
-      playerBuilder: () => MoviePlayerScreen(link: streamUrl, title: movie.name ?? 'Stream'),
+      playerBuilder: () =>
+          MoviePlayerScreen(link: streamUrl, title: movie.name ?? 'Stream'),
+    );
+  }
+}
+
+class _FavJumpTile extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _FavJumpTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  State<_FavJumpTile> createState() => _FavJumpTileState();
+}
+
+class _FavJumpTileState extends State<_FavJumpTile> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      onFocusChange: (v) => setState(() => _focused = v),
+      onKeyEvent: (node, event) {
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        final k = event.logicalKey;
+        if (k == LogicalKeyboardKey.select ||
+            k == LogicalKeyboardKey.enter ||
+            k == LogicalKeyboardKey.gameButtonA) {
+          widget.onTap();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: AnimatedScale(
+        scale: _focused ? 1.05 : 1.0,
+        duration: const Duration(milliseconds: 130),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            canRequestFocus: false,
+            borderRadius: BorderRadius.circular(16),
+            onTap: widget.onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 130),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  width: _focused ? 2 : 1,
+                  color: _focused
+                      ? kColorFocus
+                      : Colors.white.withValues(alpha: 0.10),
+                ),
+                boxShadow: _focused
+                    ? [
+                        BoxShadow(
+                          color: kColorPrimary.withValues(alpha: 0.35),
+                          blurRadius: 16,
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Column(
+                children: [
+                  Icon(widget.icon, color: kColorPrimary, size: 22),
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.label,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

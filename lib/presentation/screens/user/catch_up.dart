@@ -110,7 +110,10 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
           k == LogicalKeyboardKey.select ||
           k == LogicalKeyboardKey.enter ||
           k == LogicalKeyboardKey.gameButtonA) {
-        setState(() => _panel = 2);
+        // Stay on sidebar when History section is empty (no focus trap).
+        if (_getCount() > 0) {
+          setState(() => _panel = 2);
+        }
       } else if (_isBackKey(k)) {
         _popToShell();
       }
@@ -241,8 +244,8 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
                 child: SizedBox(
                   height: 56,
                   child: IptvAppBar(
-                    title: 'Catch Up',
-                    icon: FontAwesomeIcons.rotate.data,
+                    title: 'History',
+                    icon: FontAwesomeIcons.clock.data,
                     onBack: _popToShell,
                     focusedIndex: _appbarActive ? _appbarIdx : null,
                   ),
@@ -352,33 +355,57 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
 
         if (items.isEmpty) {
           return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: kColorPrimary.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: kColorPrimary.withValues(alpha: 0.2)),
-                  ),
-                  child: Icon(
-                    _tabIdx == 0 ? FontAwesomeIcons.film.data : FontAwesomeIcons.clapperboard.data,
-                    size: 32,
-                    color: kColorPrimary.withValues(alpha: 0.5),
-                  ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(22),
+                      decoration: BoxDecoration(
+                        color: kColorPrimary.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: kColorPrimary.withValues(alpha: 0.35),
+                          width: 2,
+                        ),
+                      ),
+                      child: Icon(
+                        _tabIdx == 0
+                            ? FontAwesomeIcons.film.data
+                            : FontAwesomeIcons.clapperboard.data,
+                        size: 40,
+                        color: kColorPrimary.withValues(alpha: 0.85),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      _tabIdx == 0
+                          ? 'No movies in progress'
+                          : 'No series in progress',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Start watching to see resume history here.\nPress Back to return to the menu.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.72),
+                        fontSize: 16,
+                        height: 1.4,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 14),
-                Text(
-                  _tabIdx == 0
-                      ? 'No movies in progress'
-                      : 'No series in progress',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.35),
-                    fontSize: 14,
-                  ),
-                ),
-              ],
+              ),
             ),
           );
         }

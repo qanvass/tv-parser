@@ -53,7 +53,8 @@ void main() {
   test('NativeTextField instance methods', () async {
     // 创建一个 NativeTextField 实例来测试方法调用
     final controller = NativeTextFieldController();
-    final widget = NativeTextField(controller: controller);
+    NativeTextField(controller: controller);
+
 
     // 由于方法现在绑定到 NativeTextField 实例而不是 controller，
     // 我们需要通过 widget 的 state 来调用这些方法
@@ -116,8 +117,9 @@ void main() {
     final controller2 = NativeTextFieldController(text: 'text2');
 
     // 创建两个不同的 NativeTextField 实例
-    final widget1 = NativeTextField(controller: controller1);
-    final widget2 = NativeTextField(controller: controller2);
+    NativeTextField(controller: controller1);
+    NativeTextField(controller: controller2);
+
 
     // 验证每个实例都有独立的 controller
     expect(controller1.text, 'text1');

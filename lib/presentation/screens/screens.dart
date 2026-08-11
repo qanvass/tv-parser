@@ -55,7 +55,12 @@ import '../widgets/widgets.dart';
 import '../widgets/premium_channel_card.dart';
 import '../shared/widgets/stream_launcher.dart';
 import '../tv/tv_dashboard_shell.dart';
+import '../tv/cinematic/cinematic_prefs.dart';
 import '../tv/widgets/tv_epg_peek.dart';
+import '../tv/widgets/tv_branded_empty.dart';
+import '../tv/widgets/tv_channel_grid.dart';
+import '../../repository/provider/title_normalizer.dart';
+import '../../repository/provider/tmdb_client.dart';
 import '../mobile/mobile_watch_screen.dart';
 import '../mobile/mobile_detail_screen.dart';
 
@@ -110,6 +115,59 @@ Map<String, int> getStreamQualityBuffers({required bool isLive}) {
       "file": isLive ? 2500 : 6000,
     };
   }
+}
+
+/// True for HLS / provider live paths that are not classic Xtream `/live/<id>.ts`.
+bool isLikelyLiveStreamUrl(String url) {
+  final lower = url.toLowerCase();
+  if (lower.contains('/live/') ||
+      lower.contains('/api/stream/') ||
+      lower.contains('livetv') ||
+      lower.endsWith('.m3u8') ||
+      lower.contains('.m3u8?')) {
+    return true;
+  }
+  return extractStreamIdFromUrl(url) != null;
+}
+
+/// Resolve playlist HTTPS URL from stored `m3u:` / `m3u://` server marker.
+String? m3uPlaylistUrlFromServerUrl(String? serverUrl) {
+  if (serverUrl == null || serverUrl.isEmpty) return null;
+  if (serverUrl.startsWith('m3u://')) {
+    return serverUrl.substring('m3u://'.length);
+  }
+  if (serverUrl.startsWith('m3u:')) {
+    return serverUrl.substring('m3u:'.length);
+  }
+  return null;
+}
+
+/// VLC options shared by live/VOD players (UA + reconnect help many CDN gates).
+VlcPlayerOptions buildVlcPlaybackOptions({
+  required bool isLive,
+  String? streamUrl,
+}) {
+  final buffers = getStreamQualityBuffers(isLive: isLive);
+  String? referrer;
+  try {
+    final uri = Uri.tryParse(streamUrl ?? '');
+    if (uri != null && uri.hasScheme && uri.host.isNotEmpty) {
+      referrer = '${uri.scheme}://${uri.host}/';
+    }
+  } catch (_) {}
+
+  return VlcPlayerOptions(
+    advanced: VlcAdvancedOptions([
+      VlcAdvancedOptions.networkCaching(buffers["network"]!),
+      VlcAdvancedOptions.liveCaching(buffers["live"]!),
+      VlcAdvancedOptions.fileCaching(buffers["file"]!),
+    ]),
+    http: VlcHttpOptions([
+      VlcHttpOptions.httpUserAgent('VLC/3.0.21 LibVLC/3.0.21'),
+      VlcHttpOptions.httpReconnect(true),
+      if (referrer != null) VlcHttpOptions.httpReferrer(referrer),
+    ]),
+  );
 }
 
 class SandTimeclock extends StatefulWidget {

@@ -1,3 +1,5 @@
+import '../provider/tmdb_match.dart';
+
 class ChannelMovie {
   final String? num;
   final String? name;
@@ -12,6 +14,10 @@ class ChannelMovie {
   final String? containerExtension;
   final String? customSid;
   final String? directSource;
+  /// Optional trailer id/url when present on XC list rows.
+  final String? youtubeTrailer;
+  /// Validated IMDb title id (`tt` + digits). Never overloads [name].
+  final String? imdbId;
 
   ChannelMovie({
     this.num,
@@ -27,22 +33,40 @@ class ChannelMovie {
     this.containerExtension,
     this.customSid,
     this.directSource,
-  });
+    this.youtubeTrailer,
+    String? imdbId,
+  }) : imdbId = TmdbMatch.normalizeImdbId(imdbId);
+
+  static String? _str(dynamic v) {
+    if (v == null) return null;
+    final s = v.toString().trim();
+    if (s.isEmpty || s == 'null' || s == 'undefined') return null;
+    return s;
+  }
 
   ChannelMovie.fromJson(Map<String, dynamic> json)
-    : num = json['num']?.toString(),
-      name = json['name']?.toString(),
-      streamType = json['stream_type']?.toString(),
-      streamId = json['stream_id']?.toString(),
-      streamIcon = json['stream_icon']?.toString(),
-      rating = json['rating']?.toString(),
-      rating5based = json['rating_5based']?.toString(),
-      added = json['added']?.toString(),
-      isAdult = json['is_adult']?.toString(),
-      categoryId = json['category_id']?.toString(),
-      containerExtension = json['container_extension']?.toString(),
-      customSid = json['custom_sid']?.toString(),
-      directSource = json['direct_source']?.toString();
+    : num = _str(json['num']),
+      name = _str(json['name']),
+      streamType = _str(json['stream_type']),
+      streamId = _str(json['stream_id']),
+      streamIcon = _str(json['stream_icon']),
+      rating = _str(json['rating']),
+      rating5based = _str(json['rating_5based']),
+      added = _str(json['added']),
+      isAdult = _str(json['is_adult']),
+      categoryId = _str(json['category_id']),
+      containerExtension = _str(json['container_extension']),
+      customSid = _str(json['custom_sid']),
+      directSource = _str(json['direct_source']),
+      youtubeTrailer = _str(json['youtube_trailer']) ??
+          _str(json['youtubeTrailer']) ??
+          _str(json['trailer']) ??
+          _str(json['youtube_id']),
+      imdbId = TmdbMatch.normalizeImdbId(
+        _str(json['imdb_id']) ??
+            _str(json['imdbId']) ??
+            _str(json['tvg_id']),
+      );
 
   Map<String, dynamic> toJson() => {
     'num': num,
@@ -58,5 +82,7 @@ class ChannelMovie {
     'container_extension': containerExtension,
     'custom_sid': customSid,
     'direct_source': directSource,
+    'youtube_trailer': youtubeTrailer,
+    if (imdbId != null) 'imdb_id': imdbId,
   };
 }

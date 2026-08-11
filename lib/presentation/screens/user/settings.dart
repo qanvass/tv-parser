@@ -33,6 +33,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   final _navFocus = FocusNode();
   String _currentQualityMode = "Balanced";
+  HeroPreviewMode _heroPreviewMode = HeroPreviewMode.muted;
   bool _locationPersonalizationEnabled = false;
   String _activeMarketName = "None";
   String _subtitleSize = "Medium";
@@ -53,6 +54,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     final box = GetStorage("preferences");
     _currentQualityMode = box.read("stream_quality") ?? "Balanced";
+    _heroPreviewMode = CinematicPrefs.mode();
     _subtitleSize = box.read("subtitle_size") ?? "Medium";
     final profile = UserPreferenceProfile.load();
     _locationPersonalizationEnabled = profile.locationFeatureEnabled;
@@ -113,7 +115,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       case _TvSettingsSection.sources:
         return 2 + _savedAccounts.length; // refresh + add + saved
       case _TvSettingsSection.playback:
-        return 1; // quality
+        return 2; // quality + hero preview
       case _TvSettingsSection.local:
         return 3; // toggle + market + reset
       case _TvSettingsSection.diagnostics:
@@ -121,7 +123,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       case _TvSettingsSection.account:
         return 2; // add / logout
       case _TvSettingsSection.about:
-        return 3; // parental stub + subtitle stub + brand
+        return 4; // parental + subtitle + brand + TMDB credit
+    }
+  }
+
+  /// Guard against double-pop (Focus goBack + system Back) → Google TV Home.
+  void _popToShell() {
+    if (!mounted) return;
+    if (Navigator.of(context).canPop()) {
+      Get.back();
     }
   }
 
@@ -149,10 +159,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       } else if (k == LogicalKeyboardKey.select ||
           k == LogicalKeyboardKey.enter ||
           k == LogicalKeyboardKey.gameButtonA) {
-        if (_appbarIdx == 0) Get.back();
+        if (_appbarIdx == 0) _popToShell();
       } else if (k == LogicalKeyboardKey.escape ||
           k == LogicalKeyboardKey.goBack) {
-        Get.back();
+        _popToShell();
       }
       return KeyEventResult.handled;
     }
@@ -193,7 +203,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         });
       } else if (k == LogicalKeyboardKey.escape ||
           k == LogicalKeyboardKey.goBack) {
-        Get.back();
+        _popToShell();
       }
       return KeyEventResult.handled;
     }
@@ -237,7 +247,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.escape || k == LogicalKeyboardKey.goBack) {
-      Get.back();
+      _popToShell();
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
@@ -262,8 +272,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           k == LogicalKeyboardKey.enter ||
           k == LogicalKeyboardKey.gameButtonA) {
         _handleMobileAction(_actionIdx);
-      } else if (k == LogicalKeyboardKey.escape) {
-        Get.back();
+      } else if (k == LogicalKeyboardKey.escape ||
+          k == LogicalKeyboardKey.goBack) {
+        _popToShell();
       }
       return KeyEventResult.handled;
     }
@@ -275,8 +286,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       });
       return KeyEventResult.handled;
     }
-    if (k == LogicalKeyboardKey.escape) {
-      Get.back();
+    if (k == LogicalKeyboardKey.escape || k == LogicalKeyboardKey.goBack) {
+      _popToShell();
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
@@ -301,7 +312,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
         break;
       case _TvSettingsSection.playback:
-        _showQualityModeSelection();
+        if (idx == 0) {
+          _showQualityModeSelection();
+        } else {
+          setState(() => _heroPreviewMode = CinematicPrefs.cycle());
+          _snack('Hero preview: ${CinematicPrefs.label(_heroPreviewMode)}');
+        }
         break;
       case _TvSettingsSection.local:
         if (idx == 0) {
@@ -342,8 +358,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _showParentalPinStub();
         } else if (idx == 1) {
           _cycleSubtitleSize();
-        } else {
+        } else if (idx == 2) {
           _snack("TV Parser · tvparser.com");
+        } else {
+          _snack(
+            TmdbClient().isEnabled
+                ? 'Artwork metadata from The Movie Database (TMDB) when a title matches.'
+                : 'TMDB artwork is off until an API key is present.',
+          );
         }
         break;
     }
@@ -628,7 +650,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: IptvAppBar(
                         title: 'Settings',
                         icon: FontAwesomeIcons.gear.data,
-                        onBack: Get.back,
+                        onBack: _popToShell,
                         focusedIndex: _appbarActive ? _appbarIdx : null,
                       ),
                     ),
@@ -780,6 +802,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               isFocused: _detailPanelActive && _detailIdx == 0,
               onTap: () => _handleTvDetailAction(section, 0),
             ),
+            const SizedBox(height: 12),
+            _SettingsAction(
+              icon: FontAwesomeIcons.film.data,
+              label: 'Hero preview',
+              subtitle: CinematicPrefs.label(_heroPreviewMode),
+              isFocused: _detailPanelActive && _detailIdx == 1,
+              onTap: () => _handleTvDetailAction(section, 1),
+            ),
           ],
         );
       case _TvSettingsSection.local:
@@ -926,6 +956,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: 'Neutral media player · tvparser.com',
               isFocused: _detailPanelActive && _detailIdx == 2,
               onTap: () => _handleTvDetailAction(section, 2),
+            ),
+            const SizedBox(height: 8),
+            _SettingsAction(
+              icon: FontAwesomeIcons.photoFilm.data,
+              label: 'Artwork credit',
+              subtitle: TmdbClient().isEnabled
+                  ? 'This product uses the TMDB API but is not endorsed or certified by TMDB.'
+                  : 'TMDB artwork off — no API key configured.',
+              isFocused: _detailPanelActive && _detailIdx == 3,
+              onTap: () => _handleTvDetailAction(section, 3),
             ),
           ],
         );

@@ -8,9 +8,17 @@ import '../../../repository/models/epg.dart';
 /// Lightweight now/next EPG strip for live playback / peeks.
 class TvEpgPeek extends StatefulWidget {
   final String? streamId;
+  final String? tvgId;
+  final String? channelName;
   final bool compact;
 
-  const TvEpgPeek({super.key, this.streamId, this.compact = true});
+  const TvEpgPeek({
+    super.key,
+    this.streamId,
+    this.tvgId,
+    this.channelName,
+    this.compact = true,
+  });
 
   @override
   State<TvEpgPeek> createState() => _TvEpgPeekState();
@@ -24,23 +32,53 @@ class _TvEpgPeekState extends State<TvEpgPeek> {
   @override
   void initState() {
     super.initState();
+    XmlTvRepository.instance.addListener(_onXmlTv);
     _load();
+  }
+
+  @override
+  void dispose() {
+    XmlTvRepository.instance.removeListener(_onXmlTv);
+    super.dispose();
+  }
+
+  void _onXmlTv() {
+    if (mounted) _load();
   }
 
   @override
   void didUpdateWidget(covariant TvEpgPeek oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.streamId != widget.streamId) {
+    if (oldWidget.streamId != widget.streamId ||
+        oldWidget.tvgId != widget.tvgId ||
+        oldWidget.channelName != widget.channelName) {
       _load();
     }
   }
 
   Future<void> _load() async {
+    final xml = XmlTvRepository.instance.nowNext(
+      tvgId: widget.tvgId,
+      channelName: widget.channelName,
+      streamId: widget.streamId,
+    );
+    if (xml != null) {
+      if (!mounted) return;
+      setState(() {
+        _now = xml.now.title;
+        _next = xml.next?.title;
+        _loading = false;
+      });
+      return;
+    }
+
     final id = widget.streamId?.trim();
     if (id == null || id.isEmpty || id.contains('://')) {
+      if (!mounted) return;
       setState(() {
         _now = null;
         _next = null;
+        _loading = XmlTvRepository.instance.isLoading;
       });
       return;
     }

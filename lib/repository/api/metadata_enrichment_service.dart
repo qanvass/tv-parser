@@ -1,4 +1,5 @@
 import 'trailer_lookup_service.dart';
+import 'gemini_channel_intelligence_service.dart';
 
 class MetadataEnrichmentService {
   /// Advertisements and placeholder keywords typically returned by low-quality IPTV lists
@@ -47,5 +48,25 @@ class MetadataEnrichmentService {
   /// Generates clean search fallback link for trailers
   static String getTrailerSearchFallback(String title) {
     return TrailerLookupService.getSearchFallbackUrl(title);
+  }
+
+  /// Attempts Gemini enrichment for description/genres when plot is missing or spam.
+  static Future<Map<String, dynamic>?> enrichTitleAsync({
+    required String title,
+    String? year,
+    String contentType = 'movie',
+    String? existingPlot,
+  }) async {
+    final cleaned = cleanPlot(existingPlot);
+    final needsEnrichment = cleaned == "No description available for this title.";
+    if (!needsEnrichment && existingPlot != null && existingPlot.trim().isNotEmpty) {
+      return {'description': cleaned, 'genres': <String>[]};
+    }
+    return GeminiChannelIntelligenceService.enrichTitle(
+      title: title,
+      year: year,
+      contentType: contentType,
+      existingPlot: existingPlot,
+    );
   }
 }

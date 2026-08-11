@@ -9,10 +9,17 @@ class CategoryModel {
     this.parentId,
   });
 
+  static String? _str(dynamic v) {
+    if (v == null) return null;
+    final s = v.toString().trim();
+    if (s.isEmpty || s == 'null' || s == 'undefined') return null;
+    return s;
+  }
+
   CategoryModel.fromJson(Map<String, dynamic> json)
-      : categoryId = json['category_id'].toString(),
-        categoryName = json['category_name'].toString(),
-        parentId = json['parent_id'].toString();
+      : categoryId = _str(json['category_id']),
+        categoryName = _str(json['category_name']),
+        parentId = _str(json['parent_id']);
 
   Map<String, dynamic> toJson() => {
         'category_id': categoryId,

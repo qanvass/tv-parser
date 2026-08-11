@@ -9,6 +9,173 @@ bool _isSelectKey(LogicalKeyboardKey k) =>
     k == LogicalKeyboardKey.enter ||
     k == LogicalKeyboardKey.gameButtonA;
 
+/// Android TV remotes send [LogicalKeyboardKey.goBack]; emulators often send
+/// [LogicalKeyboardKey.escape]. Swallowing goBack without popping finishes the
+/// Activity → Google TV Home.
+bool _isBackKey(LogicalKeyboardKey k) =>
+    k == LogicalKeyboardKey.escape || k == LogicalKeyboardKey.goBack;
+
+/// Dead-stream actions: 0 = Try Again, 1 = Connection Test, 2 = Go Back.
+class _DeadStreamOverlay extends StatelessWidget {
+  const _DeadStreamOverlay({
+    required this.focusedIdx,
+    required this.onRetry,
+    required this.onConnectionTest,
+    required this.onBack,
+    this.message =
+        'This stream is temporarily unavailable. Try another source or run Connection Test.',
+  });
+
+  final int focusedIdx;
+  final VoidCallback onRetry;
+  final VoidCallback onConnectionTest;
+  final VoidCallback onBack;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget actionButton({
+      required int index,
+      required String label,
+      required IconData icon,
+      required VoidCallback onPressed,
+      required bool primary,
+    }) {
+      final focused = focusedIdx == index;
+      if (primary) {
+        return ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: focused ? Colors.white : Colors.white70,
+            foregroundColor: Colors.black,
+            minimumSize: const Size(220, 48),
+            side: BorderSide(
+              color: focused ? Colors.amber : Colors.transparent,
+              width: focused ? 3 : 0,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+          ),
+          onPressed: onPressed,
+          icon: Icon(icon, size: 18),
+          label: Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          ),
+        );
+      }
+      if (index == 2) {
+        return TextButton(
+          onPressed: onPressed,
+          style: TextButton.styleFrom(
+            foregroundColor: focused ? Colors.white : Colors.white54,
+            side: BorderSide(
+              color: focused ? Colors.white54 : Colors.transparent,
+              width: focused ? 2 : 0,
+            ),
+            minimumSize: const Size(220, 44),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: focused ? FontWeight.w800 : FontWeight.bold,
+            ),
+          ),
+        );
+      }
+      return OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.white,
+          minimumSize: const Size(220, 48),
+          side: BorderSide(
+            color: focused ? Colors.white : Colors.white24,
+            width: focused ? 2.5 : 1,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+        ),
+        onPressed: onPressed,
+        icon: Icon(icon, size: 18),
+        label: Text(
+          label,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+        ),
+      );
+    }
+
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black.withValues(alpha: 0.92),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.error_outline_rounded,
+                  color: Color(0xFFC62828),
+                  size: 54,
+                ),
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Use Up/Down to choose · OK to confirm · Back to browse',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.55),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 28),
+                actionButton(
+                  index: 0,
+                  label: 'Try Again',
+                  icon: Icons.refresh_rounded,
+                  onPressed: onRetry,
+                  primary: true,
+                ),
+                const SizedBox(height: 12),
+                actionButton(
+                  index: 1,
+                  label: 'Connection Test',
+                  icon: Icons.network_check_rounded,
+                  onPressed: onConnectionTest,
+                  primary: false,
+                ),
+                const SizedBox(height: 12),
+                actionButton(
+                  index: 2,
+                  label: 'Go Back',
+                  icon: Icons.arrow_back_rounded,
+                  onPressed: onBack,
+                  primary: false,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ─── Shared track-selection panel (Positioned, lives inside a Stack) ──────────
 
 class _VodTrackPanel extends StatelessWidget {
@@ -155,6 +322,9 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
   bool _ctrlInitialized = false;
   bool _isCheckingHealth = true;
   bool _isDeadStream = false;
+  String _deadStreamMessage =
+      'This stream is temporarily unavailable. Try another source or run Connection Test.';
+  int _deadActionIdx = 0;
 
   bool _isPlaying = false;
   bool _isBuffering = true;
@@ -192,18 +362,31 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
     _stopwatch.reset();
     _stopwatch.start();
 
-    final buffers = getStreamQualityBuffers(isLive: true);
+    // Classify entitlement/auth failures before VLC so we don't show "offline".
+    final probe = await StreamHealthService.probe(widget.link);
+    if (!mounted) return;
+    if (probe == StreamProbeResult.subscriptionGated ||
+        probe == StreamProbeResult.unauthorized ||
+        probe == StreamProbeResult.unreachable) {
+      setState(() {
+        _isDeadStream = true;
+        _isCheckingHealth = false;
+        _ctrlInitialized = false;
+        _deadStreamMessage = StreamHealthService.messageFor(probe);
+      });
+      OrientationGuard.applyPlayerOrientation();
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _focusNode.requestFocus();
+      });
+      return;
+    }
+
     _ctrl = VlcPlayerController.network(
       widget.link,
       hwAcc: HwAcc.auto,
       autoPlay: true,
-      options: VlcPlayerOptions(
-        advanced: VlcAdvancedOptions([
-          VlcAdvancedOptions.networkCaching(buffers["network"]!),
-          VlcAdvancedOptions.liveCaching(buffers["live"]!),
-          VlcAdvancedOptions.fileCaching(buffers["file"]!),
-        ]),
-      ),
+      options: buildVlcPlaybackOptions(isLive: true, streamUrl: widget.link),
     );
     _ctrl.addListener(_onVlc);
     OrientationGuard.applyPlayerOrientation();
@@ -211,6 +394,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
     _scheduleHide();
     setState(() {
       _ctrlInitialized = true;
+      _deadStreamMessage = StreamHealthService.messageFor(StreamProbeResult.unknown);
       // [TV_PARSER_PERF] Keep checking health active until the stream starts playing
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -349,6 +533,29 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
   bool _isFocused(int row, int col) =>
       _showControls && _focusRow == row && _focusCol == col;
 
+  void _retryDeadStream() {
+    setState(() {
+      _isDeadStream = false;
+      _isCheckingHealth = true;
+      _ctrlInitialized = false;
+      _deadActionIdx = 0;
+      _deadStreamMessage =
+          'This stream is temporarily unavailable. Try another source or run Connection Test.';
+    });
+    _initPlayer();
+  }
+
+  void _activateDeadAction() {
+    switch (_deadActionIdx) {
+      case 0:
+        _retryDeadStream();
+      case 1:
+        Get.to(() => const ConnectionTestScreen());
+      case 2:
+        if (mounted && Navigator.of(context).canPop()) Get.back();
+    }
+  }
+
   KeyEventResult _onKey(FocusNode _, KeyEvent e) {
     if (e is! KeyDownEvent) return KeyEventResult.ignored;
     final k = e.logicalKey;
@@ -361,10 +568,42 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
           setState(() => _trackPanelIdx++);
       } else if (_isSelectKey(k)) {
         if (_trackList.isNotEmpty) _selectTrack(_trackList[_trackPanelIdx].key);
-      } else if (k == LogicalKeyboardKey.escape ||
-          k == LogicalKeyboardKey.arrowLeft) {
+      } else if (_isBackKey(k) || k == LogicalKeyboardKey.arrowLeft) {
         setState(() => _trackPanel = null);
         _scheduleHide();
+      }
+      return KeyEventResult.handled;
+    }
+
+    // Dead stream: D-pad chooses Retry / Connection Test / Back.
+    if (_isDeadStream) {
+      if (_isBackKey(k)) {
+        if (mounted && Navigator.of(context).canPop()) Get.back();
+        return KeyEventResult.handled;
+      }
+      if (k == LogicalKeyboardKey.arrowUp) {
+        if (_deadActionIdx > 0) setState(() => _deadActionIdx--);
+      } else if (k == LogicalKeyboardKey.arrowDown) {
+        if (_deadActionIdx < 2) setState(() => _deadActionIdx++);
+      } else if (_isSelectKey(k)) {
+        _activateDeadAction();
+      }
+      return KeyEventResult.handled;
+    }
+
+    // Loading: Back exits to browse; other keys swallowed.
+    if (_isCheckingHealth) {
+      if (_isBackKey(k)) {
+        if (mounted && Navigator.of(context).canPop()) Get.back();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.handled;
+    }
+
+    // Back always leaves the player (do not swallow goBack).
+    if (_isBackKey(k)) {
+      if (mounted && Navigator.of(context).canPop()) {
+        Get.back();
       }
       return KeyEventResult.handled;
     }
@@ -379,7 +618,8 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
       if (_focusRow == 1)
         setState(() {
           _focusRow = 0;
-          _focusCol = _focusCol.clamp(0, isTvDevice() ? 4 : 3);
+          // TV: Back/Fav/SUB/AUD (no Cast). Mobile: Back/Cast/SUB/AUD.
+          _focusCol = _focusCol.clamp(0, 3);
         });
       _scheduleHide();
     } else if (k == LogicalKeyboardKey.arrowDown) {
@@ -393,18 +633,20 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
       if (_focusCol > 0) setState(() => _focusCol--);
       _scheduleHide();
     } else if (k == LogicalKeyboardKey.arrowRight) {
-      final maxCol = _focusRow == 0 ? (isTvDevice() ? 4 : 3) : 1;
+      final maxCol = _focusRow == 0 ? 3 : 1;
       if (_focusCol < maxCol) setState(() => _focusCol++);
       _scheduleHide();
     } else if (_isSelectKey(k)) {
       _activate();
-    } else if (k == LogicalKeyboardKey.escape) {
-      Get.back();
+    } else {
+      return KeyEventResult.ignored;
     }
     return KeyEventResult.handled;
   }
 
   void _openCastDialog() {
+    // TV gate: Cast is phone→TV only; hide entry on leanback devices.
+    if (!supportsCasting()) return;
     _hideTimer?.cancel();
     showDialog(
       context: context,
@@ -423,16 +665,15 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
   void _activate() {
     if (_focusRow == 0) {
       if (isTvDevice()) {
+        // TV chrome: Back, Fav, SUB, AUD (Cast removed).
         switch (_focusCol) {
           case 0:
             Get.back();
           case 1:
             _toggleFavorite();
           case 2:
-            _openCastDialog();
-          case 3:
             if (_subtitleTracks.isNotEmpty) _openTrackPanel('sub');
-          case 4:
+          case 3:
             if (_audioTracks.isNotEmpty) _openTrackPanel('audio');
         }
       } else {
@@ -559,7 +800,9 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) Get.back();
+        if (!didPop && mounted && Navigator.of(context).canPop()) {
+          Get.back();
+        }
       },
       child: Focus(
         focusNode: _focusNode,
@@ -679,77 +922,24 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
                       ),
                     ),
 
-                  // 7. Dead Stream Overlay
+                  // 7. Dead Stream Overlay (D-pad focusable actions)
                   if (!_isCheckingHealth && _isDeadStream)
-                    Positioned.fill(
-                      child: Container(
-                        color: Colors.black.withOpacity(0.9),
-                        child: Center(
-                          child: SingleChildScrollView(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.error_outline_rounded, color: Color(0xFFC62828), size: 54),
-                                const SizedBox(height: 16),
-                                const Padding(
-                                  padding: EdgeInsets.symmetric(horizontal: 24),
-                                  child: Text(
-                                    "This stream is temporarily unavailable. Try another source or run Connection Test.",
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 24),
-                                ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    foregroundColor: Colors.black,
-                                    minimumSize: const Size(180, 40),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _isDeadStream = false;
-                                      _isCheckingHealth = true;
-                                      _ctrlInitialized = false;
-                                    });
-                                    _initPlayer();
-                                  },
-                                  icon: const Icon(Icons.refresh_rounded, size: 16),
-                                  label: const Text("Try Again", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                ),
-                                const SizedBox(height: 10),
-                                OutlinedButton.icon(
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.white,
-                                    minimumSize: const Size(180, 40),
-                                    side: const BorderSide(color: Colors.white24),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                                  ),
-                                  onPressed: () {
-                                    Get.to(() => const ConnectionTestScreen());
-                                  },
-                                  icon: const Icon(Icons.network_check_rounded, size: 16),
-                                  label: const Text("Connection Test", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                ),
-                                const SizedBox(height: 10),
-                                TextButton(
-                                  onPressed: () => Get.back(),
-                                  child: const Text("Go Back", style: TextStyle(color: Colors.white38, fontSize: 12, fontWeight: FontWeight.bold)),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
+                    _DeadStreamOverlay(
+                      focusedIdx: _deadActionIdx,
+                      message: _deadStreamMessage,
+                      onRetry: _retryDeadStream,
+                      onConnectionTest: () {
+                        Get.to(() => const ConnectionTestScreen());
+                      },
+                      onBack: () {
+                        if (mounted && Navigator.of(context).canPop()) {
+                          Get.back();
+                        }
+                      },
                     ),
 
                   // 8. Chromecast Overlay
-                  if (!_isCheckingHealth && !_isDeadStream && _castDevice != null)
+                  if (!_isCheckingHealth && !_isDeadStream && supportsCasting() && _castDevice != null)
                     Positioned.fill(
                       child: _buildCastOverlay(context),
                     ),
@@ -868,21 +1058,24 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
                 ),
               ),
             ),
-            // Chromecast
-            _FsBtn(
-              icon: FontAwesomeIcons.chromecast.data,
-              label: 'Cast',
-              isFocused: _isFocused(0, isTvDevice() ? 2 : 1),
-              onTap: _openCastDialog,
-            ),
-            const SizedBox(width: 8),
+            // Chromecast — phone/tablet only (not on Android TV / Google TV).
+            if (supportsCasting()) ...[
+              _FsBtn(
+                icon: FontAwesomeIcons.chromecast.data,
+                label: 'Cast',
+                isFocused: _isFocused(0, 1),
+                onTap: _openCastDialog,
+              ),
+              const SizedBox(width: 8),
+            ],
             _FsBtn(
               icon: FontAwesomeIcons.closedCaptioning.data,
               label: 'SUB',
               badge: _subtitleTracks.isNotEmpty
                   ? '${_subtitleTracks.length}'
                   : null,
-              isFocused: _isFocused(0, isTvDevice() ? 3 : 2),
+              // Live: TV Back/Fav/SUB/AUD; mobile Back/Cast/SUB/AUD — SUB/AUD both at 2/3.
+              isFocused: _isFocused(0, 2),
               isDisabled: _subtitleTracks.isEmpty,
               onTap: () => _openTrackPanel('sub'),
             ),
@@ -891,7 +1084,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
               icon: FontAwesomeIcons.volumeHigh.data,
               label: 'AUD',
               badge: _audioTracks.isNotEmpty ? '${_audioTracks.length}' : null,
-              isFocused: _isFocused(0, isTvDevice() ? 4 : 3),
+              isFocused: _isFocused(0, 3),
               isDisabled: _audioTracks.isEmpty,
               onTap: () => _openTrackPanel('audio'),
             ),
@@ -952,6 +1145,7 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
   bool _ctrlInitialized = false;
   bool _isCheckingHealth = true;
   bool _isDeadStream = false;
+  int _deadActionIdx = 0;
 
   // Playback state
   bool _isPlaying = false;
@@ -999,18 +1193,11 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
     _stopwatch.reset();
     _stopwatch.start();
 
-    final buffers = getStreamQualityBuffers(isLive: false);
     _ctrl = VlcPlayerController.network(
       widget.link,
       hwAcc: HwAcc.auto,
       autoPlay: true,
-      options: VlcPlayerOptions(
-        advanced: VlcAdvancedOptions([
-          VlcAdvancedOptions.networkCaching(buffers["network"]!),
-          VlcAdvancedOptions.liveCaching(buffers["live"]!),
-          VlcAdvancedOptions.fileCaching(buffers["file"]!),
-        ]),
-      ),
+      options: buildVlcPlaybackOptions(isLive: false, streamUrl: widget.link),
     );
     _ctrl.addListener(_onVlc);
     OrientationGuard.applyPlayerOrientation();
@@ -1175,9 +1362,32 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
   }
 
   void _goBack() {
+    if (!mounted) return;
+    if (!Navigator.of(context).canPop()) return;
     final pos = _position.inSeconds.toDouble();
     final dur = _duration.inSeconds.toDouble();
     Get.back(result: pos > 0 ? [pos, dur] : null);
+  }
+
+  void _retryDeadStream() {
+    setState(() {
+      _isDeadStream = false;
+      _isCheckingHealth = true;
+      _ctrlInitialized = false;
+      _deadActionIdx = 0;
+    });
+    _initPlayer();
+  }
+
+  void _activateDeadAction() {
+    switch (_deadActionIdx) {
+      case 0:
+        _retryDeadStream();
+      case 1:
+        Get.to(() => const ConnectionTestScreen());
+      case 2:
+        _goBack();
+    }
   }
 
   // ── D-pad ─────────────────────────────────────────────────────────────────
@@ -1198,15 +1408,45 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
           setState(() => _trackPanelIdx++);
       } else if (_isSelectKey(k)) {
         if (_trackList.isNotEmpty) _selectTrack(_trackList[_trackPanelIdx].key);
-      } else if (k == LogicalKeyboardKey.escape ||
-          k == LogicalKeyboardKey.arrowLeft) {
+      } else if (_isBackKey(k) || k == LogicalKeyboardKey.arrowLeft) {
         setState(() => _trackPanel = null);
         _scheduleHide();
       }
       return KeyEventResult.handled;
     }
 
-    // Controls hidden: any key shows them
+    // Dead stream: D-pad chooses Retry / Connection Test / Back.
+    if (_isDeadStream) {
+      if (_isBackKey(k)) {
+        _goBack();
+        return KeyEventResult.handled;
+      }
+      if (k == LogicalKeyboardKey.arrowUp) {
+        if (_deadActionIdx > 0) setState(() => _deadActionIdx--);
+      } else if (k == LogicalKeyboardKey.arrowDown) {
+        if (_deadActionIdx < 2) setState(() => _deadActionIdx++);
+      } else if (_isSelectKey(k)) {
+        _activateDeadAction();
+      }
+      return KeyEventResult.handled;
+    }
+
+    // Loading: Back exits to browse; other keys swallowed.
+    if (_isCheckingHealth) {
+      if (_isBackKey(k)) {
+        _goBack();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.handled;
+    }
+
+    // Back always leaves the player (do not swallow goBack).
+    if (_isBackKey(k)) {
+      _goBack();
+      return KeyEventResult.handled;
+    }
+
+    // Controls hidden: directional / select shows them
     if (!_showControls) {
       setState(() => _showControls = true);
       _scheduleHide();
@@ -1217,7 +1457,8 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
       if (_focusRow == 1)
         setState(() {
           _focusRow = 0;
-          _focusCol = _focusCol.clamp(0, 3);
+          // TV: Back/SUB/AUD (no Cast). Mobile: Back/Cast/SUB/AUD.
+          _focusCol = _focusCol.clamp(0, supportsCasting() ? 3 : 2);
         });
       _scheduleHide();
     } else if (k == LogicalKeyboardKey.arrowDown) {
@@ -1231,18 +1472,20 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
       if (_focusCol > 0) setState(() => _focusCol--);
       _scheduleHide();
     } else if (k == LogicalKeyboardKey.arrowRight) {
-      final maxCol = _focusRow == 0 ? 3 : 3;
+      final maxCol = _focusRow == 0 ? (supportsCasting() ? 3 : 2) : 3;
       if (_focusCol < maxCol) setState(() => _focusCol++);
       _scheduleHide();
     } else if (_isSelectKey(k)) {
       _activate();
-    } else if (k == LogicalKeyboardKey.escape) {
-      _goBack();
+    } else {
+      return KeyEventResult.ignored;
     }
     return KeyEventResult.handled;
   }
 
   void _openCastDialog() {
+    // TV gate: Cast is phone→TV only.
+    if (!supportsCasting()) return;
     _hideTimer?.cancel();
     showDialog(
       context: context,
@@ -1260,15 +1503,27 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
 
   void _activate() {
     if (_focusRow == 0) {
-      switch (_focusCol) {
-        case 0:
-          _goBack();
-        case 1:
-          _openCastDialog();
-        case 2:
-          if (_subtitleTracks.isNotEmpty) _openTrackPanel('sub');
-        case 3:
-          if (_audioTracks.isNotEmpty) _openTrackPanel('audio');
+      if (supportsCasting()) {
+        switch (_focusCol) {
+          case 0:
+            _goBack();
+          case 1:
+            _openCastDialog();
+          case 2:
+            if (_subtitleTracks.isNotEmpty) _openTrackPanel('sub');
+          case 3:
+            if (_audioTracks.isNotEmpty) _openTrackPanel('audio');
+        }
+      } else {
+        // TV chrome: Back, SUB, AUD (Cast removed).
+        switch (_focusCol) {
+          case 0:
+            _goBack();
+          case 1:
+            if (_subtitleTracks.isNotEmpty) _openTrackPanel('sub');
+          case 2:
+            if (_audioTracks.isNotEmpty) _openTrackPanel('audio');
+        }
       }
     } else {
       switch (_focusCol) {
@@ -1377,7 +1632,7 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _goBack();
+        if (!didPop) _goBack(); // _goBack guards canPop
       },
       child: Focus(
         focusNode: _focusNode,
@@ -1497,77 +1752,19 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
                       ),
                     ),
 
-                  // 7. Dead Stream Overlay
+                  // 7. Dead Stream Overlay (D-pad focusable actions)
                   if (!_isCheckingHealth && _isDeadStream)
-                    Positioned.fill(
-                      child: Container(
-                        color: Colors.black.withOpacity(0.9),
-                        child: Center(
-                          child: SingleChildScrollView(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.error_outline_rounded, color: Color(0xFFC62828), size: 54),
-                                const SizedBox(height: 16),
-                                const Padding(
-                                  padding: EdgeInsets.symmetric(horizontal: 24),
-                                  child: Text(
-                                    "This stream is temporarily unavailable. Try another source or run Connection Test.",
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 24),
-                                ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    foregroundColor: Colors.black,
-                                    minimumSize: const Size(180, 40),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _isDeadStream = false;
-                                      _isCheckingHealth = true;
-                                      _ctrlInitialized = false;
-                                    });
-                                    _initPlayer();
-                                  },
-                                  icon: const Icon(Icons.refresh_rounded, size: 16),
-                                  label: const Text("Try Again", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                ),
-                                const SizedBox(height: 10),
-                                OutlinedButton.icon(
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.white,
-                                    minimumSize: const Size(180, 40),
-                                    side: const BorderSide(color: Colors.white24),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                                  ),
-                                  onPressed: () {
-                                    Get.to(() => const ConnectionTestScreen());
-                                  },
-                                  icon: const Icon(Icons.network_check_rounded, size: 16),
-                                  label: const Text("Connection Test", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                ),
-                                const SizedBox(height: 10),
-                                TextButton(
-                                  onPressed: () => Get.back(),
-                                  child: const Text("Go Back", style: TextStyle(color: Colors.white38, fontSize: 12, fontWeight: FontWeight.bold)),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
+                    _DeadStreamOverlay(
+                      focusedIdx: _deadActionIdx,
+                      onRetry: _retryDeadStream,
+                      onConnectionTest: () {
+                        Get.to(() => const ConnectionTestScreen());
+                      },
+                      onBack: _goBack,
                     ),
 
                   // 8. Chromecast Overlay
-                  if (!_isCheckingHealth && !_isDeadStream && _castDevice != null)
+                  if (!_isCheckingHealth && !_isDeadStream && supportsCasting() && _castDevice != null)
                     Positioned.fill(
                       child: _buildCastOverlay(context),
                     ),
@@ -1627,21 +1824,23 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
               ),
             ),
             SizedBox(width: 12),
-            // Chromecast
-            _FsBtn(
-              icon: FontAwesomeIcons.chromecast.data,
-              label: 'Cast',
-              isFocused: _isFocused(0, 1),
-              onTap: _openCastDialog,
-            ),
-            const SizedBox(width: 8),
+            // Chromecast — phone/tablet only (not on Android TV / Google TV).
+            if (supportsCasting()) ...[
+              _FsBtn(
+                icon: FontAwesomeIcons.chromecast.data,
+                label: 'Cast',
+                isFocused: _isFocused(0, 1),
+                onTap: _openCastDialog,
+              ),
+              const SizedBox(width: 8),
+            ],
             _FsBtn(
               icon: FontAwesomeIcons.closedCaptioning.data,
               label: 'SUB',
               badge: _subtitleTracks.isNotEmpty
                   ? '${_subtitleTracks.length}'
                   : null,
-              isFocused: _isFocused(0, 2),
+              isFocused: _isFocused(0, supportsCasting() ? 2 : 1),
               isDisabled: _subtitleTracks.isEmpty,
               onTap: () => _openTrackPanel('sub'),
             ),
@@ -1650,7 +1849,7 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
               icon: FontAwesomeIcons.volumeHigh.data,
               label: 'AUD',
               badge: _audioTracks.isNotEmpty ? '${_audioTracks.length}' : null,
-              isFocused: _isFocused(0, 3),
+              isFocused: _isFocused(0, supportsCasting() ? 3 : 2),
               isDisabled: _audioTracks.isEmpty,
               onTap: () => _openTrackPanel('audio'),
             ),

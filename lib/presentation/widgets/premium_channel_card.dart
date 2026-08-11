@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+
+import 'smart_channel_logo.dart';
 
 class PremiumChannelCard extends StatefulWidget {
   final String title;
@@ -108,28 +109,23 @@ class _PremiumChannelCardState extends State<PremiumChannelCard> {
               color: const Color(0xFF0C0C0D),
               padding: const EdgeInsets.all(14),
               child: Center(
-                child: hasLogo
-                    ? CachedNetworkImage(
-                        imageUrl: widget.imageUrl!,
-                        fit: BoxFit.contain,
-                        memCacheWidth: 200,
-                        fadeInDuration: const Duration(milliseconds: 200),
-                        placeholder: (context, url) => Center(
-                          child: SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              color: Theme.of(
-                                context,
-                              ).primaryColor.withOpacity(0.5),
-                              strokeWidth: 2,
-                            ),
-                          ),
-                        ),
-                        errorWidget: (context, url, error) =>
-                            _buildFallbackLogo(),
-                      )
-                    : _buildFallbackLogo(),
+                child: SmartChannelLogo(
+                  primaryUrl: hasLogo ? widget.imageUrl : null,
+                  channelName: widget.title,
+                  fit: BoxFit.contain,
+                  memCacheWidth: 200,
+                  initialsSize: widget.isTv ? 38 : 30,
+                  placeholder: Center(
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        color: Theme.of(context).primaryColor.withOpacity(0.5),
+                        strokeWidth: 2,
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -241,14 +237,6 @@ class _PremiumChannelCardState extends State<PremiumChannelCard> {
     return widget.isTv
         ? SizedBox(width: 170, height: 146, child: cardContent)
         : cardContent;
-  }
-
-  Widget _buildFallbackLogo() {
-    return Icon(
-      Icons.live_tv_rounded,
-      color: Colors.white.withOpacity(0.08),
-      size: widget.isTv ? 38 : 30,
-    );
   }
 
   String? _detectResolution(String name) {

@@ -8,21 +8,55 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  static const _holdColor = Color(0xFF0F0F10);
+
   VideoPlayerController? _controller;
   bool _videoInitialized = false;
   bool _videoCompleted = false;
+  bool _exiting = false;
+  bool _navigated = false;
   String? _nextScreenTarget;
 
   void _checkNavigation() {
-    if (_videoCompleted && _nextScreenTarget != null) {
+    if (_navigated) return;
+    if (!_videoCompleted || _nextScreenTarget == null) return;
+    _navigated = true;
+    // Cover the last decoded frame with black before the route swap.
+    if (mounted && !_exiting) {
+      setState(() => _exiting = true);
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       OrientationGuard.applyDeviceOrientation();
       Get.offAndToNamed(_nextScreenTarget!);
-    }
+    });
+  }
+
+  void _markVideoDone() {
+    if (!mounted || _videoCompleted) return;
+    _controller?.pause();
+    setState(() {
+      _videoCompleted = true;
+      _exiting = true;
+    });
+    _checkNavigation();
+  }
+
+  bool _isVideoFinished() {
+    final c = _controller;
+    if (c == null || !c.value.isInitialized) return false;
+    final d = c.value.duration;
+    if (d <= Duration.zero) return false;
+    final p = c.value.position;
+    return p >= d ||
+        (!c.value.isPlaying && p >= d - const Duration(milliseconds: 120));
   }
 
   @override
   void initState() {
     super.initState();
+    // Edge-to-edge for splash: no status/nav inset shrinking the reel.
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       OrientationGuard.init();
       context.read<SettingsCubit>().getSettingsCode();
@@ -30,8 +64,9 @@ class _SplashScreenState extends State<SplashScreen> {
     });
 
     // CRITICAL: DO NOT TOUCH THIS SPLASH SCREEN VIDEO PATH EVER. HARDCODED REQUIREMENT.
-    _controller = VideoPlayerController.asset('assets/images/splash_video.mp4')
-      ..initialize().then((_) {
+    _controller = VideoPlayerController.asset('assets/images/splash_video.mp4');
+    _controller!.setLooping(false);
+    _controller!.initialize().then((_) {
         if (mounted) {
           setState(() {
             _videoInitialized = true;
@@ -40,35 +75,18 @@ class _SplashScreenState extends State<SplashScreen> {
         }
       }).catchError((e) {
         debugPrint("Splash video player load error: $e");
-        // Fallback to instantly complete video if loading fails
-        if (mounted) {
-          setState(() {
-            _videoCompleted = true;
-          });
-          _checkNavigation();
-        }
+        _markVideoDone();
       });
 
     _controller?.addListener(() {
-      if (_controller != null &&
-          _controller!.value.position >= _controller!.value.duration) {
-        if (mounted && !_videoCompleted) {
-          setState(() {
-            _videoCompleted = true;
-          });
-          _checkNavigation();
-        }
+      if (_isVideoFinished()) {
+        _markVideoDone();
       }
     });
 
-    // Safety fallback timer (5 seconds) to ensure the app never hangs
-    Future.delayed(const Duration(seconds: 5)).then((_) {
-      if (mounted && !_videoCompleted) {
-        setState(() {
-          _videoCompleted = true;
-        });
-        _checkNavigation();
-      }
+    // Last-resort hang guard only — must outlast the reel (was 5s and cut it off).
+    Future.delayed(const Duration(seconds: 20)).then((_) {
+      _markVideoDone();
     });
   }
 
@@ -80,9 +98,8 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    debugPrint("width: ${MediaQuery.of(context).size.width}");
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F10),
+      backgroundColor: _holdColor,
       body: OrientationBuilder(
         builder: (context, orientation) {
           return BlocListener<AuthBloc, AuthState>(
@@ -90,7 +107,11 @@ class _SplashScreenState extends State<SplashScreen> {
               if (state is AuthSuccess) {
                 context.read<LiveCatyBloc>().add(GetLiveCategories());
                 context.read<MovieCatyBloc>().add(GetMovieCategories());
-                context.read<SeriesCatyBloc>().add(GetSeriesCategories());
+                // Series categories are an independent pipeline — not a VOD gate.
+                Future<void>.microtask(() {
+                  if (!context.mounted) return;
+                  context.read<SeriesCatyBloc>().add(GetSeriesCategories());
+                });
                 _nextScreenTarget = screenWelcome;
                 _checkNavigation();
               } else if (state is AuthFailed) {
@@ -102,9 +123,9 @@ class _SplashScreenState extends State<SplashScreen> {
                 _checkNavigation();
               }
             },
-            child: _videoInitialized
+            child: (_videoInitialized && !_exiting && _controller != null)
                 ? _SplashVideoFrame(controller: _controller!)
-                : const LoadingWidget(),
+                : const ColoredBox(color: _holdColor),
           );
         },
       ),
@@ -112,8 +133,8 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 }
 
-/// Frames the splash reel inside the TV overscan safe area (~90%) with
-/// contain scaling so the brand mark is never cropped on 16:9 displays.
+/// Full-bleed splash: cover-scale so the reel fills the entire screen.
+/// No 90% overscan shrink / contain letterboxing — edge-to-edge cover only.
 class _SplashVideoFrame extends StatelessWidget {
   const _SplashVideoFrame({required this.controller});
 
@@ -122,75 +143,45 @@ class _SplashVideoFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final videoSize = controller.value.size;
-    final aspect = videoSize.width == 0 || videoSize.height == 0
-        ? (16 / 9)
-        : videoSize.width / videoSize.height;
+    final videoW = videoSize.width == 0 ? 1920.0 : videoSize.width;
+    final videoH = videoSize.height == 0 ? 1080.0 : videoSize.height;
 
-    return ColoredBox(
-      color: const Color(0xFF0F0F10),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // Android TV overscan: keep critical brand inside ~90% of the panel.
-          final maxW = constraints.maxWidth * 0.90;
-          final maxH = constraints.maxHeight * 0.90;
+    return MediaQuery.removePadding(
+      context: context,
+      removeTop: true,
+      removeBottom: true,
+      removeLeft: true,
+      removeRight: true,
+      child: ColoredBox(
+        color: const Color(0xFF0F0F10),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final screenW = constraints.maxWidth;
+            final screenH = constraints.maxHeight;
+            final scaleW = screenW / videoW;
+            final scaleH = screenH / videoH;
+            final scale = scaleW > scaleH ? scaleW : scaleH;
+            final drawnW = videoW * scale;
+            final drawnH = videoH * scale;
 
-          var width = maxW;
-          var height = width / aspect;
-          if (height > maxH) {
-            height = maxH;
-            width = height * aspect;
-          }
-
-          return Center(
-            child: SizedBox(
-              width: width,
-              height: height,
-              child: VideoPlayer(controller),
-            ),
-          );
-        },
+            return ClipRect(
+              child: OverflowBox(
+                minWidth: drawnW,
+                maxWidth: drawnW,
+                minHeight: drawnH,
+                maxHeight: drawnH,
+                alignment: Alignment.center,
+                child: SizedBox(
+                  width: drawnW,
+                  height: drawnH,
+                  child: VideoPlayer(controller),
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
   }
 }
 
-class LoadingWidget extends StatelessWidget {
-  const LoadingWidget({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final size = getSize(context);
-    final logoSize = size.shortestSide * 0.45;
-    return Container(
-      width: size.width,
-      height: size.height,
-      decoration: kDecorBackground,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Image(
-            width: logoSize,
-            height: logoSize,
-            fit: BoxFit.contain,
-            image: const AssetImage(kIconSplash),
-          ),
-          const SizedBox(height: 10),
-          Text(kAppName, style: Get.textTheme.displaySmall),
-          BlocBuilder<AuthBloc, AuthState>(
-            builder: (context, state) {
-              if (state is AuthLoading) {
-                return Container(
-                  margin: const EdgeInsets.symmetric(vertical: 15),
-                  child: const CircularProgressIndicator(),
-                );
-              } else if (state is AuthFailed) {
-                return const Text('');
-              }
-              return const SizedBox();
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}

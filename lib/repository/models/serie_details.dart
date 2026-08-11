@@ -111,26 +111,36 @@ class InfoSerie {
     this.categoryId,
   });
 
+  static String? _str(dynamic v) {
+    if (v == null) return null;
+    final s = v.toString().trim();
+    if (s.isEmpty || s == 'null' || s == 'undefined') return null;
+    return s;
+  }
+
   InfoSerie.fromJson(Map<String, dynamic> json)
-      : name = json['name'].toString(),
-        cover = json['cover'].toString(),
-        plot = json['plot'].toString(),
-        cast = json['cast'].toString(),
-        director = json['director'].toString(),
-        genre = json['genre'].toString(),
-        releaseDate = json['releaseDate'].toString(),
-        lastModified = json['last_modified'].toString(),
-        rating = json['rating'].toString(),
-        rating5based = json['rating_5based'].toString(),
+      : name = _str(json['name']),
+        cover = _str(json['cover']),
+        plot = _str(json['plot']),
+        cast = _str(json['cast']),
+        director = _str(json['director']),
+        genre = _str(json['genre']),
+        releaseDate = _str(json['releaseDate']) ?? _str(json['release_date']),
+        lastModified = _str(json['last_modified']),
+        rating = _str(json['rating']),
+        rating5based = _str(json['rating_5based']),
         backdropPath = json['backdrop_path'] == null ||
                 json['backdrop_path'].runtimeType == String
             ? []
-            : (json['backdrop_path'] as List)
-                .map((dynamic e) => e.toString())
+            : (json['backdrop_path'] as List?)
+                ?.map((dynamic e) => e.toString())
                 .toList(),
-        youtubeTrailer = json['youtube_trailer'] as String?,
-        episodeRunTime = json['episode_run_time'].toString(),
-        categoryId = json['category_id'].toString();
+        youtubeTrailer = _str(json['youtube_trailer']) ??
+            _str(json['youtubeTrailer']) ??
+            _str(json['trailer']) ??
+            _str(json['youtube_id']),
+        episodeRunTime = _str(json['episode_run_time']),
+        categoryId = _str(json['category_id']);
 
   Map<String, dynamic> toJson() => {
         'name': name,

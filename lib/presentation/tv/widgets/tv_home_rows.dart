@@ -12,11 +12,13 @@ import 'tv_channel_grid.dart';
 class TvHomeRows extends StatelessWidget {
   final ValueChanged<String> onChannelSelected;
   final List<ChannelLive> allLiveChannels;
+  final ValueChanged<TvStreamRecord>? onStreamFocused;
 
   const TvHomeRows({
     super.key,
     required this.onChannelSelected,
     required this.allLiveChannels,
+    this.onStreamFocused,
   });
 
   @override
@@ -35,11 +37,13 @@ class TvHomeRows extends StatelessWidget {
               return const SizedBox.shrink();
             }
             return Padding(
-              padding: const EdgeInsets.only(bottom: 28),
+              padding: const EdgeInsets.only(bottom: 22),
               child: _HomeRail(
                 title: 'Continue Watching',
+                icon: Icons.play_circle_outline_rounded,
                 streams: continueItems,
                 onChannelSelected: onChannelSelected,
+                onStreamFocused: onStreamFocused,
               ),
             );
           },
@@ -55,6 +59,7 @@ class TvHomeRows extends StatelessWidget {
                       ? ch.directSource!
                       : (ch.streamId ?? ''),
                   imageUrl: ch.streamIcon,
+                  isHd: (ch.name ?? '').toUpperCase().contains('HD'),
                 ),
               ),
               ...favState.movies.take(8).map(
@@ -65,6 +70,9 @@ class TvHomeRows extends StatelessWidget {
                       ? m.directSource!
                       : (m.streamId ?? ''),
                   imageUrl: m.streamIcon,
+                  streamId: m.streamId,
+                  imdbId: m.imdbId,
+                  tvgId: m.imdbId,
                 ),
               ),
               ...favState.series.take(8).map(
@@ -80,31 +88,32 @@ class TvHomeRows extends StatelessWidget {
               return const SizedBox.shrink();
             }
             return Padding(
-              padding: const EdgeInsets.only(bottom: 28),
+              padding: const EdgeInsets.only(bottom: 22),
               child: _HomeRail(
                 title: 'Favorites',
+                icon: Icons.favorite_rounded,
                 streams: favs,
                 onChannelSelected: onChannelSelected,
+                onStreamFocused: onStreamFocused,
               ),
             );
           },
         ),
         BlocBuilder<WatchingCubit, WatchingState>(
           builder: (context, watchState) {
-            final recentLive = watchState.live.take(12).map(_watchingToRecord).toList();
-            if (recentLive.isEmpty && allLiveChannels.isEmpty) {
-              return const SizedBox.shrink();
-            }
-            // Prefer explicit recent live from WatchingCubit; otherwise stay quiet.
+            final recentLive =
+                watchState.live.take(12).map(_watchingToRecord).toList();
             if (recentLive.isEmpty) {
               return const SizedBox.shrink();
             }
             return Padding(
-              padding: const EdgeInsets.only(bottom: 28),
+              padding: const EdgeInsets.only(bottom: 22),
               child: _HomeRail(
                 title: 'Recent Live',
+                icon: Icons.history_rounded,
                 streams: recentLive,
                 onChannelSelected: onChannelSelected,
+                onStreamFocused: onStreamFocused,
               ),
             );
           },
@@ -125,34 +134,32 @@ class TvHomeRows extends StatelessWidget {
 
 class _HomeRail extends StatelessWidget {
   final String title;
+  final IconData? icon;
   final List<TvStreamRecord> streams;
   final ValueChanged<String> onChannelSelected;
+  final ValueChanged<TvStreamRecord>? onStreamFocused;
 
   const _HomeRail({
     required this.title,
     required this.streams,
     required this.onChannelSelected,
+    this.icon,
+    this.onStreamFocused,
   });
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 218,
+      height: 168,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 23,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.4,
-            ),
+          TvRailSectionHeader(
+            title: title,
+            trailing: 'View All · ${streams.length}',
+            icon: icon,
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           Expanded(
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
@@ -160,10 +167,11 @@ class _HomeRail extends StatelessWidget {
               itemBuilder: (context, index) {
                 final stream = streams[index];
                 return Padding(
-                  padding: const EdgeInsets.only(right: 18),
+                  padding: const EdgeInsets.only(right: 12, top: 2, bottom: 2),
                   child: TvChannelCard(
                     stream: stream,
                     onSelected: () => _play(stream),
+                    onFocused: onStreamFocused,
                   ),
                 );
               },
@@ -177,7 +185,6 @@ class _HomeRail extends StatelessWidget {
   Future<void> _play(TvStreamRecord stream) async {
     var url = stream.streamUrl;
     if (url.isEmpty) return;
-    // If we only have a stream id (not a full URL), try to resolve live URL.
     if (!url.contains('://') && !url.startsWith('m3u:')) {
       try {
         url = await PlaybackUrlBuilder.buildLiveUrl(url);

@@ -128,7 +128,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
       normalizedUrl = normalizedUrl.substring(0, normalizedUrl.length - 1);
     }
 
-    if (_isM3uMode) {
+    // Full playlist links belong in M3U mode — don't treat them as XC hosts.
+    final looksLikePlaylist = normalizedUrl.toLowerCase().contains('/api/list/') ||
+        normalizedUrl.toLowerCase().endsWith('.m3u') ||
+        normalizedUrl.toLowerCase().endsWith('.m3u8') ||
+        normalizedUrl.toLowerCase().contains('get.php?');
+
+    if (_isM3uMode || looksLikePlaylist) {
+      if (!_isM3uMode && looksLikePlaylist) {
+        setState(() => _isM3uMode = true);
+      }
       ctx.read<AuthBloc>().add(AuthLoadM3u(normalizedUrl));
       return;
     }
@@ -166,10 +175,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
             return BlocConsumer<AuthBloc, AuthState>(
               listener: (context, state) {
                 if (state is AuthFailed) {
+                  final detail = state.message.trim();
+                  final isGenericLogout = detail == 'LogOut' || detail.isEmpty;
                   showWarningToast(
                     context,
                     'Login Failed',
-                    'Unable to sign in. Please check your server URL, username, and password.',
+                    isGenericLogout
+                        ? (_isM3uMode
+                            ? 'Unable to sign in. Check that your M3U playlist URL is correct and reachable.'
+                            : 'Unable to sign in. Please check your server URL, username, and password.')
+                        : detail,
                   );
                 } else if (state is AuthSuccess) {
                   context.read<LiveCatyBloc>().add(GetLiveCategories());

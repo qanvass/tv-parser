@@ -12,8 +12,18 @@ class SeriesCatyBloc extends Bloc<SeriesCatyEvent, SeriesCatyState> {
   SeriesCatyBloc(this.api) : super(SeriesCatyInitial()) {
     on<GetSeriesCategories>((event, emit) async {
       emit(SeriesCatyLoading());
-      final result = await api.getCategories("get_series_categories");
+      var result = await api.getCategories("get_series_categories");
+      if (result.isEmpty) {
+        result = LocaleApi.getM3uSeriesCategories();
+      }
       emit(SeriesCatySuccess(result));
+    });
+    on<HydrateSeriesCategories>((event, emit) {
+      final cats = event.categories.isNotEmpty
+          ? event.categories
+          : LocaleApi.getM3uSeriesCategories();
+      emit(SeriesCatySuccess(List<CategoryModel>.from(cats)));
+      debugPrint('[SeriesCaty] hydrated count=${cats.length}');
     });
   }
 }
