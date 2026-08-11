@@ -30,6 +30,7 @@ class SearchIndexService {
   static bool moviesIndexReady = false;
   static bool seriesIndexReady = false;
   static Completer<void>? _inFlight;
+  static Completer<void>? _liveInFlight;
   static Completer<void>? _moviesInFlight;
   static Completer<void>? _seriesInFlight;
   static int _lastSourceCount = 0;
@@ -40,7 +41,7 @@ class SearchIndexService {
 
   static final RegExp _splitRegExp = RegExp(r'[\s\-_\.:\(\)\[\]\/\+&]+');
 
-  /// Tokenizes a raw string into a clean lowercase token set
+  /// Tokenizes a raw string into a clean lowercase token set.
   static Set<String> _tokenize(String text) {
     return text
         .toLowerCase()
@@ -49,8 +50,14 @@ class SearchIndexService {
         .toSet();
   }
 
-  /// Builds the search index asynchronously to prevent blocking the UI thread.
-  /// Concurrent callers await the in-flight build instead of silently no-oping.
+  /// Builds search progressively.
+  ///
+  /// Live and Movies are made searchable before this Future completes. Series is
+  /// intentionally indexed in the background because very large provider Series
+  /// catalogs must never block opening Search or the first query.
+  ///
+  /// Callers that specifically need the Series domain ready should await
+  /// [indexSeries] directly.
   static Future<void> buildIndex({
     required List<ChannelLive> liveChannels,
     required List<ChannelMovie> movies,
@@ -58,70 +65,126 @@ class SearchIndexService {
     Set<String>? adultCategoryIds,
     Map<String, String>? categoryIdToName,
   }) async {
-    final incoming =
-        liveChannels.length + movies.length + series.length;
+    final incoming = liveChannels.length + movies.length + series.length;
+    final adultIds = adultCategoryIds ?? <String>{};
+    final categoryNames = categoryIdToName ?? const <String, String>{};
 
-    // Wait for any in-flight build; skip rebuild if we already cover this catalog.
     if (_inFlight != null) {
       try {
         await _inFlight!.future;
       } catch (_) {}
-      if (_isReady &&
-          incoming > 0 &&
-          incoming <= _lastSourceCount &&
-          _index.isNotEmpty) {
+      if (isReady && _index.isNotEmpty) {
+        if (series.isNotEmpty && !seriesIndexReady) {
+          unawaited(indexSeries(
+            series: series,
+            adultCategoryIds: adultIds,
+            categoryIdToName: categoryNames,
+          ));
+        }
         return;
       }
     }
 
-    if (_isReady &&
-        incoming > 0 &&
-        incoming <= _lastSourceCount &&
-        _index.isNotEmpty &&
-        categoryIdToName == null) {
-      return;
-    }
-
     final completer = Completer<void>();
     _inFlight = completer;
-    _isReady = false;
-
-    debugPrint(
-      "[SearchIndexService] build started total=$incoming in background isolate "
-      "(live=${liveChannels.length}, movies=${movies.length}, series=${series.length})",
-    );
-
     final stopwatch = Stopwatch()..start();
 
+    debugPrint(
+      '[SearchIndexService] progressive build started total=$incoming '
+      '(live=${liveChannels.length}, movies=${movies.length}, series=${series.length})',
+    );
+
     try {
-      final params = SearchIndexParams(
-        liveChannels: liveChannels,
-        movies: movies,
-        series: series,
-        adultCategoryIds: adultCategoryIds ?? {},
-        categoryIdToName: categoryIdToName ?? const {},
-      );
-      _index = await compute(buildSearchIndexInBackground, params);
+      final foreground = <Future<void>>[];
+
+      if (liveChannels.isNotEmpty && !liveIndexReady) {
+        foreground.add(indexLive(
+          liveChannels: liveChannels,
+          adultCategoryIds: adultIds,
+          categoryIdToName: categoryNames,
+        ));
+      }
+
+      if (movies.isNotEmpty && !moviesIndexReady) {
+        foreground.add(indexMovies(
+          movies: movies,
+          adultCategoryIds: adultIds,
+          categoryIdToName: categoryNames,
+        ));
+      }
+
+      if (foreground.isNotEmpty) {
+        await Future.wait(foreground);
+      }
+
       _lastSourceCount = incoming;
-      _isReady = true;
-      liveIndexReady = liveChannels.isNotEmpty || liveIndexReady;
-      moviesIndexReady = movies.isNotEmpty || moviesIndexReady;
-      seriesIndexReady = series.isNotEmpty || seriesIndexReady;
+      _isReady = _index.isNotEmpty;
+
+      // Series may be ~100k records. Never make Search wait for it.
+      if (series.isNotEmpty && !seriesIndexReady) {
+        unawaited(indexSeries(
+          series: series,
+          adultCategoryIds: adultIds,
+          categoryIdToName: categoryNames,
+        ));
+      }
+
       if (!completer.isCompleted) completer.complete();
     } catch (e) {
-      debugPrint("[SearchIndexService] error building search index: $e");
+      debugPrint('[SearchIndexService] progressive build error: $e');
       if (!completer.isCompleted) completer.completeError(e);
     } finally {
       stopwatch.stop();
       if (identical(_inFlight, completer)) _inFlight = null;
       debugPrint(
-        "[SearchIndexService] build completed total=${_index.length} "
-        "durationMs=${stopwatch.elapsedMilliseconds}",
+        '[SearchIndexService] foreground search ready entries=${_index.length} '
+        'durationMs=${stopwatch.elapsedMilliseconds} '
+        'seriesReady=$seriesIndexReady',
       );
       CatalogPerf.span('searchIndexReadyMs', stopwatch.elapsedMilliseconds);
       CatalogPerf.span('search_index_ms', stopwatch.elapsedMilliseconds);
       CatalogPerf.count('searchIndexEntries', _index.length);
       CatalogPerf.flush('after_search_index');
+    }
+  }
+
+  /// Index Live only. Does not clear Movie or Series entries.
+  static Future<void> indexLive({
+    required List<ChannelLive> liveChannels,
+    Set<String>? adultCategoryIds,
+    Map<String, String>? categoryIdToName,
+  }) async {
+    if (_liveInFlight != null) {
+      try {
+        await _liveInFlight!.future;
+      } catch (_) {}
+      if (liveIndexReady) return;
+    }
+
+    final completer = Completer<void>();
+    _liveInFlight = completer;
+    try {
+      final params = SearchIndexParams(
+        liveChannels: liveChannels,
+        movies: const [],
+        series: const [],
+        adultCategoryIds: adultCategoryIds ?? {},
+        categoryIdToName: categoryIdToName ?? const {},
+      );
+      final built = await compute(buildSearchIndexInBackground, params);
+      _index.removeWhere((e) => e.type == 'live');
+      _index.addAll(built);
+      liveIndexReady = true;
+      _isReady = true;
+      if (!completer.isCompleted) completer.complete();
+      debugPrint(
+        '[SearchIndexService] live domain ready entries=${built.length}',
+      );
+    } catch (e) {
+      debugPrint('[SearchIndexService] live index error: $e');
+      if (!completer.isCompleted) completer.completeError(e);
+    } finally {
+      if (identical(_liveInFlight, completer)) _liveInFlight = null;
     }
   }
 
@@ -164,7 +227,7 @@ class SearchIndexService {
     }
   }
 
-  /// Index series only. Independent of movies.
+  /// Index series only. Independent of live and movies.
   static Future<void> indexSeries({
     required List<ChannelSerie> series,
     Set<String>? adultCategoryIds,
@@ -203,7 +266,7 @@ class SearchIndexService {
     }
   }
 
-  /// Queries the built index, scoring matches based on string containments and token overlays
+  /// Queries whatever domains are currently indexed. Partial indexes are valid.
   static List<SearchIndexEntry> search(
     String queryText, {
     List<String> expandedKeywords = const [],
@@ -238,7 +301,6 @@ class SearchIndexService {
     for (final entry in _index) {
       double score = 0.0;
 
-      // Primary: exact phrase / prefix on searchable blob (name + group + tvg-id)
       if (entry.normalizedName.contains(clean)) {
         score += 100.0;
         if (entry.normalizedName.startsWith(clean)) {
@@ -246,7 +308,6 @@ class SearchIndexService {
         }
       }
 
-      // Prefer channel-name prefix over category-only hits
       final nameOnly = _itemDisplayName(entry).toLowerCase();
       if (nameOnly.startsWith(clean)) {
         score += 40.0;
@@ -254,7 +315,6 @@ class SearchIndexService {
         score += 20.0;
       }
 
-      // Secondary: token matches
       for (final st in searchTokens) {
         if (entry.tokens.contains(st)) {
           score += 30.0;
@@ -268,7 +328,6 @@ class SearchIndexService {
         }
       }
 
-      // Tertiary: AI intent expanded tokens
       for (final et in expandedKeywords) {
         final cleanEt = et.toLowerCase().trim();
         if (cleanEt.isEmpty) continue;
@@ -288,8 +347,7 @@ class SearchIndexService {
 
       if (score > 0) {
         if (entry.type == 'live' &&
-            localLiveStreamIds
-                .contains((entry.item as ChannelLive).streamId)) {
+            localLiveStreamIds.contains((entry.item as ChannelLive).streamId)) {
           score += 40.0;
         }
 
@@ -311,7 +369,7 @@ class SearchIndexService {
     stopwatch.stop();
     debugPrint(
       "[SearchIndexService] Search for '$queryText' completed in "
-      "${stopwatch.elapsedMilliseconds} ms. Results found: ${scored.length}",
+      '${stopwatch.elapsedMilliseconds} ms. Results found: ${scored.length}',
     );
 
     return scored.map((e) => e.key).toList();
@@ -325,7 +383,7 @@ class SearchIndexService {
     return '';
   }
 
-  /// Safely clears the memory index
+  /// Safely clears the memory index.
   static void clearIndex() {
     _index.clear();
     _isReady = false;
@@ -369,7 +427,6 @@ List<SearchIndexEntry> buildSearchIndexInBackground(SearchIndexParams params) {
     return catNames[categoryId] ?? '';
   }
 
-  // 1. Live Channels — name + group-title + tvg-id (epgChannelId)
   for (final ch in params.liveChannels) {
     final name = ch.name ?? '';
     final group = groupLabel(ch.categoryId);
@@ -382,16 +439,14 @@ List<SearchIndexEntry> buildSearchIndexInBackground(SearchIndexParams params) {
 
     final tvgId = ch.epgChannelId?.toString() ?? '';
     final searchable = '$name $group $tvgId'.trim();
-    final tokens = tokenize(searchable);
     tempIndex.add(SearchIndexEntry(
       item: ch,
       type: 'live',
       normalizedName: searchable.toLowerCase(),
-      tokens: tokens,
+      tokens: tokenize(searchable),
     ));
   }
 
-  // 2. Movies VOD
   for (final mv in params.movies) {
     final name = mv.name ?? '';
     final group = groupLabel(mv.categoryId);
@@ -411,7 +466,6 @@ List<SearchIndexEntry> buildSearchIndexInBackground(SearchIndexParams params) {
     ));
   }
 
-  // 3. Series VOD
   for (final sr in params.series) {
     final name = sr.name ?? '';
     final group = groupLabel(sr.categoryId);
@@ -443,10 +497,12 @@ List<SearchIndexEntry> buildSearchIndexInBackground(SearchIndexParams params) {
         RegExp(r'\bus\b').hasMatch(nameB);
     if (isUsaA != isUsaB) return isUsaA ? -1 : 1;
 
-    final isEngA =
-        nameA.contains('canada') || nameA.contains('uk') || nameA.contains('english');
-    final isEngB =
-        nameB.contains('canada') || nameB.contains('uk') || nameB.contains('english');
+    final isEngA = nameA.contains('canada') ||
+        nameA.contains('uk') ||
+        nameA.contains('english');
+    final isEngB = nameB.contains('canada') ||
+        nameB.contains('uk') ||
+        nameB.contains('english');
     if (isEngA != isEngB) return isEngA ? -1 : 1;
 
     return nameA.compareTo(nameB);
