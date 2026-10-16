@@ -13,13 +13,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _url = TextEditingController();
   final _fullUrl = TextEditingController();
   bool _isM3uMode = false;
+  String? _lastM3uUrl;
 
   @override
   void initState() {
     super.initState();
-    _url.text = '';
+    _url.text = 'https://starlite.best';
     _username.text = '';
     _password.text = '';
+    _fullUrl.text = '';
   }
 
   @override
@@ -138,6 +140,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (!_isM3uMode && looksLikePlaylist) {
         setState(() => _isM3uMode = true);
       }
+      _lastM3uUrl = normalizedUrl;
       ctx.read<AuthBloc>().add(AuthLoadM3u(normalizedUrl));
       return;
     }
@@ -177,15 +180,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 if (state is AuthFailed) {
                   final detail = state.message.trim();
                   final isGenericLogout = detail == 'LogOut' || detail.isEmpty;
-                  showWarningToast(
-                    context,
-                    'Login Failed',
-                    isGenericLogout
-                        ? (_isM3uMode
-                            ? 'Unable to sign in. Check that your M3U playlist URL is correct and reachable.'
-                            : 'Unable to sign in. Please check your server URL, username, and password.')
-                        : detail,
-                  );
+                  final fallback = isGenericLogout
+                      ? (_isM3uMode
+                          ? 'Unable to sign in. Check that your M3U playlist URL is correct and reachable.'
+                          : 'Unable to sign in. Please check your server URL, username, and password.')
+                      : detail;
+                  final m3uUrl = _lastM3uUrl;
+                  _lastM3uUrl = null;
+                  if (!isGenericLogout && m3uUrl != null) {
+                    PlaylistHostCheck.unreachableServerMessage(m3uUrl)
+                        .then((reason) {
+                      if (!context.mounted) return;
+                      showWarningToast(context, 'Login Failed', reason ?? fallback);
+                    });
+                  } else {
+                    showWarningToast(context, 'Login Failed', fallback);
+                  }
                 } else if (state is AuthSuccess) {
                   context.read<LiveCatyBloc>().add(GetLiveCategories());
                   context.read<MovieCatyBloc>().add(GetMovieCategories());

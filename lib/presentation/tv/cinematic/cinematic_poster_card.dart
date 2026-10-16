@@ -30,145 +30,182 @@ class CinematicPosterCard extends StatefulWidget {
   State<CinematicPosterCard> createState() => _CinematicPosterCardState();
 }
 
+class _NoopListenable extends Listenable {
+  const _NoopListenable();
+  @override
+  void addListener(VoidCallback listener) {}
+  @override
+  void removeListener(VoidCallback listener) {}
+}
+
 class _CinematicPosterCardState extends State<CinematicPosterCard> {
+  static const Listenable _noopListenable = _NoopListenable();
   bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
-    return Focus(
-      onFocusChange: (value) {
-        setState(() => _focused = value);
-        if (value) widget.onFocused?.call(widget.stream);
-      },
-      onKeyEvent: (node, event) {
-        if (event is! KeyDownEvent) return KeyEventResult.ignored;
-        final k = event.logicalKey;
-        if (k == LogicalKeyboardKey.select ||
-            k == LogicalKeyboardKey.enter ||
-            k == LogicalKeyboardKey.gameButtonA ||
-            k == LogicalKeyboardKey.space) {
-          widget.onSelected();
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
-      child: AnimatedScale(
-        scale: _focused ? CinematicTokens.focusScale : 1.0,
-        duration: CinematicMotion.focus,
-        curve: CinematicMotion.standard,
-        child: AnimatedSlide(
-          offset: _focused ? const Offset(0, -0.018) : Offset.zero,
+    final enrichmentKey = widget.stream.enrichmentKey;
+    final listenable = enrichmentKey == null
+        ? _noopListenable
+        : TmdbEnrichmentWorker.instance.notifierFor(enrichmentKey);
+
+    return RepaintBoundary(
+      child: Focus(
+        onFocusChange: (value) {
+          setState(() => _focused = value);
+          if (value) widget.onFocused?.call(widget.stream);
+        },
+        onKeyEvent: (node, event) {
+          if (event is! KeyDownEvent) return KeyEventResult.ignored;
+          final k = event.logicalKey;
+          if (k == LogicalKeyboardKey.select ||
+              k == LogicalKeyboardKey.enter ||
+              k == LogicalKeyboardKey.gameButtonA ||
+              k == LogicalKeyboardKey.space) {
+            widget.onSelected();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: AnimatedScale(
+          scale: _focused ? CinematicTokens.focusScale : 1.0,
           duration: CinematicMotion.focus,
           curve: CinematicMotion.standard,
-          child: SizedBox(
-            width: CinematicPosterCard.width,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    canRequestFocus: false,
-                    onTap: widget.onSelected,
-                    borderRadius:
-                        BorderRadius.circular(CinematicTokens.radiusPoster),
-                    child: AnimatedContainer(
-                      duration: CinematicMotion.focus,
-                      curve: CinematicMotion.standard,
-                      width: CinematicPosterCard.width,
-                      height: CinematicPosterCard.height,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(
-                          CinematicTokens.radiusPoster,
-                        ),
-                        border: Border.all(
-                          width: _focused ? 1.4 : 0,
-                          color: _focused
-                              ? CinematicTokens.focus.withValues(alpha: 0.9)
-                              : Colors.transparent,
-                        ),
-                        boxShadow: _focused
-                            ? [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.5),
-                                  blurRadius: 18,
-                                  offset: const Offset(0, 10),
-                                ),
-                                BoxShadow(
-                                  color: Colors.white.withValues(alpha: 0.14),
-                                  blurRadius: 16,
-                                  spreadRadius: 0.4,
-                                ),
-                              ]
-                            : null,
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: ListenableBuilder(
-                        listenable: TmdbEnrichmentWorker.instance,
-                        builder: (context, _) {
-                          final extra = widget.stream.enrichmentKey == null
-                              ? null
-                              : TmdbEnrichmentWorker.instance
-                                  .lookup(widget.stream.enrichmentKey!);
-                          final art = CinematicArtwork.fromRecord(
-                            widget.stream,
-                            extra: extra,
-                          );
-                          return Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              CinematicTitlePlaceholder(
-                                title: widget.stream.title,
-                              ),
-                              _PosterArt(
-                                url: art.poster,
-                                title: widget.stream.title,
-                                hasProvider: ArtworkUrlResolver
-                                    .isUsableImageUrl(widget.stream.imageUrl),
-                                hasResolved: art.hasPoster,
-                                hasBackdrop: art.hasBackdrop,
-                              ),
-                              if (_focused)
-                                const DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    color: Color(0x18FFFFFF),
+          child: AnimatedSlide(
+            offset: _focused ? const Offset(0, -0.018) : Offset.zero,
+            duration: CinematicMotion.focus,
+            curve: CinematicMotion.standard,
+            child: SizedBox(
+              width: CinematicPosterCard.width,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      canRequestFocus: false,
+                      onTap: widget.onSelected,
+                      borderRadius:
+                          BorderRadius.circular(CinematicTokens.radiusPoster),
+                      child: AnimatedContainer(
+                        duration: CinematicMotion.focus,
+                        curve: CinematicMotion.standard,
+                        width: CinematicPosterCard.width,
+                        height: CinematicPosterCard.height,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(
+                            CinematicTokens.radiusPoster,
+                          ),
+                          border: Border.all(
+                            width: _focused ? 1.4 : 0,
+                            color: _focused
+                                ? CinematicTokens.focus.withValues(alpha: 0.9)
+                                : Colors.transparent,
+                          ),
+                          boxShadow: _focused
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.5),
+                                    blurRadius: 18,
+                                    offset: const Offset(0, 10),
                                   ),
-                                ),
-                              if ((widget.stream.watchProgress ?? 0) > 0.02)
-                                Positioned(
-                                  left: 0,
-                                  right: 0,
-                                  bottom: 0,
-                                  child: LinearProgressIndicator(
-                                    value: widget.stream.watchProgress!
-                                        .clamp(0.0, 1.0),
-                                    minHeight: 3,
-                                    backgroundColor: Colors.black45,
-                                    color: CinematicTokens.accent,
+                                  BoxShadow(
+                                    color: Colors.white.withValues(alpha: 0.14),
+                                    blurRadius: 16,
+                                    spreadRadius: 0.4,
                                   ),
+                                ]
+                              : null,
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: ListenableBuilder(
+                          listenable: listenable,
+                          builder: (context, _) {
+                            final extra = enrichmentKey == null
+                                ? null
+                                : TmdbEnrichmentWorker.instance
+                                    .lookup(enrichmentKey);
+                            final art = CinematicArtwork.fromRecord(
+                              widget.stream,
+                              extra: extra,
+                            );
+                            return Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                CinematicTitlePlaceholder(
+                                  title: widget.stream.title,
                                 ),
-                            ],
-                          );
-                        },
+                                _PosterArt(
+                                  url: art.poster,
+                                  title: widget.stream.title,
+                                  hasProvider: ArtworkUrlResolver
+                                      .isUsableImageUrl(widget.stream.imageUrl),
+                                  hasResolved: art.hasPoster,
+                                  hasBackdrop: art.hasBackdrop,
+                                ),
+                                if (_focused)
+                                  const DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: Color(0x18FFFFFF),
+                                    ),
+                                  ),
+                                if ((widget.stream.watchProgress ?? 0) > 0.02)
+                                  Positioned(
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    child: LinearProgressIndicator(
+                                      value: widget.stream.watchProgress!
+                                          .clamp(0.0, 1.0),
+                                      minHeight: 3,
+                                      backgroundColor: Colors.black45,
+                                      color: CinematicTokens.accent,
+                                    ),
+                                  ),
+                              ],
+                            );
+                          },
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  widget.stream.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: _focused
-                        ? CinematicTokens.textPrimary
-                        : CinematicTokens.textSecondary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    height: 1.15,
+                  const SizedBox(height: 8),
+                  // The generated placeholder already prints the title, so the
+                  // caption only appears under real artwork (space is kept so
+                  // rows never shift when a poster arrives).
+                  ListenableBuilder(
+                    listenable: listenable,
+                    builder: (context, _) {
+                      final extra = enrichmentKey == null
+                          ? null
+                          : TmdbEnrichmentWorker.instance.lookup(enrichmentKey);
+                      final hasArt = CinematicArtwork.fromRecord(
+                        widget.stream,
+                        extra: extra,
+                      ).hasPoster;
+                      return Visibility(
+                        visible: hasArt,
+                        maintainSize: true,
+                        maintainAnimation: true,
+                        maintainState: true,
+                        child: Text(
+                          widget.stream.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: _focused
+                                ? CinematicTokens.textPrimary
+                                : CinematicTokens.textSecondary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            height: 1.15,
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -212,6 +249,7 @@ class _PosterArt extends StatelessWidget {
         width: CinematicPosterCard.width,
         height: CinematicPosterCard.height,
         memCacheWidth: 320,
+        memCacheHeight: 480,
         fadeInDuration: CinematicMotion.backdrop,
         httpHeaders: ArtworkUrlResolver.imageHeaders,
         placeholder: (_, _) => const TvArtworkShimmer(),

@@ -4,6 +4,7 @@ import '../models/channel_live.dart';
 import '../models/local_market_profile.dart';
 import '../models/user_preference_profile.dart';
 import 'provider_curation_rules.dart';
+import 'local_proximity.dart';
 
 class LocalMarketService {
   static const String _marketCacheKey = "active_local_market_id";
@@ -755,6 +756,20 @@ class LocalMarketService {
     }).toList();
   }
 
+  static final Map<String, RegExp> _aliasPatterns = {};
+
+  /// Alias as a whole token: "WSB" matches "ABC (WSB) Atlanta GA" and
+  /// "WSB-TV", not "WSBK". [name] must already be lower-case.
+  static bool _aliasHit(String name, String alias) {
+    final al = alias.toLowerCase();
+    if (name == al) return true;
+    final re = _aliasPatterns.putIfAbsent(
+      al,
+      () => RegExp('(^|[^a-z0-9])${RegExp.escape(al)}(\$|[^a-z0-9])'),
+    );
+    return re.hasMatch(name);
+  }
+
   /// Curates local channels matching aliases inside the user's active playlist
   static List<ChannelLive> getLocalChannelsForCategory({
     required String categoryKey, // 'broadcast', 'news', 'sports', 'pbs', 'spanish', 'all'
@@ -772,10 +787,7 @@ class LocalMarketService {
         for (final channel in playlist) {
           final chName = (channel.name ?? '').toLowerCase();
           final isMatch = allBroadcastAliases.any((alias) =>
-              chName == alias.toLowerCase() ||
-              chName.contains(' ${alias.toLowerCase()} ') ||
-              chName.startsWith('${alias.toLowerCase()} ') ||
-              chName.endsWith(' ${alias.toLowerCase()}'));
+              _aliasHit(chName, alias));
           if (isMatch) matches.add(channel);
         }
         break;
@@ -811,10 +823,7 @@ class LocalMarketService {
         for (final channel in playlist) {
           final chName = (channel.name ?? '').toLowerCase();
           final isPbsMatch = pbsAliases.any((alias) =>
-              chName == alias.toLowerCase() ||
-              chName.contains(' ${alias.toLowerCase()} ') ||
-              chName.startsWith('${alias.toLowerCase()} ') ||
-              chName.endsWith(' ${alias.toLowerCase()}'));
+              _aliasHit(chName, alias));
           if (isPbsMatch) matches.add(channel);
         }
         break;
@@ -838,10 +847,7 @@ class LocalMarketService {
         for (final channel in playlist) {
           final chName = (channel.name ?? '').toLowerCase();
           final isBroadcast = allBroadcastAliases.any((alias) =>
-              chName == alias.toLowerCase() ||
-              chName.contains(' ${alias.toLowerCase()} ') ||
-              chName.startsWith('${alias.toLowerCase()} ') ||
-              chName.endsWith(' ${alias.toLowerCase()}'));
+              _aliasHit(chName, alias));
 
           final isNews = market.newsAliases.any((alias) => chName.contains(alias.toLowerCase())) ||
               (chName.contains('news') &&
@@ -873,7 +879,7 @@ class LocalMarketService {
           final al = alias.toLowerCase();
           if (name == al) {
             score += 200;
-          } else if (name.startsWith('$al ') || name.endsWith(' $al') || name.contains(' $al ')) {
+          } else if (_aliasHit(name, alias)) {
             score += 150;
           }
         }
@@ -901,6 +907,10 @@ class LocalMarketService {
     }).toList();
 
     scored.sort((a, b) => b.value.compareTo(a.value));
-    return scored.map((e) => e.key).toList();
+    return LocalProximity.nearbyOnly(
+      scored.map((e) => e.key).toList(),
+      market,
+      (c) => c.name ?? '',
+    );
   }
 }

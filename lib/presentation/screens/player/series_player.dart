@@ -47,6 +47,10 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
   String? _castDevice;
   bool _isCastPlaying = true;
 
+  // Seek HUD feedback
+  String? _seekHudText;
+  Timer? _seekHudTimer;
+
   // Controls visibility
   bool _showControls = true;
   Timer? _hideTimer;
@@ -151,6 +155,7 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
       } catch (_) {}
     }
     _hideTimer?.cancel();
+    _seekHudTimer?.cancel();
     _focusNode.dispose();
     OrientationGuard.applyPlayerExitOrientation();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -227,20 +232,84 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
     _scheduleHide();
   }
 
+  void _showSeekHud(String text) {
+    _seekHudTimer?.cancel();
+    setState(() => _seekHudText = text);
+    _seekHudTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (mounted) setState(() => _seekHudText = null);
+    });
+  }
+
   Future<void> _rewind10s() async {
     try {
-      final t = _position - const Duration(seconds: 30);
+      final t = _position - const Duration(seconds: 10);
       await _ctrl.seekTo(t < Duration.zero ? Duration.zero : t);
+      _showSeekHud('-10s');
     } catch (_) {}
     _scheduleHide();
   }
 
   Future<void> _forward10s() async {
     try {
-      final t = _position + const Duration(seconds: 30);
+      final t = _position + const Duration(seconds: 10);
       await _ctrl.seekTo(t > _duration ? _duration : t);
+      _showSeekHud('+10s');
     } catch (_) {}
     _scheduleHide();
+  }
+
+  Widget _buildSeekHud() {
+    if (_seekHudText == null) return const SizedBox.shrink();
+    final isRewind = _seekHudText!.contains('-');
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Center(
+          child: AnimatedOpacity(
+            opacity: _seekHudText != null ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 200),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.8),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: kColorPrimary.withValues(alpha: 0.6),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: kColorPrimary.withValues(alpha: 0.35),
+                    blurRadius: 20,
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isRewind
+                        ? FontAwesomeIcons.rotateLeft.data
+                        : FontAwesomeIcons.rotateRight.data,
+                    color: kColorFocus,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    _seekHudText!,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _cycleAspect() async {
@@ -414,6 +483,24 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
       if (k == LogicalKeyboardKey.escape) {
         _handleSeriesBack(source: 'focus');
       }
+      return KeyEventResult.handled;
+    }
+
+    // Direct Remote Media Keys
+    if (k == LogicalKeyboardKey.mediaRewind ||
+        k == LogicalKeyboardKey.mediaSkipBackward) {
+      _rewind10s();
+      return KeyEventResult.handled;
+    }
+    if (k == LogicalKeyboardKey.mediaFastForward ||
+        k == LogicalKeyboardKey.mediaSkipForward) {
+      _forward10s();
+      return KeyEventResult.handled;
+    }
+    if (k == LogicalKeyboardKey.mediaPlayPause ||
+        k == LogicalKeyboardKey.mediaPlay ||
+        k == LogicalKeyboardKey.mediaPause) {
+      _togglePlay();
       return KeyEventResult.handled;
     }
 
@@ -630,10 +717,20 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
                       placeholder: const SizedBox(),
                     ),
 
-                  // 2. Gesture Detector to toggle controls
+                  // 2. Gesture Detector to toggle controls & double tap seek
                   if (!_isCheckingHealth && !_isDeadStream && _castDevice == null)
                     GestureDetector(
                       onTap: _toggleControls,
+                      onDoubleTapDown: (details) {
+                        final w = MediaQuery.of(context).size.width;
+                        if (details.globalPosition.dx < w * 0.35) {
+                          _rewind10s();
+                        } else if (details.globalPosition.dx > w * 0.65) {
+                          _forward10s();
+                        } else {
+                          _togglePlay();
+                        }
+                      },
                       behavior: HitTestBehavior.opaque,
                       child: const SizedBox.expand(),
                     ),
@@ -647,7 +744,11 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
                       ),
                     ),
 
-                  // 4. Controls Overlay
+                  // 4. Seek HUD overlay
+                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null)
+                    _buildSeekHud(),
+
+                  // 5. Controls Overlay
                   if (!_isCheckingHealth && !_isDeadStream && _castDevice == null)
                     AnimatedOpacity(
                       opacity: _showControls ? 1.0 : 0.0,
@@ -658,7 +759,7 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
                       ),
                     ),
 
-                  // 5. Track Selector Panel
+                  // 6. Track Selector Panel
                   if (!_isCheckingHealth && !_isDeadStream && _castDevice == null && _trackPanel != null)
                     _VodTrackPanel(
                       isSub: _trackPanel == 'sub',
@@ -667,13 +768,13 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
                       onSelect: _selectTrack,
                     ),
 
-                  // 6. Loading screen overlay
+                  // 7. Loading screen overlay
                   if (_isCheckingHealth)
                     const Positioned.fill(
                       child: TvParserStreamLoadingOverlay(),
                     ),
 
-                  // 7. Dead Stream Overlay
+                  // 8. Dead Stream Overlay
                   if (!_isCheckingHealth && _isDeadStream)
                     Positioned.fill(
                       child: Container(
@@ -742,7 +843,7 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
                       ),
                     ),
 
-                  // 8. Chromecast Overlay
+                  // 9. Chromecast Overlay
                   if (!_isCheckingHealth && !_isDeadStream && supportsCasting() && _castDevice != null)
                     Positioned.fill(
                       child: _buildCastOverlay(context),
@@ -901,7 +1002,7 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
           children: [
             _FsBtn(
               icon: FontAwesomeIcons.rotateLeft.data,
-              label: '',
+              label: '10s',
               isFocused: _isFocused(2, 0),
               onTap: _rewind10s,
             ),
@@ -916,7 +1017,7 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
             SizedBox(width: 8),
             _FsBtn(
               icon: FontAwesomeIcons.rotateRight.data,
-              label: '',
+              label: '10s',
               isFocused: _isFocused(2, 2),
               onTap: _forward10s,
             ),

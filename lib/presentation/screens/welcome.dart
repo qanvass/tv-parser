@@ -10,7 +10,6 @@ class WelcomeScreen extends StatefulWidget {
 class _WelcomeScreenState extends State<WelcomeScreen>
     with TickerProviderStateMixin, WidgetsBindingObserver {
   bool _showOverlay = true;
-  double _progress = 0.0;
   Timer? _hardDismissTimer;
   late final DateTime _overlayDeadline;
 
@@ -24,22 +23,24 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     WidgetsBinding.instance.addObserver(this);
     context.read<FavoritesCubit>().initialData();
     context.read<WatchingCubit>().initialData();
+    final liveAlreadyWarm = LocaleApi.getM3uCategories().isNotEmpty ||
+        context.read<LiveCatyBloc>().state is LiveCatySuccess;
+    // Warm cache: rows are already there, so only a brief hand-off card.
+    final holdDurationMs = liveAlreadyWarm ? 350 : 2200;
     // Wall-clock deadline so screensaver/pause cannot keep this card up.
-    _overlayDeadline = DateTime.now().add(const Duration(seconds: 3));
+    _overlayDeadline = DateTime.now().add(
+      Duration(milliseconds: holdDurationMs + 500),
+    );
 
     _fadeController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 260),
     );
 
     _progressController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2800),
-    )..addListener(() {
-        setState(() {
-          _progress = _progressController.value;
-        });
-      });
+      duration: Duration(milliseconds: holdDurationMs + 200),
+    );
 
     _pulseController = AnimationController(
       vsync: this,
@@ -50,7 +51,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
     _progressController.forward();
 
-    Future.delayed(const Duration(milliseconds: 2500)).then((_) {
+    Future.delayed(Duration(milliseconds: holdDurationMs)).then((_) {
       if (mounted) _dismissOverlay(fade: true);
     });
 
@@ -90,7 +91,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       }
       LiveBrowseGate.markWelcomeCleared();
     });
-    Future.delayed(const Duration(milliseconds: 400)).then((_) {
+    Future.delayed(const Duration(milliseconds: 350)).then((_) {
       if (mounted && _showOverlay) {
         setState(() => _showOverlay = false);
       }
@@ -108,12 +109,12 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     super.dispose();
   }
 
-  String _getStatusText() {
-    if (_progress < 0.25) {
+  String _getStatusText(double progress) {
+    if (progress < 0.25) {
       return "Connecting to secure media gateway...";
-    } else if (_progress < 0.55) {
+    } else if (progress < 0.55) {
       return "Parsing playlist headers & credentials...";
-    } else if (_progress < 0.85) {
+    } else if (progress < 0.85) {
       return "Synchronizing buffer stream pipelines...";
     } else {
       return "Ready! Launching dashboard interface...";
@@ -339,41 +340,54 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                                     ),
                                   ),
                                   const SizedBox(height: 32),
-                                  // Sleek premium progress bar
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(999),
-                                    child: Container(
-                                      height: 6,
-                                      width: double.infinity,
-                                      color: Colors.white.withValues(alpha: 0.08),
-                                      child: Align(
-                                        alignment: Alignment.centerLeft,
-                                        child: FractionallySizedBox(
-                                          widthFactor: _progress,
-                                          child: Container(
-                                            decoration: const BoxDecoration(
-                                              gradient: LinearGradient(
-                                                colors: [
-                                                  kColorPrimaryDark,
-                                                  kColorPrimary,
-                                                ],
+                                  // Sleek premium progress bar (scoped rebuild)
+                                  AnimatedBuilder(
+                                    animation: _progressController,
+                                    builder: (context, _) {
+                                      final progress = _progressController.value;
+                                      return Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          ClipRRect(
+                                            borderRadius:
+                                                BorderRadius.circular(999),
+                                            child: Container(
+                                              height: 6,
+                                              width: double.infinity,
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.08),
+                                              child: Align(
+                                                alignment: Alignment.centerLeft,
+                                                child: FractionallySizedBox(
+                                                  widthFactor: progress,
+                                                  child: Container(
+                                                    decoration:
+                                                        const BoxDecoration(
+                                                      gradient: LinearGradient(
+                                                        colors: [
+                                                          kColorPrimaryDark,
+                                                          kColorPrimary,
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
                                               ),
                                             ),
                                           ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  // Animated Status Loader Info Text
-                                  Text(
-                                    _getStatusText(),
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      color: Colors.white30,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                          const SizedBox(height: 12),
+                                          Text(
+                                            _getStatusText(progress),
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                              color: Colors.white30,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    },
                                   ),
                                 ],
                               ),

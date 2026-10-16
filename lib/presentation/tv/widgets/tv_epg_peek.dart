@@ -135,6 +135,20 @@ class _TvEpgPeekState extends State<TvEpgPeek> {
       );
     }
     if (_now == null && _next == null) {
+      // Quiet honest state: the guide was attempted but no source had a
+      // current programme (dead/stale feed). Never invent listings.
+      if (XmlTvRepository.instance.status == XmlTvStatus.unavailable) {
+        return Text(
+          'Guide unavailable',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.32),
+            fontSize: widget.compact ? 12 : 14,
+            fontWeight: FontWeight.w500,
+          ),
+        );
+      }
       return const SizedBox.shrink();
     }
     return Column(

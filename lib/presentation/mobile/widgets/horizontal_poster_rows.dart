@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../../repository/provider/provider_enums.dart';
+import '../../../repository/provider/tmdb_enrichment_worker.dart';
+import '../../../repository/provider/unified_media_metadata.dart';
 
 enum PosterAspect { vertical, landscape }
 
@@ -112,6 +115,10 @@ class PosterCard extends StatelessWidget {
   final bool isLive;
   final bool isFavorite;
 
+  /// Movie / series cards without playlist art look up a poster (TMDB via
+  /// TV Parser's relay). Null = never look up (live channels etc.).
+  final ContentType? artType;
+
   const PosterCard({
     super.key,
     required this.title,
@@ -122,6 +129,7 @@ class PosterCard extends StatelessWidget {
     this.ratingBadge,
     this.isLive = false,
     this.isFavorite = false,
+    this.artType,
   });
 
   @override
@@ -153,16 +161,7 @@ class PosterCard extends StatelessWidget {
                 fit: StackFit.expand,
                 children: [
                   // Widescreen/Vertical Poster Cover Image (Async)
-                  imageUrl != null && imageUrl!.trim().isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: imageUrl!,
-                          fit: BoxFit.cover,
-                          memCacheWidth: isVertical ? 220 : 340,
-                          fadeInDuration: const Duration(milliseconds: 250),
-                          placeholder: (context, url) => const PosterSkeletonCard(),
-                          errorWidget: (context, url, error) => _buildFallbackArtwork(isVertical),
-                        )
-                      : _buildFallbackArtwork(isVertical),
+                  _buildArtwork(isVertical),
 
                   // Shadow Overlay
                   Container(
@@ -267,21 +266,83 @@ class PosterCard extends StatelessWidget {
     );
   }
 
+  Widget _buildArtwork(bool isVertical) {
+    final own = imageUrl?.trim();
+    if (own != null && own.isNotEmpty) return _networkArt(own, isVertical);
+    final type = artType;
+    final worker = TmdbEnrichmentWorker.instance;
+    if (type == null || isLive || !worker.isEnabled) {
+      return _buildFallbackArtwork(isVertical);
+    }
+    final request = TmdbEnqueueRequest(rawTitle: title, type: type);
+    worker.enqueue(request);
+    return ValueListenableBuilder<UnifiedMediaMetadata?>(
+      valueListenable: worker.notifierFor(request.key),
+      builder: (context, meta, _) {
+        final url = isVertical
+            ? (meta?.posterUrl ?? meta?.backdropUrl)
+            : (meta?.backdropUrl ?? meta?.posterUrl);
+        return url != null && url.isNotEmpty
+            ? _networkArt(url, isVertical)
+            : _buildFallbackArtwork(isVertical);
+      },
+    );
+  }
+
+  Widget _networkArt(String url, bool isVertical) => CachedNetworkImage(
+        imageUrl: url,
+        fit: BoxFit.cover,
+        memCacheWidth: isVertical ? 220 : 340,
+        fadeInDuration: const Duration(milliseconds: 250),
+        placeholder: (context, url) => const PosterSkeletonCard(),
+        errorWidget: (context, url, error) => _buildFallbackArtwork(isVertical),
+      );
+
+  static const List<List<Color>> _fallbackPalettes = [
+    [Color(0xFF3A1C71), Color(0xFF16102A)],
+    [Color(0xFF0F3D5E), Color(0xFF0A1622)],
+    [Color(0xFF5A1E2E), Color(0xFF1A0C12)],
+    [Color(0xFF1E4D3A), Color(0xFF0B1A14)],
+    [Color(0xFF5B3A12), Color(0xFF1C130A)],
+    [Color(0xFF2B2F6B), Color(0xFF101226)],
+  ];
+
+  /// No artwork: a title card (stable colour per title) instead of an empty
+  /// box, so rows still read as content.
   Widget _buildFallbackArtwork(bool isVertical) {
+    final palette =
+        _fallbackPalettes[title.hashCode.abs() % _fallbackPalettes.length];
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF1B0F2F), Color(0xFF0F0B18)],
+          colors: palette,
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
       ),
-      child: Center(
-        child: Icon(
-          isLive ? Icons.live_tv_rounded : Icons.movie_filter_rounded,
-          color: Colors.white.withOpacity(0.08),
-          size: isVertical ? 28 : 24,
-        ),
+      padding: EdgeInsets.fromLTRB(10, isLive ? 22 : 10, 10, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Icon(
+            isLive ? Icons.live_tv_rounded : Icons.movie_filter_rounded,
+            color: Colors.white.withOpacity(0.35),
+            size: isVertical ? 18 : 16,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            title,
+            maxLines: isVertical ? 4 : 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.92),
+              fontSize: isVertical ? 13 : 12,
+              fontWeight: FontWeight.w800,
+              height: 1.15,
+            ),
+          ),
+        ],
       ),
     );
   }

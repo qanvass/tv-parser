@@ -37,6 +37,12 @@ class TmdbClient {
     defaultValue: '',
   );
 
+  /// Public builds: TV Parser's metadata relay (key stays server-side).
+  static const String _proxyUrl = String.fromEnvironment(
+    'TMDB_PROXY_URL',
+    defaultValue: 'https://tvparser.com/api/tmdb',
+  );
+
   final TmdbHttpGet? _httpGet;
   final bool _enabledForTest;
 
@@ -46,7 +52,10 @@ class TmdbClient {
   /// True only when the compile flag is on **and** a non-empty key exists.
   /// Tests may force-enable with [enabledForTest] — never ships a secret.
   bool get isEnabled =>
-      enableTmdb && (_enabledForTest || (apiKey?.isNotEmpty ?? false));
+      enableTmdb &&
+      (_enabledForTest ||
+          (apiKey?.isNotEmpty ?? false) ||
+          _proxyUrl.isNotEmpty);
 
   String? get apiKey {
     if (_keyResolved) return _resolvedKey;
@@ -207,11 +216,19 @@ class TmdbClient {
       return override(path, query);
     }
     final key = apiKey;
-    if (key == null || key.isEmpty) return null;
-    final uri = Uri.https('api.themoviedb.org', path, {
-      'api_key': key,
-      ...query,
-    });
+    final Uri uri;
+    if (key != null && key.isNotEmpty) {
+      uri = Uri.https('api.themoviedb.org', path, {
+        'api_key': key,
+        ...query,
+      });
+    } else if (_proxyUrl.isNotEmpty) {
+      uri = Uri.parse(_proxyUrl).replace(
+        queryParameters: {'path': path, ...query},
+      );
+    } else {
+      return null;
+    }
     final client = HttpClient();
     try {
       client.connectionTimeout = const Duration(seconds: 8);

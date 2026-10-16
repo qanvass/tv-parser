@@ -59,6 +59,8 @@ class TvHomeRows extends StatelessWidget {
                       : (ch.streamId ?? ''),
                   imageUrl: ch.streamIcon,
                   isHd: (ch.name ?? '').toUpperCase().contains('HD'),
+                  streamId: ch.streamId,
+                  tvgId: ch.epgChannelId?.toString(),
                 ),
               ),
               ...favState.movies.take(8).map(

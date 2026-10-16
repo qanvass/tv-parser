@@ -80,4 +80,24 @@ void main() {
       );
     });
   });
+  test('exact title tolerates a one-year difference only', () {
+    expect(
+      TmdbMatch.isHighConfidence(
+        queryTitle: 'Medusa Deluxe (2022)',
+        resultTitle: 'Medusa Deluxe',
+        queryYear: 2022,
+        resultYear: 2023,
+      ),
+      isTrue,
+    );
+    expect(
+      TmdbMatch.isHighConfidence(
+        queryTitle: 'Medusa Deluxe',
+        resultTitle: 'Medusa Deluxe',
+        queryYear: 2021,
+        resultYear: 2023,
+      ),
+      isFalse,
+    );
+  });
 }

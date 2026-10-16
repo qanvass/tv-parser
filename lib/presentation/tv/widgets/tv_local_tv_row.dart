@@ -58,6 +58,8 @@ class TvLocalTvRow extends StatelessWidget {
           streamUrl: streamUrl,
           imageUrl: ch.streamIcon,
           isHd: true,
+          streamId: ch.streamId,
+          tvgId: ch.epgChannelId?.toString(),
         ),
       );
     }

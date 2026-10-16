@@ -4,6 +4,11 @@ import 'api.dart';
 import 'trailer_lookup_service.dart';
 import 'trailer_metadata_service.dart';
 import '../cache/trailer_cache_service.dart';
+import '../provider/title_normalizer.dart';
+import '../provider/tmdb_client.dart';
+import 'local_market_service.dart';
+import 'local_proximity.dart';
+import '../models/local_market_profile.dart';
 
 enum HeroPreviewType {
   live,
@@ -64,6 +69,91 @@ class HeroCarouselItem {
 }
 
 class HeroContentService {
+  /// VOD hero from TMDB when the provider has no detail API (M3U).
+  static Future<HeroCarouselItem?> _tmdbHeroItem(
+    TmdbClient tmdb,
+    ChannelMovie movie,
+    String id,
+  ) async {
+    final rawTitle = movie.name ?? '';
+    if (rawTitle.trim().isEmpty) return null;
+    final parsed = TitleNormalizer.parse(rawTitle);
+    final title = parsed.displayTitle.isEmpty ? rawTitle : parsed.displayTitle;
+    final meta = await tmdb.searchMovie(title, year: parsed.year);
+    final art = (meta?['backdrop_url'] as String?) ?? (meta?['poster_url'] as String?);
+    if (art == null || art.isEmpty) return null;
+    final year = (meta?['year'] as int?) ?? parsed.year;
+    return HeroCarouselItem(
+      id: id,
+      title: title,
+      cleanTitle: title,
+      year: year?.toString(),
+      description: meta?['overview'] as String?,
+      imageUrl: art,
+      previewType: HeroPreviewType.imageOnly,
+      isLive: false,
+      isVod: true,
+      // Provider has no rating on M3U: carry TMDB's real score (or none).
+      rawMovie: (movie.rating?.trim().isNotEmpty ?? false) || meta?['rating'] == null
+          ? movie
+          : ChannelMovie(
+              num: movie.num,
+              name: movie.name,
+              streamType: movie.streamType,
+              streamId: movie.streamId,
+              streamIcon: movie.streamIcon,
+              rating: (meta!['rating'] as num).toStringAsFixed(1),
+              rating5based: movie.rating5based,
+              added: movie.added,
+              isAdult: movie.isAdult,
+              categoryId: movie.categoryId,
+              containerExtension: movie.containerExtension,
+              customSid: movie.customSid,
+              directSource: movie.directSource,
+              youtubeTrailer: movie.youtubeTrailer,
+              imdbId: movie.imdbId,
+            ),
+    );
+  }
+
+  /// Up to three of the user's own-market broadcast stations (with logos).
+  static List<HeroCarouselItem> _localHeroItems(LocalMarketProfile market) {
+    final lives = LocaleApi.getM3uChannels();
+    if (lives.isEmpty) return const [];
+    final matches = LocalMarketService.getLocalChannelsForCategory(
+      categoryKey: 'broadcast',
+      market: market,
+      playlist: lives,
+    );
+    final names = <String>{};
+    final out = <HeroCarouselItem>[];
+    for (final ch in matches) {
+      final id = ch.streamId;
+      final logo = ch.streamIcon;
+      if (id == null || logo == null || logo.trim().isEmpty) continue;
+      if (!names.add((ch.name ?? '').toLowerCase())) continue;
+      out.add(HeroCarouselItem(
+        id: id,
+        title: ch.name ?? 'Local Channel',
+        description: 'Live from ${market.displayName}',
+        imageUrl: logo,
+        previewType: HeroPreviewType.live,
+        isLive: true,
+        isVod: false,
+        rawMovie: ChannelMovie(
+          name: ch.name,
+          streamId: ch.streamId,
+          streamIcon: ch.streamIcon,
+          categoryId: ch.categoryId,
+          customSid: 'live',
+          directSource: ch.directSource,
+        ),
+      ));
+      if (out.length >= 3) break;
+    }
+    return out;
+  }
+
   /// Asynchronously fetches details for candidates, normalizes metadata, cleans title noise,
   /// validates images and trailers, and returns a list of 8-12 prioritized HeroCarouselItems.
   static Future<List<HeroCarouselItem>> fetchAndEnrichHeroItems(
@@ -72,12 +162,19 @@ class HeroContentService {
     final List<HeroCarouselItem> trailerReadyItems = [];
     final List<HeroCarouselItem> imageOnlyItems = [];
     final List<Future<void>> futures = [];
+    final market = LocalProximity.activeMarket();
+    final tmdb = TmdbClient();
 
     for (final movie in rawHeroItems) {
       final streamIdStr = movie.streamId?.toString();
       if (streamIdStr == null || streamIdStr.isEmpty) continue;
 
       if (movie.customSid == 'live') {
+        // Out-of-market locals (e.g. "WSBK Boston") never lead the hero.
+        if (market != null &&
+            LocalProximity.nearbyOnly([movie.name ?? ''], market, (n) => n).isEmpty) {
+          continue;
+        }
         // Live items are processed directly without VOD detail network calls
         final item = HeroCarouselItem(
           id: streamIdStr,
@@ -168,6 +265,9 @@ class HeroContentService {
                 imageOnlyItems.add(item);
               }
             }
+          } else {
+            final item = await _tmdbHeroItem(tmdb, movie, streamIdStr);
+            if (item != null) imageOnlyItems.add(item);
           }
         } catch (e) {
           // Safe non-sensitive logs
@@ -178,6 +278,31 @@ class HeroContentService {
 
     // Wait for all details to be fetched
     await Future.wait(futures);
+
+    final locals = market == null ? <HeroCarouselItem>[] : _localHeroItems(market);
+    if (locals.isNotEmpty) {
+      final vod = <HeroCarouselItem>[
+        ...trailerReadyItems.where((x) => x.isVod),
+        ...imageOnlyItems.where((x) => x.isVod),
+      ];
+      final seen = <String>{};
+      final woven = <HeroCarouselItem>[];
+      var li = 0;
+      for (var i = 0; i < vod.length; i++) {
+        if (seen.add(vod[i].id)) woven.add(vod[i]);
+        // Pattern: movie, local, movie, movie, local, ...
+        if ((i == 0 || i % 2 == 0) && li < locals.length) {
+          if (seen.add(locals[li].id)) woven.add(locals[li]);
+          li++;
+        }
+      }
+      while (li < locals.length && woven.length < 12) {
+        if (seen.add(locals[li].id)) woven.add(locals[li]);
+        li++;
+      }
+      log("[HERO_CONTENT_SERVICE] Hero: ${vod.length} VOD + ${locals.length} local (${market!.id}).");
+      return woven.take(12).toList();
+    }
 
     // Prioritize and Sort: 2026/2025 movies first
     int getYearPriority(String? year) {

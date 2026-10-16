@@ -66,12 +66,15 @@ class LocationPreferenceService {
       await updated.save();
 
       if (status.isGranted) {
-        final position = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.low,
-            timeLimit: Duration(seconds: 5),
-          ),
-        );
+        // Market-level only: a recent last-known fix is enough and instant;
+        // a cold fix can take >5s on phones, so allow a longer wait.
+        final position = await Geolocator.getLastKnownPosition() ??
+            await Geolocator.getCurrentPosition(
+              locationSettings: const LocationSettings(
+                accuracy: LocationAccuracy.low,
+                timeLimit: Duration(seconds: 15),
+              ),
+            );
         await updateRegionFromCoordinates(position.latitude, position.longitude);
         return true;
       }

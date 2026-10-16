@@ -35,6 +35,42 @@ class SeriesRailGrouper {
     return out;
   }
 
+  /// One card for a whole show (playlist group = show). Episodes are kept in
+  /// season/episode order; a single-episode show stays directly playable.
+  static TvStreamRecord showCard(
+    List<TvStreamRecord> episodes, {
+    required String title,
+    int? year,
+  }) {
+    final eps = [for (final e in episodes) _withParsedBadge(e)];
+    final indexed = [for (var i = 0; i < eps.length; i++) (i, eps[i])];
+    indexed.sort((a, b) {
+      final s = (a.$2.season ?? 1 << 20).compareTo(b.$2.season ?? 1 << 20);
+      if (s != 0) return s;
+      final e = (a.$2.episode ?? 1 << 20).compareTo(b.$2.episode ?? 1 << 20);
+      return e != 0 ? e : a.$1.compareTo(b.$1);
+    });
+    final ordered = [for (final x in indexed) x.$2];
+    var best = ordered.first;
+    for (final item in ordered) {
+      if ((item.imageUrl ?? '').isNotEmpty) {
+        best = item;
+        break;
+      }
+    }
+    if (ordered.length == 1) {
+      return best.copyWith(title: title, year: year ?? best.year);
+    }
+    return best.copyWith(
+      title: title,
+      year: year ?? best.year,
+      season: null,
+      episode: null,
+      badge: null,
+      groupedEpisodes: ordered,
+    );
+  }
+
   static bool _alreadyParsed(TvStreamRecord item) =>
       item.year != null ||
       item.season != null ||

@@ -6,9 +6,11 @@ class CastSelectionDialog extends StatefulWidget {
     required this.controller,
     this.currentCastDevice,
     this.onCastSelected,
+    this.mediaTitle,
   });
 
   final VlcPlayerController controller;
+  final String? mediaTitle;
   final String? currentCastDevice;
   final ValueChanged<String?>? onCastSelected;
 
@@ -204,12 +206,19 @@ class _CastSelectionDialogState extends State<CastSelectionDialog> {
         // Pause local player playback while casting
         widget.controller.pause();
 
-        // Start casting stream
-        await CastMediaService().castStream(
+        // Start casting stream — success only once the TV reports playback.
+        final playing = await CastMediaService().castStream(
           streamUrl,
-          title: "TV Stream",
+          title: (widget.mediaTitle?.trim().isNotEmpty ?? false)
+              ? widget.mediaTitle!.trim()
+              : 'TV Parser',
           streamType: (streamUrl.contains('/movie/') || streamUrl.contains('/series/')) ? 'BUFFERED' : 'LIVE',
         );
+        if (!playing) {
+          widget.controller.play();
+          await CastMediaService().disconnect();
+          throw Exception('Receiver could not play this stream');
+        }
 
         if (widget.onCastSelected != null) {
           widget.onCastSelected!(device.name);
@@ -235,7 +244,7 @@ class _CastSelectionDialogState extends State<CastSelectionDialog> {
         builder: (dialogCtx) => AlertDialog(
           backgroundColor: const Color(0xFF131314),
           title: const Text("Casting Failed", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          content: const Text("Failed to stream to Chromecast. Play locally or try another device.", style: TextStyle(color: Colors.white70)),
+          content: const Text("Your TV couldn't play this stream. It's still playing on your phone — try another channel or device.", style: TextStyle(color: Colors.white70)),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogCtx).pop(),

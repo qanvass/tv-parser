@@ -16,6 +16,7 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
   // true while an edit dialog is open
   bool _isDialogOpen = false;
   bool _isM3uMode = true;
+  String? _lastM3uUrl;
 
   final FocusNode _navFocus = FocusNode();
   final FocusNode _fn0 = FocusNode(); // username
@@ -304,10 +305,13 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
     if (target == 0) {
       setState(() {
         _isM3uMode = !_isM3uMode;
-        // Neutral player shell: never prefill provider hosts or credentials.
-        _domain.text = '';
-        _username.text = '';
-        _password.text = '';
+        if (_isM3uMode) {
+          _domain.text = '';
+        } else {
+          _domain.text = 'https://starlite.best';
+          _username.text = '';
+          _password.text = '';
+        }
         final maxRow = _isM3uMode ? 3 : 5;
         if (_row > maxRow) {
           _row = maxRow;
@@ -413,6 +417,7 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
       if (!_isM3uMode && looksLikePlaylist) {
         setState(() => _isM3uMode = true);
       }
+      _lastM3uUrl = normalizedUrl;
       context.read<AuthBloc>().add(AuthLoadM3u(normalizedUrl));
       return;
     }
@@ -459,15 +464,23 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
                   } else if (state is AuthFailed) {
                     final detail = state.message.trim();
                     final isGenericLogout = detail == 'LogOut' || detail.isEmpty;
-                    showWarningToast(
-                      context,
-                      'Login Failed',
-                      isGenericLogout
-                          ? (_isM3uMode
-                              ? 'Unable to sign in. Check that your M3U playlist URL is correct and reachable.'
-                              : 'Unable to sign in. Please check your server URL, username, and password.')
-                          : detail,
-                    );
+                    final fallback = isGenericLogout
+                        ? (_isM3uMode
+                            ? 'Unable to sign in. Check that your M3U playlist URL is correct and reachable.'
+                            : 'Unable to sign in. Please check your server URL, username, and password.')
+                        : detail;
+                    final m3uUrl = _lastM3uUrl;
+                    _lastM3uUrl = null;
+                    if (!isGenericLogout && m3uUrl != null) {
+                      PlaylistHostCheck.unreachableServerMessage(m3uUrl)
+                          .then((reason) {
+                        if (!context.mounted) return;
+                        showWarningToast(
+                            context, 'Login Failed', reason ?? fallback);
+                      });
+                    } else {
+                      showWarningToast(context, 'Login Failed', fallback);
+                    }
                   }
                 },
                 builder: (context, state) {

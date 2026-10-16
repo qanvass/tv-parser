@@ -45,6 +45,8 @@ class TvPremiumPlusRow extends StatelessWidget {
                     : (ch?.streamId ?? ''),
                 imageUrl: ch?.streamIcon,
                 isHd: item.displayName.toUpperCase().contains('HD'),
+                streamId: ch?.streamId,
+                tvgId: ch?.epgChannelId?.toString(),
               );
               return Padding(
                 padding: const EdgeInsets.only(right: 16, top: 6, bottom: 6),

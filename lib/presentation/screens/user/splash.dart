@@ -160,7 +160,13 @@ class _SplashVideoFrame extends StatelessWidget {
             final screenH = constraints.maxHeight;
             final scaleW = screenW / videoW;
             final scaleH = screenH / videoH;
-            final scale = scaleW > scaleH ? scaleW : scaleH;
+            // Landscape reel on a portrait phone: fit the whole frame (cover
+            // would crop ~75% of it). TV / landscape stays edge-to-edge cover.
+            final portraitScreen = screenH > screenW;
+            final landscapeVideo = videoW > videoH;
+            final scale = portraitScreen && landscapeVideo
+                ? (scaleW < scaleH ? scaleW : scaleH)
+                : (scaleW > scaleH ? scaleW : scaleH);
             final drawnW = videoW * scale;
             final drawnH = videoH * scale;
 

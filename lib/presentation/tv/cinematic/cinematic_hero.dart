@@ -69,7 +69,11 @@ class CinematicHero extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              CinematicTitlePlaceholder(title: title, hero: true),
+              CinematicTitlePlaceholder(
+                title: title,
+                hero: true,
+                showLabels: false,
+              ),
               _HeroStage(
                 art: art,
                 title: title,
@@ -106,95 +110,111 @@ class CinematicHero extends StatelessWidget {
                   ),
                 ),
               ),
-              const Positioned(
-                top: 4,
-                right: 0,
-                child: TvStatusClock(),
-              ),
+              const Positioned(top: 4, right: 0, child: TvStatusClock()),
               Positioned.fill(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 18, 28, 18),
-                  child: Align(
-                    alignment: Alignment.bottomLeft,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 640),
-                      child: AnimatedSwitcher(
-                        duration: CinematicMotion.heroText,
-                        switchInCurve: CinematicMotion.standard,
-                        child: Column(
-                          key: ValueKey(
-                            movie?.stream.streamId ?? movie?.title ?? 'empty',
-                          ),
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              eyebrow,
-                              style: TextStyle(
-                                color: CinematicTokens.textSecondary
-                                    .withValues(alpha: 0.9),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.6,
+                child: LayoutBuilder(
+                  builder: (context, box) {
+                    // Fit the synopsis to the hero so Watch / My List are never
+                    // clipped: ~150 logical px for eyebrow, title, meta, buttons
+                    // and padding; each synopsis line needs ~18px (+8 gap).
+                    final spare = box.maxHeight - 36 - 150 - 8;
+                    final overviewLines = (spare / 18).floor().clamp(0, 2);
+                    return Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 18, 28, 18),
+                      child: Align(
+                        alignment: Alignment.bottomLeft,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 640),
+                          child: AnimatedSwitcher(
+                            duration: CinematicMotion.heroText,
+                            switchInCurve: CinematicMotion.standard,
+                            child: Column(
+                              key: ValueKey(
+                                movie?.stream.streamId ??
+                                    movie?.title ??
+                                    'empty',
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            _HeroTitle(title: title, logoUrl: art.clearLogo),
-                            if (meta.isNotEmpty) ...[
-                              const SizedBox(height: 8),
-                              Text(
-                                meta,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: CinematicTokens.textSecondary,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                            if (overview != null &&
-                                overview.trim().isNotEmpty) ...[
-                              const SizedBox(height: 8),
-                              Text(
-                                overview,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: CinematicTokens.textSecondary
-                                      .withValues(alpha: 0.85),
-                                  fontSize: 13,
-                                  height: 1.35,
-                                ),
-                              ),
-                            ],
-                            const SizedBox(height: 16),
-                            Wrap(
-                              spacing: 12,
-                              runSpacing: 8,
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                CinematicStadiumButton(
-                                  label: 'Watch',
-                                  icon: Icons.play_arrow_rounded,
-                                  onPressed: movie == null ||
-                                          movie.stream.streamUrl.isEmpty
-                                      ? null
-                                      : onWatch,
+                                Text(
+                                  eyebrow,
+                                  style: TextStyle(
+                                    color: CinematicTokens.textSecondary
+                                        .withValues(alpha: 0.9),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 1.6,
+                                  ),
                                 ),
-                                CinematicStadiumButton(
-                                  label: inMyList ? 'In My List' : 'My List',
-                                  icon: inMyList
-                                      ? Icons.check_rounded
-                                      : Icons.add_rounded,
-                                  onPressed: movie == null ? null : onMyList,
+                                const SizedBox(height: 8),
+                                _HeroTitle(
+                                  title: title,
+                                  logoUrl: art.clearLogo,
+                                ),
+                                if (meta.isNotEmpty) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    meta,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: CinematicTokens.textSecondary,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                                if (overview != null &&
+                                    overview.trim().isNotEmpty &&
+                                    overviewLines > 0) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    overview,
+                                    maxLines: overviewLines,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: CinematicTokens.textSecondary
+                                          .withValues(alpha: 0.85),
+                                      fontSize: 13,
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 16),
+                                Wrap(
+                                  spacing: 12,
+                                  runSpacing: 8,
+                                  children: [
+                                    CinematicStadiumButton(
+                                      label: 'Watch',
+                                      icon: Icons.play_arrow_rounded,
+                                      onPressed:
+                                          movie == null ||
+                                              movie.stream.streamUrl.isEmpty
+                                          ? null
+                                          : onWatch,
+                                    ),
+                                    CinematicStadiumButton(
+                                      label: inMyList
+                                          ? 'In My List'
+                                          : 'My List',
+                                      icon: inMyList
+                                          ? Icons.check_rounded
+                                          : Icons.add_rounded,
+                                      onPressed: movie == null
+                                          ? null
+                                          : onMyList,
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
               ),
             ],
@@ -327,7 +347,11 @@ class _HeroStageState extends State<_HeroStage> {
     }
     return _KenBurnsChild(
       enabled: w.kenBurns,
-      child: CinematicTitlePlaceholder(title: w.title, hero: true),
+      child: CinematicTitlePlaceholder(
+        title: w.title,
+        hero: true,
+        showLabels: false,
+      ),
     );
   }
 
@@ -382,10 +406,7 @@ class _KenBurnsStill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _KenBurnsChild(
-      enabled: true,
-      child: _StillImage(url: url),
-    );
+    return _KenBurnsChild(enabled: true, child: _StillImage(url: url));
   }
 }
 
@@ -395,10 +416,7 @@ class _KenBurnsChild extends StatefulWidget {
   final Widget child;
   final bool enabled;
 
-  const _KenBurnsChild({
-    required this.child,
-    required this.enabled,
-  });
+  const _KenBurnsChild({required this.child, required this.enabled});
 
   @override
   State<_KenBurnsChild> createState() => _KenBurnsChildState();
@@ -417,9 +435,10 @@ class _KenBurnsChildState extends State<_KenBurnsChild>
       vsync: this,
       duration: CinematicMotion.kenBurns,
     );
-    _scale = Tween<double>(begin: 1.0, end: 1.04).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
-    );
+    _scale = Tween<double>(
+      begin: 1.0,
+      end: 1.04,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
     _drift = Tween<Offset>(
       begin: const Offset(-0.012, 0),
       end: const Offset(0.012, 0),
@@ -470,10 +489,7 @@ class _PortraitCinematicBg extends StatelessWidget {
   final String url;
   final bool kenBurns;
 
-  const _PortraitCinematicBg({
-    required this.url,
-    required this.kenBurns,
-  });
+  const _PortraitCinematicBg({required this.url, required this.kenBurns});
 
   @override
   Widget build(BuildContext context) {
@@ -511,8 +527,9 @@ class _PortraitCinematicBg extends StatelessWidget {
             child: AspectRatio(
               aspectRatio: 2 / 3,
               child: ClipRRect(
-                borderRadius:
-                    BorderRadius.circular(CinematicTokens.radiusPoster),
+                borderRadius: BorderRadius.circular(
+                  CinematicTokens.radiusPoster,
+                ),
                 child: CachedNetworkImage(
                   imageUrl: url,
                   fit: BoxFit.cover,

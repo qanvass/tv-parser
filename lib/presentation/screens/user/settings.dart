@@ -115,7 +115,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       case _TvSettingsSection.sources:
         return 2 + _savedAccounts.length; // refresh + add + saved
       case _TvSettingsSection.playback:
-        return 2; // quality + hero preview
+        return 3; // quality + hero preview + subtitle size
       case _TvSettingsSection.local:
         return 3; // toggle + market + reset
       case _TvSettingsSection.diagnostics:
@@ -142,6 +142,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       blockedDuplicate: false,
       routeBefore: Get.currentRoute,
     );
+    // Arm before popping: this press's key up reaches the shell next.
+    TvBackGate.noteRoutePopped();
     Get.back();
   }
 
@@ -324,9 +326,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       case _TvSettingsSection.playback:
         if (idx == 0) {
           _showQualityModeSelection();
-        } else {
+        } else if (idx == 1) {
           setState(() => _heroPreviewMode = CinematicPrefs.cycle());
           _snack('Hero preview: ${CinematicPrefs.label(_heroPreviewMode)}');
+        } else {
+          _cycleSubtitleSize();
         }
         break;
       case _TvSettingsSection.local:
@@ -572,7 +576,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _showMarketSelectionDialog() {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
           backgroundColor: const Color(0xFF161618),
           shape: RoundedRectangleBorder(
@@ -587,31 +591,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           content: SizedBox(
-            width: double.maxFinite,
+            width: 420,
             child: ListView.builder(
               shrinkWrap: true,
               itemCount: LocalMarketService.supportedMarkets.length,
               itemBuilder: (context, index) {
                 final market = LocalMarketService.supportedMarkets[index];
                 final isSelected = market.displayName == _activeMarketName;
-                return ListTile(
-                  title: Text(
-                    market.displayName,
-                    style: TextStyle(
-                      color: isSelected ? Colors.amber : Colors.white70,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal,
-                    ),
-                  ),
-                  trailing: isSelected
-                      ? const Icon(Icons.check, color: Colors.amber)
-                      : null,
-                  onTap: () {
+                return _TvDialogOptionTile(
+                  autofocus: isSelected || index == 0,
+                  title: market.displayName,
+                  isSelected: isSelected,
+                  onSelect: () {
                     LocalMarketService.setActiveMarket(market.id);
                     setState(() {
                       _activeMarketName = market.displayName;
                     });
-                    Navigator.of(context).pop();
+                    Navigator.of(dialogContext).pop();
                     _snack("Market changed to ${market.displayName}");
                   },
                 );
@@ -620,7 +616,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => Navigator.of(dialogContext).pop(),
               child: const Text(
                 "Close",
                 style: TextStyle(
@@ -819,6 +815,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: CinematicPrefs.label(_heroPreviewMode),
               isFocused: _detailPanelActive && _detailIdx == 1,
               onTap: () => _handleTvDetailAction(section, 1),
+            ),
+            const SizedBox(height: 12),
+            _SettingsAction(
+              icon: FontAwesomeIcons.closedCaptioning.data,
+              label: 'Subtitle Size',
+              subtitle: 'Current: $_subtitleSize (Small · Medium · Large)',
+              isFocused: _detailPanelActive && _detailIdx == 2,
+              onTap: () => _handleTvDetailAction(section, 2),
             ),
           ],
         );
@@ -1262,7 +1266,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _showQualityModeSelection() {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
           backgroundColor: const Color(0xFF161618),
           shape: RoundedRectangleBorder(
@@ -1285,14 +1289,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildQualityOption("Fast Start", "Live 1500ms / VOD 4000ms"),
+              _buildQualityOption(
+                dialogContext,
+                "Fast Start",
+                "Live 1500ms / VOD 4000ms",
+              ),
               const SizedBox(height: 10),
               _buildQualityOption(
+                dialogContext,
                 "Balanced",
                 "Live 2500ms / VOD 6000ms (Recommended)",
               ),
               const SizedBox(height: 10),
               _buildQualityOption(
+                dialogContext,
                 "Smooth Playback",
                 "Live 3500ms / VOD 8000ms",
               ),
@@ -1300,7 +1310,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => Navigator.of(dialogContext).pop(),
               child: const Text(
                 "Close",
                 style: TextStyle(
@@ -1315,59 +1325,131 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ).then((_) => _restoreFocus());
   }
 
-  Widget _buildQualityOption(String mode, String subtitle) {
+  Widget _buildQualityOption(
+    BuildContext dialogContext,
+    String mode,
+    String subtitle,
+  ) {
     final isSelected = _currentQualityMode == mode;
-    return InkWell(
-      onTap: () {
+    return _TvDialogOptionTile(
+      autofocus: isSelected,
+      title: mode,
+      subtitle: subtitle,
+      isSelected: isSelected,
+      onSelect: () {
         final box = GetStorage("preferences");
         box.write("stream_quality", mode);
         setState(() {
           _currentQualityMode = mode;
         });
-        Navigator.of(context).pop();
+        Navigator.of(dialogContext).pop();
         _snack("Quality profile set to $mode");
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? Colors.white.withOpacity(0.06)
-              : Colors.transparent,
+    );
+  }
+}
+
+class _TvDialogOptionTile extends StatefulWidget {
+  final String title;
+  final String? subtitle;
+  final bool isSelected;
+  final bool autofocus;
+  final VoidCallback onSelect;
+
+  const _TvDialogOptionTile({
+    required this.title,
+    this.subtitle,
+    required this.isSelected,
+    this.autofocus = false,
+    required this.onSelect,
+  });
+
+  @override
+  State<_TvDialogOptionTile> createState() => _TvDialogOptionTileState();
+}
+
+class _TvDialogOptionTileState extends State<_TvDialogOptionTile> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = _focused || widget.isSelected;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Focus(
+        autofocus: widget.autofocus,
+        onFocusChange: (v) => setState(() => _focused = v),
+        onKeyEvent: (node, event) {
+          if (event is! KeyDownEvent) return KeyEventResult.ignored;
+          final k = event.logicalKey;
+          if (k == LogicalKeyboardKey.select ||
+              k == LogicalKeyboardKey.enter ||
+              k == LogicalKeyboardKey.gameButtonA ||
+              k == LogicalKeyboardKey.space) {
+            widget.onSelect();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: InkWell(
+          canRequestFocus: false,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isSelected ? Colors.amber : Colors.white10,
-            width: isSelected ? 1.5 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-              color: isSelected ? Colors.amber : Colors.white30,
-              size: 14,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    mode,
-                    style: TextStyle(
-                      color: isSelected ? Colors.white : Colors.white70,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    subtitle,
-                    style: TextStyle(color: Colors.white38, fontSize: 11),
-                  ),
-                ],
+          onTap: widget.onSelect,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: _focused
+                  ? Colors.amber.withValues(alpha: 0.16)
+                  : widget.isSelected
+                      ? Colors.white.withValues(alpha: 0.06)
+                      : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: _focused
+                    ? kColorFocus
+                    : (widget.isSelected ? Colors.amber : Colors.white10),
+                width: _focused ? 2.0 : (widget.isSelected ? 1.5 : 1),
               ),
             ),
-          ],
+            child: Row(
+              children: [
+                Icon(
+                  widget.isSelected
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_off,
+                  color: active ? Colors.amber : Colors.white30,
+                  size: 16,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.title,
+                        style: TextStyle(
+                          color: active ? Colors.white : Colors.white70,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (widget.subtitle != null) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          widget.subtitle!,
+                          style: const TextStyle(
+                            color: Colors.white54,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

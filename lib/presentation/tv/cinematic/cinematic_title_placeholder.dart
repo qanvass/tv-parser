@@ -8,10 +8,15 @@ class CinematicTitlePlaceholder extends StatelessWidget {
   final String title;
   final bool hero;
 
+  /// False draws only the gradient — for backgrounds that already render
+  /// their own title (e.g. the hero), so text never ghosts underneath.
+  final bool showLabels;
+
   const CinematicTitlePlaceholder({
     super.key,
     required this.title,
     this.hero = false,
+    this.showLabels = true,
   });
 
   static int hueFor(String title) {
@@ -57,53 +62,58 @@ class CinematicTitlePlaceholder extends StatelessWidget {
               ),
             ),
           ),
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              hero ? 22 : 10,
-              hero ? 22 : 10,
-              hero ? 22 : 10,
-              hero ? 22 : 10,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.35),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.22),
+          if (showLabels)
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                hero ? 22 : 10,
+                hero ? 22 : 10,
+                hero ? 22 : 10,
+                hero ? 22 : 10,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.22),
+                      ),
+                    ),
+                    child: Text(
+                      'MOVIE',
+                      style: TextStyle(
+                        color: CinematicTokens.textSecondary.withValues(
+                          alpha: 0.95,
+                        ),
+                        fontSize: hero ? 11 : 9,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.1,
+                      ),
                     ),
                   ),
-                  child: Text(
-                    'MOVIE',
+                  const Spacer(),
+                  Text(
+                    label,
+                    maxLines: hero ? 3 : 3,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: CinematicTokens.textSecondary
-                          .withValues(alpha: 0.95),
-                      fontSize: hero ? 11 : 9,
+                      color: CinematicTokens.textPrimary.withValues(
+                        alpha: 0.92,
+                      ),
+                      fontSize: hero ? 28 : 13,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 1.1,
+                      height: 1.15,
                     ),
                   ),
-                ),
-                const Spacer(),
-                Text(
-                  label,
-                  maxLines: hero ? 3 : 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: CinematicTokens.textPrimary
-                        .withValues(alpha: 0.92),
-                    fontSize: hero ? 28 : 13,
-                    fontWeight: FontWeight.w800,
-                    height: 1.15,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
         ],
       ),
     );

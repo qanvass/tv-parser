@@ -1,7 +1,11 @@
 import 'package:mbark_iptv/repository/models/category.dart';
 
 class ProviderCurationRules {
-  static const String adultUnlockPin = '12345';
+  static const String adultUnlockPin = '4321';
+
+  /// "X Rated", "X-Rated", "XRated", "Rated X" (whole words only).
+  static final RegExp _xRated =
+      RegExp(r'(^|[^a-z0-9])(x[\s_-]?rated|rated[\s_-]?x)($|[^a-z0-9])');
 
   /// Determines if a category or channel name is considered Adult/18+.
   static bool isAdultCategory(String name) {
@@ -10,7 +14,8 @@ class ProviderCurationRules {
       'adult', 'xxx', '18+', 'porn', 'porno', 'nude', 'erotic', 'sex',
       'playboy', 'hustler', 'private', 'mature'
     ];
-    return adultKeywords.any((keyword) => lower.contains(keyword));
+    return adultKeywords.any((keyword) => lower.contains(keyword)) ||
+        _xRated.hasMatch(lower);
   }
 
   /// Determines if a category/channel should be hidden from the normal dashboard or search.

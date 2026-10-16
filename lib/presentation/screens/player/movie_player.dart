@@ -328,8 +328,14 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
 
   bool _isPlaying = false;
   bool _isBuffering = true;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
   String? _castDevice;
   bool _isCastPlaying = true;
+
+  // Seek HUD feedback
+  String? _seekHudText;
+  Timer? _seekHudTimer;
 
   bool _showControls = true;
   Timer? _hideTimer;
@@ -344,7 +350,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
   int _aspectIdx = 0;
 
   int _focusRow = 1;
-  int _focusCol = 0;
+  int _focusCol = 1; // default: Play/Pause
   final _focusNode = FocusNode();
   final Stopwatch _stopwatch = Stopwatch();
   final _backGate = TvBackGate();
@@ -435,6 +441,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
       } catch (_) {}
     }
     _hideTimer?.cancel();
+    _seekHudTimer?.cancel();
     _focusNode.dispose();
     OrientationGuard.applyPlayerExitOrientation();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -447,6 +454,8 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
     setState(() {
       _isPlaying = v.isPlaying;
       _isBuffering = !v.isInitialized || v.isBuffering;
+      _position = v.position;
+      _duration = v.duration;
     });
     if (v.isInitialized && _stopwatch.isRunning) {
       _stopwatch.stop();
@@ -468,6 +477,91 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
       _tracksLoaded = true;
       _loadTracks();
     }
+  }
+
+  void _showSeekHud(String text) {
+    _seekHudTimer?.cancel();
+    setState(() => _seekHudText = text);
+    _seekHudTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (mounted) setState(() => _seekHudText = null);
+    });
+  }
+
+  Future<void> _rewind10s() async {
+    try {
+      final t = _position - const Duration(seconds: 10);
+      await _ctrl.seekTo(t < Duration.zero ? Duration.zero : t);
+      _showSeekHud('-10s');
+    } catch (_) {}
+    _scheduleHide();
+  }
+
+  Future<void> _forward10s() async {
+    try {
+      final t = _position + const Duration(seconds: 10);
+      if (_duration > Duration.zero && t >= _duration) {
+        await _ctrl.seekTo(_duration);
+        _showSeekHud('LIVE');
+      } else {
+        await _ctrl.seekTo(t);
+        _showSeekHud('+10s');
+      }
+    } catch (_) {}
+    _scheduleHide();
+  }
+
+  Widget _buildSeekHud() {
+    if (_seekHudText == null) return const SizedBox.shrink();
+    final isRewind = _seekHudText!.contains('-');
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Center(
+          child: AnimatedOpacity(
+            opacity: _seekHudText != null ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 200),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.8),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: kColorPrimary.withValues(alpha: 0.6),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: kColorPrimary.withValues(alpha: 0.35),
+                    blurRadius: 20,
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isRewind
+                        ? FontAwesomeIcons.rotateLeft.data
+                        : FontAwesomeIcons.rotateRight.data,
+                    color: kColorFocus,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    _seekHudText!,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _loadTracks() async {
@@ -669,6 +763,24 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
       return KeyEventResult.handled;
     }
 
+    // Direct Remote Media Keys
+    if (k == LogicalKeyboardKey.mediaRewind ||
+        k == LogicalKeyboardKey.mediaSkipBackward) {
+      _rewind10s();
+      return KeyEventResult.handled;
+    }
+    if (k == LogicalKeyboardKey.mediaFastForward ||
+        k == LogicalKeyboardKey.mediaSkipForward) {
+      _forward10s();
+      return KeyEventResult.handled;
+    }
+    if (k == LogicalKeyboardKey.mediaPlayPause ||
+        k == LogicalKeyboardKey.mediaPlay ||
+        k == LogicalKeyboardKey.mediaPause) {
+      _togglePlay();
+      return KeyEventResult.handled;
+    }
+
     if (!_showControls) {
       setState(() => _showControls = true);
       _scheduleHide();
@@ -687,15 +799,14 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
       if (_focusRow == 0)
         setState(() {
           _focusRow = 1;
-          _focusCol = _focusCol.clamp(0, 1);
+          _focusCol = _focusCol.clamp(0, 3);
         });
       _scheduleHide();
     } else if (k == LogicalKeyboardKey.arrowLeft) {
       if (_focusCol > 0) setState(() => _focusCol--);
       _scheduleHide();
     } else if (k == LogicalKeyboardKey.arrowRight) {
-      final maxCol = _focusRow == 0 ? 3 : 1;
-      if (_focusCol < maxCol) setState(() => _focusCol++);
+      if (_focusCol < 3) setState(() => _focusCol++);
       _scheduleHide();
     } else if (_isSelectKey(k)) {
       _activate();
@@ -713,6 +824,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
       context: context,
       builder: (context) => CastSelectionDialog(
         controller: _ctrl,
+        mediaTitle: widget.title,
         currentCastDevice: _castDevice,
         onCastSelected: (device) {
           setState(() {
@@ -752,8 +864,12 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
     } else {
       switch (_focusCol) {
         case 0:
-          _togglePlay();
+          _rewind10s();
         case 1:
+          _togglePlay();
+        case 2:
+          _forward10s();
+        case 3:
           _cycleAspect();
       }
     }
@@ -883,10 +999,20 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
                       placeholder: const SizedBox(),
                     ),
 
-                  // 2. Gesture Detector to toggle controls
+                  // 2. Gesture Detector to toggle controls & double tap seek
                   if (!_isCheckingHealth && !_isDeadStream && _castDevice == null)
                     GestureDetector(
                       onTap: _toggleControls,
+                      onDoubleTapDown: (details) {
+                        final w = MediaQuery.of(context).size.width;
+                        if (details.globalPosition.dx < w * 0.35) {
+                          _rewind10s();
+                        } else if (details.globalPosition.dx > w * 0.65) {
+                          _forward10s();
+                        } else {
+                          _togglePlay();
+                        }
+                      },
                       behavior: HitTestBehavior.opaque,
                       child: const SizedBox.expand(),
                     ),
@@ -900,7 +1026,11 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
                       ),
                     ),
 
-                  // 4. Controls Overlay
+                  // 4. Seek HUD overlay
+                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null)
+                    _buildSeekHud(),
+
+                  // 5. Controls Overlay
                   if (!_isCheckingHealth && !_isDeadStream && _castDevice == null)
                     AnimatedOpacity(
                       opacity: _showControls ? 1.0 : 0.0,
@@ -911,7 +1041,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
                       ),
                     ),
 
-                  // 5. Track Selector Panel
+                  // 6. Track Selector Panel
                   if (!_isCheckingHealth && !_isDeadStream && _castDevice == null && _trackPanel != null)
                     _VodTrackPanel(
                       isSub: _trackPanel == 'sub',
@@ -920,13 +1050,13 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
                       onSelect: _selectTrack,
                     ),
 
-                  // 6. Loading screen overlay
+                  // 7. Loading screen overlay
                   if (_isCheckingHealth)
                     const Positioned.fill(
                       child: TvParserStreamLoadingOverlay(),
                     ),
 
-                  // 7. Dead Stream Overlay (D-pad focusable actions)
+                  // 8. Dead Stream Overlay (D-pad focusable actions)
                   if (!_isCheckingHealth && _isDeadStream)
                     _DeadStreamOverlay(
                       focusedIdx: _deadActionIdx,
@@ -938,7 +1068,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
                       onBack: () => _commitLiveExit(source: 'chrome'),
                     ),
 
-                  // 8. Chromecast Overlay
+                  // 9. Chromecast Overlay
                   if (!_isCheckingHealth && !_isDeadStream && supportsCasting() && _castDevice != null)
                     Positioned.fill(
                       child: _buildCastOverlay(context),
@@ -1102,17 +1232,31 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
         child: Row(
           children: [
             _FsBtn(
+              icon: FontAwesomeIcons.rotateLeft.data,
+              label: '10s',
+              isFocused: _isFocused(1, 0),
+              onTap: _rewind10s,
+            ),
+            const SizedBox(width: 8),
+            _FsBtn(
               icon: _isPlaying ? FontAwesomeIcons.pause.data : FontAwesomeIcons.play.data,
               label: _isPlaying ? 'Pause' : 'Play',
-              isFocused: _isFocused(1, 0),
+              isFocused: _isFocused(1, 1),
               isLarge: true,
               onTap: _togglePlay,
+            ),
+            const SizedBox(width: 8),
+            _FsBtn(
+              icon: FontAwesomeIcons.rotateRight.data,
+              label: '10s',
+              isFocused: _isFocused(1, 2),
+              onTap: _forward10s,
             ),
             const Spacer(),
             _FsBtn(
               icon: FontAwesomeIcons.expand.data,
               label: _kVodAspects[_aspectIdx],
-              isFocused: _isFocused(1, 1),
+              isFocused: _isFocused(1, 3),
               onTap: _cycleAspect,
             ),
           ],
@@ -1154,6 +1298,10 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
   Duration _duration = Duration.zero;
   String? _castDevice;
   bool _isCastPlaying = true;
+
+  // Seek HUD feedback
+  String? _seekHudText;
+  Timer? _seekHudTimer;
 
   // Controls visibility
   bool _showControls = true;
@@ -1237,6 +1385,7 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
       } catch (_) {}
     }
     _hideTimer?.cancel();
+    _seekHudTimer?.cancel();
     _focusNode.dispose();
     OrientationGuard.applyPlayerExitOrientation();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -1317,20 +1466,84 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
     _scheduleHide();
   }
 
+  void _showSeekHud(String text) {
+    _seekHudTimer?.cancel();
+    setState(() => _seekHudText = text);
+    _seekHudTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (mounted) setState(() => _seekHudText = null);
+    });
+  }
+
   Future<void> _rewind10s() async {
     try {
-      final t = _position - const Duration(seconds: 30);
+      final t = _position - const Duration(seconds: 10);
       await _ctrl.seekTo(t < Duration.zero ? Duration.zero : t);
+      _showSeekHud('-10s');
     } catch (_) {}
     _scheduleHide();
   }
 
   Future<void> _forward10s() async {
     try {
-      final t = _position + const Duration(seconds: 30);
+      final t = _position + const Duration(seconds: 10);
       await _ctrl.seekTo(t > _duration ? _duration : t);
+      _showSeekHud('+10s');
     } catch (_) {}
     _scheduleHide();
+  }
+
+  Widget _buildSeekHud() {
+    if (_seekHudText == null) return const SizedBox.shrink();
+    final isRewind = _seekHudText!.contains('-');
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Center(
+          child: AnimatedOpacity(
+            opacity: _seekHudText != null ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 200),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.8),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: kColorPrimary.withValues(alpha: 0.6),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: kColorPrimary.withValues(alpha: 0.35),
+                    blurRadius: 20,
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isRewind
+                        ? FontAwesomeIcons.rotateLeft.data
+                        : FontAwesomeIcons.rotateRight.data,
+                    color: kColorFocus,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    _seekHudText!,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _cycleAspect() async {
@@ -1494,6 +1707,24 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
       return KeyEventResult.handled;
     }
 
+    // Direct Remote Media Keys
+    if (k == LogicalKeyboardKey.mediaRewind ||
+        k == LogicalKeyboardKey.mediaSkipBackward) {
+      _rewind10s();
+      return KeyEventResult.handled;
+    }
+    if (k == LogicalKeyboardKey.mediaFastForward ||
+        k == LogicalKeyboardKey.mediaSkipForward) {
+      _forward10s();
+      return KeyEventResult.handled;
+    }
+    if (k == LogicalKeyboardKey.mediaPlayPause ||
+        k == LogicalKeyboardKey.mediaPlay ||
+        k == LogicalKeyboardKey.mediaPause) {
+      _togglePlay();
+      return KeyEventResult.handled;
+    }
+
     // Controls hidden: directional / select shows them
     if (!_showControls) {
       setState(() => _showControls = true);
@@ -1539,6 +1770,7 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
       context: context,
       builder: (context) => CastSelectionDialog(
         controller: _ctrl,
+        mediaTitle: widget.title,
         currentCastDevice: _castDevice,
         onCastSelected: (device) {
           setState(() {
@@ -1702,10 +1934,20 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
                       placeholder: const SizedBox(),
                     ),
 
-                  // 2. Gesture Detector to toggle controls
+                  // 2. Gesture Detector to toggle controls & double tap seek
                   if (!_isCheckingHealth && !_isDeadStream && _castDevice == null)
                     GestureDetector(
                       onTap: _toggleControls,
+                      onDoubleTapDown: (details) {
+                        final w = MediaQuery.of(context).size.width;
+                        if (details.globalPosition.dx < w * 0.35) {
+                          _rewind10s();
+                        } else if (details.globalPosition.dx > w * 0.65) {
+                          _forward10s();
+                        } else {
+                          _togglePlay();
+                        }
+                      },
                       behavior: HitTestBehavior.opaque,
                       child: const SizedBox.expand(),
                     ),
@@ -1719,7 +1961,11 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
                       ),
                     ),
 
-                  // 4. Controls Overlay
+                  // 4. Seek HUD overlay
+                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null)
+                    _buildSeekHud(),
+
+                  // 5. Controls Overlay
                   if (!_isCheckingHealth && !_isDeadStream && _castDevice == null)
                     AnimatedOpacity(
                       opacity: _showControls ? 1.0 : 0.0,
@@ -1730,7 +1976,7 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
                       ),
                     ),
 
-                  // 5. Track Selector Panel
+                  // 6. Track Selector Panel
                   if (!_isCheckingHealth && !_isDeadStream && _castDevice == null && _trackPanel != null)
                     _VodTrackPanel(
                       isSub: _trackPanel == 'sub',
@@ -1739,13 +1985,13 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
                       onSelect: _selectTrack,
                     ),
 
-                  // 6. Loading screen overlay
+                  // 7. Loading screen overlay
                   if (_isCheckingHealth)
                     const Positioned.fill(
                       child: TvParserStreamLoadingOverlay(),
                     ),
 
-                  // 7. Dead Stream Overlay (D-pad focusable actions)
+                  // 8. Dead Stream Overlay (D-pad focusable actions)
                   if (!_isCheckingHealth && _isDeadStream)
                     _DeadStreamOverlay(
                       focusedIdx: _deadActionIdx,
@@ -1756,7 +2002,7 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
                       onBack: _goBack,
                     ),
 
-                  // 8. Chromecast Overlay
+                  // 9. Chromecast Overlay
                   if (!_isCheckingHealth && !_isDeadStream && supportsCasting() && _castDevice != null)
                     Positioned.fill(
                       child: _buildCastOverlay(context),
@@ -1866,7 +2112,7 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
           children: [
             _FsBtn(
               icon: FontAwesomeIcons.rotateLeft.data,
-              label: '',
+              label: '10s',
               isFocused: _isFocused(1, 0),
               onTap: _rewind10s,
             ),
@@ -1881,7 +2127,7 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
             SizedBox(width: 8),
             _FsBtn(
               icon: FontAwesomeIcons.rotateRight.data,
-              label: '',
+              label: '10s',
               isFocused: _isFocused(1, 2),
               onTap: _forward10s,
             ),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer';
 
 import 'package:dio/dio.dart';
@@ -21,6 +22,31 @@ class ChannelLogoResolverService {
 
   static final Map<String, Future<String?>> _inFlight = {};
 
+  /// Per-session results so scrolling back over a card never re-hits the
+  /// network: verified URLs, and names that resolved to nothing.
+  static final Map<String, String> _verified = {};
+  static final Set<String> _unresolved = {};
+
+  /// Max concurrent lookups — a grid of missing logos must not flood the
+  /// network and starve stream playback on Chromecast.
+  static const int _maxConcurrent = 3;
+  static int _active = 0;
+  static final List<Completer<void>> _waiters = [];
+
+  static Future<void> _acquire() async {
+    while (_active >= _maxConcurrent) {
+      final c = Completer<void>();
+      _waiters.add(c);
+      await c.future;
+    }
+    _active++;
+  }
+
+  static void _release() {
+    _active--;
+    if (_waiters.isNotEmpty) _waiters.removeAt(0).complete();
+  }
+
   /// Returns a working logo URL or null (caller shows initials).
   static Future<String?> resolveLogo({
     required String channelName,
@@ -30,61 +56,92 @@ class ChannelLogoResolverService {
     if (normalized.isEmpty) return null;
 
     final cacheKey = normalized;
-    final cached = await ChannelIntelligenceCache.readLogo(cacheKey);
-    if (cached != null && await _urlExists(cached)) {
-      return cached;
+    final known = _verified[cacheKey];
+    if (known != null) return known;
+    if (_unresolved.contains(cacheKey)) return null;
+
+    final pending = _inFlight[cacheKey];
+    if (pending != null) return pending;
+    final future = _resolveUncached(cacheKey, channelName, primaryUrl);
+    _inFlight[cacheKey] = future;
+    final result = await future;
+    if (result != null) {
+      _verified[cacheKey] = result;
+    } else {
+      _unresolved.add(cacheKey);
     }
+    return result;
+  }
 
-    return _inFlight.putIfAbsent(cacheKey, () async {
-      try {
-        if (primaryUrl != null &&
-            primaryUrl.trim().isNotEmpty &&
-            await _urlExists(primaryUrl.trim())) {
-          await ChannelIntelligenceCache.writeLogo(cacheKey, primaryUrl.trim());
-          return primaryUrl.trim();
-        }
-
-        final cleaned = _cleanDisplayName(channelName);
-
-        // Wikipedia thumbnail (brand-neutral lookup by playlist name).
-        final wiki = await _wikipediaThumbnail(cleaned);
-        if (wiki != null) {
-          await ChannelIntelligenceCache.writeLogo(cacheKey, wiki);
-          return wiki;
-        }
-
-        // Clearbit + Google favicon from guessed domain.
-        for (final domain in _guessDomains(cleaned)) {
-          final clearbit = 'https://logo.clearbit.com/$domain';
-          if (await _urlExists(clearbit)) {
-            await ChannelIntelligenceCache.writeLogo(cacheKey, clearbit);
-            return clearbit;
-          }
-          final favicon =
-              'https://www.google.com/s2/favicons?domain=$domain&sz=128';
-          if (await _urlExists(favicon)) {
-            await ChannelIntelligenceCache.writeLogo(cacheKey, favicon);
-            return favicon;
-          }
-        }
-
-        // Optional Gemini domain hint (feature-flagged).
-        final geminiDomain =
-            await GeminiChannelIntelligenceService.suggestLogoDomain(cleaned);
-        if (geminiDomain != null && geminiDomain.isNotEmpty) {
-          final clearbit = 'https://logo.clearbit.com/$geminiDomain';
-          if (await _urlExists(clearbit)) {
-            await ChannelIntelligenceCache.writeLogo(cacheKey, clearbit);
-            return clearbit;
-          }
-        }
-      } catch (e) {
-        log('[LogoResolver] failed for "$channelName": $e');
-      } finally {
-        _inFlight.remove(cacheKey);
+  static Future<String?> _resolveUncached(
+    String cacheKey,
+    String channelName,
+    String? primaryUrl,
+  ) async {
+    await _acquire();
+    try {
+      final cached = await ChannelIntelligenceCache.readLogo(cacheKey);
+      if (cached != null && await _urlExists(cached)) {
+        return cached;
       }
-      return null;
-    });
+      return await _lookup(cacheKey, channelName, primaryUrl);
+    } finally {
+      _release();
+      _inFlight.remove(cacheKey);
+    }
+  }
+
+  static Future<String?> _lookup(
+    String cacheKey,
+    String channelName,
+    String? primaryUrl,
+  ) async {
+    try {
+      if (primaryUrl != null &&
+          primaryUrl.trim().isNotEmpty &&
+          await _urlExists(primaryUrl.trim())) {
+        await ChannelIntelligenceCache.writeLogo(cacheKey, primaryUrl.trim());
+        return primaryUrl.trim();
+      }
+
+      final cleaned = _cleanDisplayName(channelName);
+
+      // Wikipedia thumbnail (brand-neutral lookup by playlist name).
+      final wiki = await _wikipediaThumbnail(cleaned);
+      if (wiki != null) {
+        await ChannelIntelligenceCache.writeLogo(cacheKey, wiki);
+        return wiki;
+      }
+
+      // Clearbit + Google favicon from guessed domain.
+      for (final domain in _guessDomains(cleaned)) {
+        final clearbit = 'https://logo.clearbit.com/$domain';
+        if (await _urlExists(clearbit)) {
+          await ChannelIntelligenceCache.writeLogo(cacheKey, clearbit);
+          return clearbit;
+        }
+        final favicon =
+            'https://www.google.com/s2/favicons?domain=$domain&sz=128';
+        if (await _urlExists(favicon)) {
+          await ChannelIntelligenceCache.writeLogo(cacheKey, favicon);
+          return favicon;
+        }
+      }
+
+      // Optional Gemini domain hint (feature-flagged).
+      final geminiDomain =
+          await GeminiChannelIntelligenceService.suggestLogoDomain(cleaned);
+      if (geminiDomain != null && geminiDomain.isNotEmpty) {
+        final clearbit = 'https://logo.clearbit.com/$geminiDomain';
+        if (await _urlExists(clearbit)) {
+          await ChannelIntelligenceCache.writeLogo(cacheKey, clearbit);
+          return clearbit;
+        }
+      }
+    } catch (e) {
+      log('[LogoResolver] failed for "$channelName": $e');
+    }
+    return null;
   }
 
   static String _normalize(String name) =>
@@ -95,9 +152,19 @@ class ChannelLogoResolverService {
     text = text.replaceAll(RegExp(r'\([^)]*\)'), '');
     text = text.replaceAll(RegExp(r'\[[^\]]*\]'), '');
     final noise = [
-      r'\bhd\b', r'\bfhd\b', r'\b4k\b', r'\buhd\b', r'\bsd\b',
-      r'\busa\b', r'\bus\b', r'\buk\b', r'\ben\b', r'\blive\b',
-      r'\bchannel\b', r'\btv\b', r'\+\d+',
+      r'\bhd\b',
+      r'\bfhd\b',
+      r'\b4k\b',
+      r'\buhd\b',
+      r'\bsd\b',
+      r'\busa\b',
+      r'\bus\b',
+      r'\buk\b',
+      r'\ben\b',
+      r'\blive\b',
+      r'\bchannel\b',
+      r'\btv\b',
+      r'\+\d+',
     ];
     for (final n in noise) {
       text = text.replaceAll(RegExp(n, caseSensitive: false), ' ');

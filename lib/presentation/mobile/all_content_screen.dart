@@ -10,6 +10,7 @@ import '../../logic/blocs/categories/series_caty/series_caty_bloc.dart';
 import '../../logic/cubits/favorites/favorites_cubit.dart';
 import '../../repository/api/api.dart';
 import '../../repository/api/content_intelligence_service.dart';
+import '../../repository/api/local_proximity.dart';
 import '../../repository/api/search_index_service.dart';
 import '../../repository/api/ai_intent_mapper.dart';
 import '../../repository/models/channel_live.dart';
@@ -133,7 +134,12 @@ class _AllContentScreenState extends State<AllContentScreen> {
           filtered,
           (c) => c.name ?? c.streamId ?? '',
         );
-        if (mounted) setState(() => _loadedStreams = deduped);
+        final ordered = LocalProximity.orderIfLocal(
+          category.categoryName,
+          deduped,
+          (c) => c.name ?? '',
+        );
+        if (mounted) setState(() => _loadedStreams = ordered);
       } else if (_currentMode == BrowseMode.movies) {
         final data = await api.getMovieChannels(category.categoryId ?? '');
         final filtered = data
@@ -749,6 +755,9 @@ class _AllContentScreenState extends State<AllContentScreen> {
               title: title,
               imageUrl: coverUrl,
               aspect: PosterAspect.vertical,
+              artType: item is ChannelSerie
+                  ? ContentType.series
+                  : (item is ChannelMovie ? ContentType.movie : null),
               isFavorite: isFav,
               onLongPress: () => _toggleItemFavorite(item, isFav),
               onTap: () => _onItemTapped(item),

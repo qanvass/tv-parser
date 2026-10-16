@@ -66,12 +66,42 @@ class TmdbEnrichmentWorker extends ChangeNotifier {
   final Duration _pumpDelay;
   final Queue<TmdbEnqueueRequest> _queue = Queue<TmdbEnqueueRequest>();
   final Set<String> _queued = {};
+  final Map<String, ValueNotifier<UnifiedMediaMetadata?>> _keyNotifiers = {};
 
   bool _pumping = false;
 
   bool get isEnabled => _client.isEnabled;
 
   UnifiedMediaMetadata? lookup(String key) => _cache.get(key);
+
+  /// Per-key [ValueListenable] so individual poster/channel cards and hero
+  /// panels only rebuild when their own [key] resolves, avoiding global
+  /// 200-card rebuild storms every pump tick.
+  ValueListenable<UnifiedMediaMetadata?> notifierFor(String key) {
+    final existing = _keyNotifiers[key];
+    if (existing != null) {
+      final cached = _cache.get(key);
+      if (cached != null && existing.value == null) {
+        existing.value = cached;
+      }
+      return existing;
+    }
+    final notifier = ValueNotifier<UnifiedMediaMetadata?>(_cache.get(key));
+    _keyNotifiers[key] = notifier;
+    return notifier;
+  }
+
+  void _syncLoadedNotifiers() {
+    if (_keyNotifiers.isEmpty) return;
+    for (final entry in _keyNotifiers.entries) {
+      if (entry.value.value == null) {
+        final cached = _cache.get(entry.key);
+        if (cached != null) {
+          entry.value.value = cached;
+        }
+      }
+    }
+  }
 
   /// Debug-only counters for the v3008 rebuild audit. Release stays silent.
   @visibleForTesting
@@ -103,6 +133,7 @@ class TmdbEnrichmentWorker extends ChangeNotifier {
   Future<void> ensureStarted() async {
     if (!_client.isEnabled) return;
     await _cache.load();
+    _syncLoadedNotifiers();
   }
 
   void prioritize(TmdbEnqueueRequest request) {
@@ -149,6 +180,7 @@ class TmdbEnrichmentWorker extends ChangeNotifier {
     if (!_client.isEnabled) return;
     _pumping = true;
     await _cache.load();
+    _syncLoadedNotifiers();
     try {
       while (_queue.isNotEmpty) {
         final job = _queue.removeFirst();
@@ -178,6 +210,10 @@ class TmdbEnrichmentWorker extends ChangeNotifier {
               (meta.backdropUrl != null && meta.backdropUrl!.isNotEmpty);
           if (gotArt || meta.source == MetadataSource.tmdb) {
             await _cache.putHit(job.key, meta);
+            final keyNotifier = _keyNotifiers[job.key];
+            if (keyNotifier != null) {
+              keyNotifier.value = meta;
+            }
             notifyListeners();
           } else {
             // Transient empty result — TTL miss, not a permanent skip.

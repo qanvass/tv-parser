@@ -443,15 +443,16 @@ class IptvProviderSession {
     // ignore: unawaited_futures
     XmlTvRepository.instance.ensureLoaded(playlistUrl: url);
 
-    // Warm + optionally sync VOD off the critical path. Never call
-    // getM3uMovies/getM3uSeries here — that sync-parses multi-MB JSON and
-    // freezes Chromecast before/after splash.
-    if (kind == IptvProviderKind.m3uStarlite) {
-      final extracted =
-          ApolloNativeCatalogSession.extractListCredentials(url);
-      // ignore: unawaited_futures
-      Future(() async {
-        await LocaleApi.warmM3uMovieCache();
+    // Session owns VOD warm (single-flight in LocaleApi). Screens may await
+    // the same Futures; they must not start a second JSON decode.
+    // Never call getM3uMovies/getM3uSeries here before warm — that sync-parses
+    // multi-MB JSON and freezes Chromecast before/after splash.
+    // ignore: unawaited_futures
+    Future(() async {
+      await LocaleApi.warmM3uMovieCache();
+      if (kind == IptvProviderKind.m3uStarlite) {
+        final extracted =
+            ApolloNativeCatalogSession.extractListCredentials(url);
         if (LocaleApi.getM3uMovies().isEmpty) {
           await _syncVodAfterLive(
             usernameHint: extracted?.$1,
@@ -460,17 +461,18 @@ class IptvProviderSession {
         } else {
           onMoviesCatalogReady?.call();
         }
-        // ignore: unawaited_futures
-        LocaleApi.warmM3uSeriesCache().then((_) {
-          if (LocaleApi.getM3uSeries().isEmpty) {
-            // ignore: unawaited_futures
-            syncStarliteSeriesIfNeeded();
-          } else {
-            onSeriesCatalogReady?.call();
-          }
-        });
+      }
+      // ignore: unawaited_futures
+      LocaleApi.warmM3uSeriesCache().then((_) {
+        if (kind != IptvProviderKind.m3uStarlite) return;
+        if (LocaleApi.getM3uSeries().isEmpty) {
+          // ignore: unawaited_futures
+          syncStarliteSeriesIfNeeded();
+        } else {
+          onSeriesCatalogReady?.call();
+        }
       });
-    }
+    });
   }
 
   List<CategoryModel> categoriesForAction(String action) {

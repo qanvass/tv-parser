@@ -88,7 +88,7 @@ class TvBackGate {
   TvBackGate({DateTime Function()? now}) : _now = now ?? DateTime.now;
 
   static const Duration samePressWindow = Duration(milliseconds: 300);
-  static const Duration shellExitSuppressWindow = Duration(milliseconds: 400);
+  static const Duration shellExitSuppressWindow = Duration(milliseconds: 800);
 
   static DateTime? _suppressShellExitUntil;
 

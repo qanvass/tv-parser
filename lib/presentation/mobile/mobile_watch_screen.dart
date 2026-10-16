@@ -13,6 +13,10 @@ import '../../logic/cubits/watch/watching_cubit.dart';
 import '../../logic/cubits/favorites/favorites_cubit.dart';
 import '../../repository/api/api.dart';
 import '../../repository/api/content_intelligence_service.dart';
+import '../../repository/api/local_proximity.dart';
+import '../tv/series_shelf_planner.dart';
+import 'widgets/mobile_cast_button.dart';
+import '../../repository/provider/tmdb_enrichment_worker.dart';
 import '../../repository/api/row_curation_service.dart';
 import '../../repository/api/user_behavior_service.dart';
 import '../../repository/models/category.dart';
@@ -74,6 +78,8 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
   @override
   void initState() {
     super.initState();
+    // Poster cache for cards without playlist artwork.
+    TmdbEnrichmentWorker.instance.ensureStarted();
     _loadAllCuration();
     _checkOnboarding();
   }
@@ -614,6 +620,50 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
 
   /// Unified Curation loader prefetching all playlist records into memory
   /// and building rows utilizing strict Curation Row Rules
+  /// The search index covers the whole catalog; build it once per session.
+  static bool _searchIndexBuilt = false;
+
+  /// Per-show playlists (one group per show, 100k episodes): curation only
+  /// needs one entry per show, not every episode copied to the isolate.
+  static List<ChannelSerie> _seriesForCuration(List<ChannelSerie> all) {
+    final cats = LocaleApi.getM3uSeriesCategories();
+    if (!SeriesShelfPlanner.looksPerShow(cats)) return all;
+    final showName = <String, String>{
+      for (final c in cats)
+        if (c.categoryId != null) c.categoryId!: SeriesShelfPlanner.showTitle(c),
+    };
+    final seen = <String>{};
+    return [
+      for (final s in all)
+        if (seen.add(s.categoryId ?? s.seriesId ?? s.name ?? ''))
+          ChannelSerie(
+            num: s.num,
+            // Show card, not "Show S01 E01".
+            name: showName[s.categoryId] ?? s.name,
+            seriesId: s.seriesId,
+            cover: s.cover,
+            plot: s.plot,
+            rating: s.rating,
+            rating5based: s.rating5based,
+            categoryId: s.categoryId,
+            directSource: s.directSource,
+          ),
+    ];
+  }
+
+  /// "For You" must not suggest another city's locals (e.g. ABC Wausau).
+  static List<RankedItem<dynamic>> _dropFarLocals(
+    List<RankedItem<dynamic>> picks,
+  ) {
+    final market = LocalProximity.activeMarket();
+    if (market == null) return picks;
+    return LocalProximity.nearbyOnly(
+      picks,
+      market,
+      (p) => p.item is ChannelLive ? ((p.item as ChannelLive).name ?? '') : '',
+    );
+  }
+
   Future<void> _loadAllCuration() async {
     if (mounted) setState(() => _loadingVod = true);
 
@@ -621,7 +671,10 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
       final api = IpTvApi();
       final allLives = await api.getLiveChannels("");
       final allMovies = await api.getMovieChannels("");
-      await SearchIndexService.indexMovies(movies: allMovies);
+      final buildIndex = !_searchIndexBuilt;
+      if (buildIndex) {
+        await SearchIndexService.indexMovies(movies: allMovies);
+      }
       final allSeries = await api.getSeriesChannels("");
 
       final profile = UserPreferenceProfile.load();
@@ -652,12 +705,15 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
       }
 
       // Build search index asynchronously (does not block UI thread)
-      SearchIndexService.buildIndex(
-        liveChannels: allLives,
-        movies: allMovies,
-        series: allSeries,
-        adultCategoryIds: adultCategoryIds,
-      );
+      if (buildIndex) {
+        _searchIndexBuilt = true;
+        SearchIndexService.buildIndex(
+          liveChannels: allLives,
+          movies: allMovies,
+          series: allSeries,
+          adultCategoryIds: adultCategoryIds,
+        );
+      }
 
       // Load active Live Spotlight events
       final spots = await EventDiscoveryService.getSpotlightEvents(
@@ -672,7 +728,7 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
       final curationParams = CurationParams(
         lives: allLives,
         movies: allMovies,
-        series: allSeries,
+        series: _seriesForCuration(allSeries),
         profile: profile,
         categories: categories,
       );
@@ -690,7 +746,7 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
           _featuredSeries = curationResult.featuredSeries;
           _sportsChannels = curationResult.sports;
           _recommendedLiveChannels = curationResult.news;
-          _conciergePicks = curationResult.concierge;
+          _conciergePicks = _dropFarLocals(curationResult.concierge);
           _spotlightEvents = spots;
           _allLiveChannelsForMatching = allLives;
           _premiumPlusItems = curationResult.premiumPlusItems;
@@ -852,10 +908,22 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
         sorted,
         (c) => c.name ?? c.streamId ?? '',
       );
+      String? categoryName;
+      for (final c in [...categories, ...LocaleApi.getM3uCategories()]) {
+        if (c.categoryId == categoryId) {
+          categoryName = c.categoryName;
+          break;
+        }
+      }
+      final ordered = LocalProximity.orderIfLocal(
+        categoryName,
+        deduped,
+        (c) => c.name ?? '',
+      );
 
       if (mounted) {
         setState(() {
-          _currentCategoryLiveChannels = deduped;
+          _currentCategoryLiveChannels = ordered;
           _loadingLiveChannels = false;
         });
       }
@@ -1179,6 +1247,7 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
               return PosterCard(
                 title: movie.name ?? 'Movie',
                 imageUrl: movie.streamIcon,
+                artType: ContentType.movie,
                 aspect: PosterAspect.vertical,
                 isFavorite: isFav,
                 ratingBadge: movie.rating != null ? "⭐ ${movie.rating}" : null,
@@ -1217,6 +1286,7 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
               return PosterCard(
                 title: serie.name ?? 'Series',
                 imageUrl: serie.cover,
+                artType: ContentType.series,
                 aspect: PosterAspect.vertical,
                 isFavorite: isFav,
                 ratingBadge: serie.rating != null ? "⭐ ${serie.rating}" : null,
@@ -1514,6 +1584,7 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                 ),
               ),
               const SizedBox(width: 12),
+              const MobileCastButton(),
               // Obvious Search Trigger button in Header
               IconButton(
                 icon: const Icon(
@@ -1536,12 +1607,18 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
     if (!profile.locationFeatureEnabled || activeMarket == null)
       return const SizedBox();
 
-    final localChannels = LocalMarketService.getLocalChannelsForCategory(
+    final localMatches = LocalMarketService.getLocalChannelsForCategory(
       categoryKey: 'all',
       market: activeMarket,
       playlist: _allLiveChannelsForMatching,
     );
 
+    // Playlists often list the same station twice (different stream ids).
+    final seenNames = <String>{};
+    final localChannels = [
+      for (final ch in localMatches)
+        if (seenNames.add((ch.name ?? ch.streamId ?? '').trim().toLowerCase())) ch,
+    ];
     if (localChannels.isEmpty) return const SizedBox();
 
     final favState = context.watch<FavoritesCubit>().state;

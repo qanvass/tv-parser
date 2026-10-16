@@ -1,5 +1,39 @@
 part of '../api/api.dart';
 
+List<CategoryModel> _parseCategoriesIsolate(String content) {
+  final raw = jsonDecode(content);
+  if (raw is! List) return <CategoryModel>[];
+  return raw
+      .map((e) => CategoryModel.fromJson(Map<String, dynamic>.from(e as Map)))
+      .toList();
+}
+
+List<ChannelLive> _parseLiveChannelsIsolate(String content) {
+  final raw = jsonDecode(content);
+  if (raw is! List) return <ChannelLive>[];
+  return raw
+      .map((e) => ChannelLive.fromJson(Map<String, dynamic>.from(e as Map)))
+      .toList();
+}
+
+List<ChannelMovie> _parseMoviesIsolate(String content) {
+  final raw = jsonDecode(content);
+  if (raw is! List) return <ChannelMovie>[];
+  return raw
+      .map((e) => ChannelMovie.fromJson(Map<String, dynamic>.from(e as Map)))
+      .toList();
+}
+
+List<ChannelSerie> _parseSeriesIsolate(String content) {
+  final raw = jsonDecode(content);
+  if (raw is! List) return <ChannelSerie>[];
+  return raw
+      .map((e) => ChannelSerie.fromJson(Map<String, dynamic>.from(e as Map)))
+      .toList();
+}
+
+String _encodeJsonListIsolate(List<dynamic> payload) => jsonEncode(payload);
+
 class LocaleApi {
   static List<CategoryModel>? _m3uCategoriesMem;
   static List<ChannelLive>? _m3uChannelsMem;
@@ -8,6 +42,14 @@ class LocaleApi {
   static List<CategoryModel>? _m3uSeriesCategoriesMem;
   static List<ChannelSerie>? _m3uSeriesMem;
   static Directory? _m3uDir;
+
+  static const int _isolateStringThreshold = 32768;
+  static const int _isolateEncodeItemThreshold = 500;
+
+  /// Single-flight VOD warm — concurrent callers share one Future (no double JSON decode).
+  static Future<void>? _movieWarmInFlight;
+  static Future<void>? _seriesWarmInFlight;
+  static int _catalogJobSeq = 0;
 
   static Future<bool> saveUser(UserModel user) async {
     try {
@@ -38,12 +80,20 @@ class LocaleApi {
       await locale.remove("user");
       await locale.remove("m3u_categories");
       await locale.remove("m3u_channels");
+      await locale.remove("m3u_categories_count");
+      await locale.remove("m3u_channels_count");
+      await locale.remove("m3u_movie_categories_count");
+      await locale.remove("m3u_movies_count");
+      await locale.remove("m3u_series_categories_count");
+      await locale.remove("m3u_series_count");
       _m3uCategoriesMem = null;
       _m3uChannelsMem = null;
       _m3uMovieCategoriesMem = null;
       _m3uMoviesMem = null;
       _m3uSeriesCategoriesMem = null;
       _m3uSeriesMem = null;
+      _movieWarmInFlight = null;
+      _seriesWarmInFlight = null;
       try {
         final dir = await _ensureM3uDir();
         for (final name in [
@@ -86,20 +136,16 @@ class LocaleApi {
       final chFile = File('${dir.path}/m3u_channels.json');
 
       if (await catFile.exists()) {
-        final raw = jsonDecode(await catFile.readAsString());
-        if (raw is List) {
-          _m3uCategoriesMem = raw
-              .map((e) => CategoryModel.fromJson(Map<String, dynamic>.from(e)))
-              .toList();
-        }
+        final content = await catFile.readAsString();
+        _m3uCategoriesMem = content.length >= _isolateStringThreshold
+            ? await compute(_parseCategoriesIsolate, content)
+            : _parseCategoriesIsolate(content);
       }
       if (await chFile.exists()) {
-        final raw = jsonDecode(await chFile.readAsString());
-        if (raw is List) {
-          _m3uChannelsMem = raw
-              .map((e) => ChannelLive.fromJson(Map<String, dynamic>.from(e)))
-              .toList();
-        }
+        final content = await chFile.readAsString();
+        _m3uChannelsMem = content.length >= _isolateStringThreshold
+            ? await compute(_parseLiveChannelsIsolate, content)
+            : _parseLiveChannelsIsolate(content);
       }
 
       // Legacy GetStorage fallback for small playlists only.
@@ -126,9 +172,17 @@ class LocaleApi {
   }
 
   /// Movies file cache only — opening Movies must not decode series JSON.
-  static Future<void> warmM3uMovieCache() async {
+  /// Concurrent callers share one in-flight Future (no overlapping JSON decode).
+  static Future<void> warmM3uMovieCache() {
+    if (_m3uMoviesMem != null) return Future.value();
+    return _movieWarmInFlight ??= _warmM3uMovieCacheBody();
+  }
+
+  static Future<void> _warmM3uMovieCacheBody() async {
+    final job = ++_catalogJobSeq;
+    final movieWatch = Stopwatch()..start();
+    debugPrint('[CATALOG_JOB] movie warm START job=$job');
     try {
-      final movieWatch = Stopwatch()..start();
       final dir = await _ensureM3uDir();
       final movieFile = File('${dir.path}/m3u_movies.json');
       if (await movieFile.exists()) {
@@ -136,14 +190,17 @@ class LocaleApi {
       }
       await _warmTypedList<CategoryModel>(
         '${dir.path}/m3u_movie_categories.json',
-        (e) => CategoryModel.fromJson(Map<String, dynamic>.from(e)),
+        _parseCategoriesIsolate,
         (list) => _m3uMovieCategoriesMem = list,
       );
       await _warmTypedList<ChannelMovie>(
         '${dir.path}/m3u_movies.json',
-        (e) => ChannelMovie.fromJson(Map<String, dynamic>.from(e)),
+        _parseMoviesIsolate,
         (list) => _m3uMoviesMem = list,
       );
+      // Mark warmed even when file missing so we do not re-decode every call.
+      _m3uMoviesMem ??= <ChannelMovie>[];
+      _m3uMovieCategoriesMem ??= <CategoryModel>[];
       CatalogPerf.span('movie_json_decode_ms', movieWatch.elapsedMilliseconds);
       CatalogPerf.span('movie_cache_read_ms', movieWatch.elapsedMilliseconds);
       CatalogPerf.count('movieCount', _m3uMoviesMem?.length ?? 0);
@@ -162,13 +219,27 @@ class LocaleApi {
       );
     } catch (e) {
       debugPrint("[M3U] warm movie cache error: $e");
+    } finally {
+      debugPrint(
+        '[CATALOG_JOB] movie warm END job=$job '
+        'ms=${movieWatch.elapsedMilliseconds}',
+      );
+      _movieWarmInFlight = null;
     }
   }
 
   /// Series file cache only — independent of Movies.
-  static Future<void> warmM3uSeriesCache() async {
+  /// Concurrent callers share one in-flight Future (no overlapping JSON decode).
+  static Future<void> warmM3uSeriesCache() {
+    if (_m3uSeriesMem != null) return Future.value();
+    return _seriesWarmInFlight ??= _warmM3uSeriesCacheBody();
+  }
+
+  static Future<void> _warmM3uSeriesCacheBody() async {
+    final job = ++_catalogJobSeq;
+    final seriesWatch = Stopwatch()..start();
+    debugPrint('[CATALOG_JOB] series warm START job=$job');
     try {
-      final seriesWatch = Stopwatch()..start();
       final dir = await _ensureM3uDir();
       final seriesFile = File('${dir.path}/m3u_series.json');
       if (await seriesFile.exists()) {
@@ -176,14 +247,16 @@ class LocaleApi {
       }
       await _warmTypedList<CategoryModel>(
         '${dir.path}/m3u_series_categories.json',
-        (e) => CategoryModel.fromJson(Map<String, dynamic>.from(e)),
+        _parseCategoriesIsolate,
         (list) => _m3uSeriesCategoriesMem = list,
       );
       await _warmTypedList<ChannelSerie>(
         '${dir.path}/m3u_series.json',
-        (e) => ChannelSerie.fromJson(Map<String, dynamic>.from(e)),
+        _parseSeriesIsolate,
         (list) => _m3uSeriesMem = list,
       );
+      _m3uSeriesMem ??= <ChannelSerie>[];
+      _m3uSeriesCategoriesMem ??= <CategoryModel>[];
       CatalogPerf.span('series_json_decode_ms', seriesWatch.elapsedMilliseconds);
       CatalogPerf.span('series_cache_read_ms', seriesWatch.elapsedMilliseconds);
       CatalogPerf.count('seriesCount', _m3uSeriesMem?.length ?? 0);
@@ -202,6 +275,12 @@ class LocaleApi {
       );
     } catch (e) {
       debugPrint("[M3U] warm series cache error: $e");
+    } finally {
+      debugPrint(
+        '[CATALOG_JOB] series warm END job=$job '
+        'ms=${seriesWatch.elapsedMilliseconds}',
+      );
+      _seriesWarmInFlight = null;
     }
   }
 
@@ -214,14 +293,17 @@ class LocaleApi {
 
   static Future<void> _warmTypedList<T>(
     String path,
-    T Function(dynamic) map,
+    List<T> Function(String) parseIsolate,
     void Function(List<T>) assign,
   ) async {
     final file = File(path);
     if (!await file.exists()) return;
-    final raw = jsonDecode(await file.readAsString());
-    if (raw is! List) return;
-    assign(raw.map(map).toList());
+    final content = await file.readAsString();
+    if (content.isEmpty) return;
+    final parsed = content.length >= _isolateStringThreshold
+        ? await compute(parseIsolate, content)
+        : parseIsolate(content);
+    assign(parsed);
   }
 
   static Future<Directory> _ensureM3uDir() async {
@@ -240,10 +322,11 @@ class LocaleApi {
     try {
       final dir = await _ensureM3uDir();
       final file = File('${dir.path}/m3u_categories.json');
-      await file.writeAsString(
-        jsonEncode(categories.map((e) => e.toJson()).toList()),
-        flush: true,
-      );
+      final payload = categories.map((e) => e.toJson()).toList();
+      final encoded = payload.length >= _isolateEncodeItemThreshold
+          ? await compute(_encodeJsonListIsolate, payload)
+          : jsonEncode(payload);
+      await file.writeAsString(encoded, flush: true);
       // Keep a tiny marker in GetStorage so older builds know M3U is active.
       try {
         await locale.write("m3u_categories_count", categories.length);
@@ -286,10 +369,11 @@ class LocaleApi {
     try {
       final dir = await _ensureM3uDir();
       final file = File('${dir.path}/m3u_channels.json');
-      await file.writeAsString(
-        jsonEncode(channels.map((e) => e.toJson()).toList()),
-        flush: true,
-      );
+      final payload = channels.map((e) => e.toJson()).toList();
+      final encoded = payload.length >= _isolateEncodeItemThreshold
+          ? await compute(_encodeJsonListIsolate, payload)
+          : jsonEncode(payload);
+      await file.writeAsString(encoded, flush: true);
       try {
         await locale.write("m3u_channels_count", channels.length);
         // Drop legacy blob that can blow SharedPreferences (~1MB binder cap).
@@ -399,9 +483,22 @@ class LocaleApi {
         decodeMsKey: 'movie_json_decode_ms',
       );
 
-  /// UI-only length. Does not copy the catalog ([getM3uMovies] still does).
-  static int getM3uMovieCount() =>
-      _m3uMoviesMem?.length ?? getM3uMovies().length;
+  /// UI-only length. O(1) — never triggers synchronous multi-MB file decode in build().
+  static int getM3uMovieCount() {
+    if (_m3uMoviesMem != null) return _m3uMoviesMem!.length;
+    try {
+      final dynamic stored = locale.read('m3u_movies_count');
+      if (stored is int) return stored;
+      if (stored is num) return stored.toInt();
+    } catch (_) {}
+    try {
+      if (_m3uDir != null) {
+        final file = File('${_m3uDir!.path}/m3u_movies.json');
+        if (file.existsSync() && file.lengthSync() > 2) return 1;
+      }
+    } catch (_) {}
+    return 0;
+  }
 
   static Future<bool> saveM3uSeriesCategories(
     List<CategoryModel> categories,
@@ -445,9 +542,22 @@ class LocaleApi {
         decodeMsKey: 'series_json_decode_ms',
       );
 
-  /// UI-only length. Does not copy the catalog ([getM3uSeries] still does).
-  static int getM3uSeriesCount() =>
-      _m3uSeriesMem?.length ?? getM3uSeries().length;
+  /// UI-only length. O(1) — never triggers synchronous multi-MB file decode in build().
+  static int getM3uSeriesCount() {
+    if (_m3uSeriesMem != null) return _m3uSeriesMem!.length;
+    try {
+      final dynamic stored = locale.read('m3u_series_count');
+      if (stored is int) return stored;
+      if (stored is num) return stored.toInt();
+    } catch (_) {}
+    try {
+      if (_m3uDir != null) {
+        final file = File('${_m3uDir!.path}/m3u_series.json');
+        if (file.existsSync() && file.lengthSync() > 2) return 1;
+      }
+    } catch (_) {}
+    return 0;
+  }
 
   static Future<bool> _writeM3uJson(
     String fileName,
@@ -456,12 +566,15 @@ class LocaleApi {
     required int count,
   }) async {
     try {
-      final dir = await _ensureM3uDir();
-      final file = File('${dir.path}/$fileName');
-      await file.writeAsString(jsonEncode(payload), flush: true);
       try {
         await locale.write(countKey, count);
       } catch (_) {}
+      final dir = await _ensureM3uDir();
+      final file = File('${dir.path}/$fileName');
+      final encoded = payload.length >= _isolateEncodeItemThreshold
+          ? await compute(_encodeJsonListIsolate, payload)
+          : jsonEncode(payload);
+      await file.writeAsString(encoded, flush: true);
       return true;
     } catch (e) {
       debugPrint("Error save $fileName: $e");

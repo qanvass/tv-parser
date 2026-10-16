@@ -493,6 +493,7 @@ class _MobileSearchScreenState extends State<MobileSearchScreen> {
                                       return PosterCard(
                                         title: movie.name ?? 'Movie VOD',
                                         imageUrl: movie.streamIcon,
+                                        artType: ContentType.movie,
                                         aspect: PosterAspect.vertical,
                                         isFavorite: isFav,
                                         ratingBadge: movie.rating != null
@@ -553,6 +554,7 @@ class _MobileSearchScreenState extends State<MobileSearchScreen> {
                                       return PosterCard(
                                         title: serie.name ?? 'Series',
                                         imageUrl: serie.cover,
+                                        artType: ContentType.series,
                                         aspect: PosterAspect.vertical,
                                         isFavorite: isFav,
                                         ratingBadge: serie.rating != null

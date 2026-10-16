@@ -18,6 +18,7 @@ import 'logic/cubits/watch/watching_cubit.dart';
 import 'presentation/screens/screens.dart';
 import 'presentation/mobile/adult_content_screen.dart';
 import 'presentation/tv/tv_search_screen.dart';
+import 'presentation/tv/live_rows_prebuild.dart';
 
 void main() async {
   // Ensure Flutter engine bindings are initialized prior to loading services
@@ -77,11 +78,11 @@ class _MyAppState extends State<MyApp> {
     // can play and Live shell can appear without main-isolate stalls.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await LocaleApi.warmM3uCache();
+      // Session owns Movie/Series warm — do not start a second decode here.
       await IptvProviderSession.instance.hydrateFromLocale();
+      // Build the Live home rows while the splash reel plays.
       // ignore: unawaited_futures
-      LocaleApi.warmM3uMovieCache();
-      // ignore: unawaited_futures
-      LocaleApi.warmM3uSeriesCache();
+      LiveRowsPrebuild.warm();
       // ignore: unawaited_futures
       XmlTvRepository.instance.ensureLoaded(
         playlistUrl: IptvProviderSession.instance.playlistUrl,

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:android_tv_text_field/native_textfield_tv.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -8,6 +9,7 @@ import 'package:get/get.dart';
 import '../../../helpers/helpers.dart';
 import '../../../repository/api/ai_intent_mapper.dart';
 import '../../../repository/api/api.dart';
+import '../../../repository/api/artwork_url_resolver.dart';
 import '../../../repository/api/search_index_service.dart';
 import '../../../repository/api/user_behavior_service.dart';
 import '../../../repository/models/category.dart';
@@ -16,9 +18,13 @@ import '../../../repository/models/channel_movie.dart';
 import '../../../repository/models/channel_serie.dart';
 import '../../../repository/models/user_preference_profile.dart';
 import '../../../repository/provider/title_normalizer.dart';
+import '../../../repository/provider/tmdb_enrichment_worker.dart';
 import '../screens/screens.dart';
 import '../shared/widgets/stream_launcher.dart';
-import 'cinematic/cinematic_poster_card.dart';
+import 'cinematic/cinematic_artwork.dart';
+import 'cinematic/cinematic_title_placeholder.dart';
+import 'cinematic/cinematic_tokens.dart';
+import 'widgets/tv_artwork_shimmer.dart';
 import 'widgets/tv_channel_grid.dart';
 
 /// Android TV search destination backed by [SearchIndexService] + M3U/session catalog.
@@ -375,6 +381,111 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
     );
   }
 
+  /// Same enrichment key / poster resolution as Movies rails — Search only.
+  TvStreamRecord _movieSearchRecord(ChannelMovie m) {
+    final poster = ArtworkUrlResolver.resolveVodPoster(streamIcon: m.streamIcon);
+    final parsed = TitleNormalizer.parse(m.name ?? '');
+    final title = parsed.displayTitle.isEmpty
+        ? (m.name ?? 'Movie')
+        : parsed.displayTitle;
+    final year = parsed.year;
+    final key = TmdbEnrichmentWorker.cacheKeyFor(
+      title,
+      m.streamId,
+      type: ContentType.movie,
+      year: year,
+      matchTitle: parsed.matchTitle,
+    );
+    return TvStreamRecord(
+      title: title,
+      subtitle: year != null ? '$year · Movie' : 'Movie',
+      streamUrl: m.directSource ?? m.streamId ?? '',
+      imageUrl: poster,
+      backdropUrl: ArtworkUrlResolver.resolveHeroBackdrop(posterFallback: poster),
+      year: year,
+      qualityLabel: parsed.qualityLabel,
+      posterStyle: TvPosterStyle.vodPortrait,
+      streamId: m.streamId,
+      tvgId: m.imdbId,
+      imdbId: m.imdbId,
+      trailerUrl: m.youtubeTrailer,
+      enrichmentKey: key,
+    );
+  }
+
+  TvStreamRecord _seriesSearchRecord(ChannelSerie s) {
+    final poster = ArtworkUrlResolver.resolveVodPoster(cover: s.cover);
+    final parsed = TitleNormalizer.parse(s.name ?? '');
+    final title = parsed.displayTitle.isEmpty
+        ? (s.name ?? 'Series')
+        : parsed.displayTitle;
+    final key = TmdbEnrichmentWorker.cacheKeyFor(
+      title,
+      s.seriesId,
+      type: ContentType.series,
+      year: parsed.year,
+      matchTitle: parsed.matchTitle,
+    );
+    return TvStreamRecord(
+      title: title,
+      subtitle: parsed.year != null
+          ? '${parsed.year} · Series'
+          : (parsed.episodeBadge ?? 'Series'),
+      streamUrl: s.directSource ?? s.seriesId ?? '',
+      imageUrl: poster,
+      backdropUrl: ArtworkUrlResolver.resolveHeroBackdrop(posterFallback: poster),
+      year: parsed.year,
+      qualityLabel: parsed.qualityLabel,
+      badge: parsed.episodeBadge,
+      season: parsed.season,
+      episode: parsed.episode,
+      overview: s.plot,
+      posterStyle: TvPosterStyle.vodPortrait,
+      streamId: s.seriesId,
+      enrichmentKey: key,
+    );
+  }
+
+  void _enqueueVisibleSearchTmdb({
+    required List<TvStreamRecord> movies,
+    required List<TvStreamRecord> series,
+  }) {
+    // ignore: unawaited_futures
+    TmdbEnrichmentWorker.instance.ensureStarted();
+    final reqs = <TmdbEnqueueRequest>[
+      for (final s in movies)
+        TmdbEnqueueRequest(
+          rawTitle: s.title,
+          providerId: s.streamId,
+          type: ContentType.movie,
+          posterUrl: s.imageUrl,
+          backdropUrl: s.backdropUrl,
+          trailerUrl: s.trailerUrl,
+          year: s.year,
+          imdbId: s.imdbId ?? s.tvgId,
+        ),
+      for (final s in series)
+        TmdbEnqueueRequest(
+          rawTitle: s.title,
+          providerId: s.streamId,
+          type: ContentType.series,
+          posterUrl: s.imageUrl,
+          backdropUrl: s.backdropUrl,
+          overview: s.overview,
+          year: s.year,
+        ),
+    ];
+    if (reqs.isNotEmpty) {
+      TmdbEnrichmentWorker.instance.enqueueMany(reqs);
+    }
+  }
+
+  static int _vodColumnCount(double width) {
+    if (width >= 900) return 5;
+    if (width >= 680) return 4;
+    return 3;
+  }
+
   @override
   Widget build(BuildContext context) {
     final total =
@@ -600,69 +711,48 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
   }
 
   Widget _buildResults(int total) {
-    final rows = <TvChannelRow>[];
     const maxPerSection = 40;
 
-    if (_liveResults.isNotEmpty) {
+    final liveStreams = _liveResults.take(maxPerSection).map((ch) {
+      return TvStreamRecord(
+        title: ch.name ?? 'Live',
+        subtitle: _groupFor(ch),
+        streamUrl: ch.directSource ?? ch.streamId ?? '',
+        imageUrl: ch.streamIcon,
+        posterStyle: TvPosterStyle.liveLandscape,
+      );
+    }).toList();
+
+    final movieStreams =
+        _movieResults.take(maxPerSection).map(_movieSearchRecord).toList();
+    final seriesStreams =
+        _seriesResults.take(maxPerSection).map(_seriesSearchRecord).toList();
+
+    // Only enrich what Search is about to show — never the whole catalog.
+    _enqueueVisibleSearchTmdb(movies: movieStreams, series: seriesStreams);
+
+    final rows = <TvChannelRow>[];
+    if (liveStreams.isNotEmpty) {
       rows.add(
         TvChannelRow(
           title: 'Live (${_liveResults.length})',
-          streams: _liveResults.take(maxPerSection).map((ch) {
-            return TvStreamRecord(
-              title: ch.name ?? 'Live',
-              subtitle: _groupFor(ch),
-              streamUrl: ch.directSource ?? ch.streamId ?? '',
-              imageUrl: ch.streamIcon,
-              posterStyle: TvPosterStyle.liveLandscape,
-            );
-          }).toList(),
+          streams: liveStreams,
         ),
       );
     }
-    if (_movieResults.isNotEmpty) {
+    if (movieStreams.isNotEmpty) {
       rows.add(
         TvChannelRow(
           title: 'Movies (${_movieResults.length})',
-          streams: _movieResults.take(maxPerSection).map((m) {
-            final parsed = TitleNormalizer.parse(m.name ?? '');
-            return TvStreamRecord(
-              title: parsed.displayTitle.isEmpty
-                  ? (m.name ?? 'Movie')
-                  : parsed.displayTitle,
-              subtitle: parsed.year != null ? '${parsed.year}' : 'Movie',
-              streamUrl: m.directSource ?? m.streamId ?? '',
-              imageUrl: m.streamIcon,
-              year: parsed.year,
-              qualityLabel: parsed.qualityLabel,
-              posterStyle: TvPosterStyle.vodPortrait,
-              streamId: m.streamId,
-              tvgId: m.imdbId,
-              imdbId: m.imdbId,
-              trailerUrl: m.youtubeTrailer,
-            );
-          }).toList(),
+          streams: movieStreams,
         ),
       );
     }
-    if (_seriesResults.isNotEmpty) {
+    if (seriesStreams.isNotEmpty) {
       rows.add(
         TvChannelRow(
           title: 'Series (${_seriesResults.length})',
-          streams: _seriesResults.take(maxPerSection).map((s) {
-            final parsed = TitleNormalizer.parse(s.name ?? '');
-            return TvStreamRecord(
-              title: parsed.displayTitle.isEmpty
-                  ? (s.name ?? 'Series')
-                  : parsed.displayTitle,
-              subtitle: parsed.episodeBadge ?? 'Series',
-              streamUrl: s.seriesId ?? '',
-              imageUrl: s.cover,
-              year: parsed.year,
-              badge: parsed.episodeBadge,
-              posterStyle: TvPosterStyle.vodPortrait,
-              streamId: s.seriesId,
-            );
-          }).toList(),
+          streams: seriesStreams,
         ),
       );
     }
@@ -752,35 +842,60 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
               ),
               const SizedBox(width: 22),
               Expanded(
-                child: GridView.builder(
-                  padding: const EdgeInsets.only(right: 8, bottom: 24),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: isVod ? 5 : 4,
-                    crossAxisSpacing: 14,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: isVod ? 0.52 : 1.15,
-                  ),
-                  itemCount: row.streams.length,
-                  itemBuilder: (context, i) {
-                    final stream = row.streams[i];
-                    final onSelected = () {
-                      if (row.title.startsWith('Live')) {
-                        _playLive(_liveResults[i]);
-                      } else if (row.title.startsWith('Movies')) {
-                        _playMovie(_movieResults[i]);
-                      } else {
-                        _openSeries(_seriesResults[i]);
-                      }
-                    };
-                    return stream.posterStyle == TvPosterStyle.vodPortrait
-                        ? CinematicPosterCard(
-                            stream: stream,
-                            onSelected: onSelected,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final columns = isVod
+                        ? _vodColumnCount(constraints.maxWidth)
+                        : 4;
+                    // Fixed row height for VOD: 210 poster + gap + 2-line title
+                    // + optional year line + focus-scale breathing room.
+                    final delegate = isVod
+                        ? SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: columns,
+                            crossAxisSpacing: 18,
+                            mainAxisSpacing: 20,
+                            mainAxisExtent: 258,
                           )
-                        : TvChannelCard(
-                            stream: stream,
-                            onSelected: onSelected,
+                        : SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: columns,
+                            crossAxisSpacing: 14,
+                            mainAxisSpacing: 16,
+                            childAspectRatio: 1.15,
                           );
+                    return GridView.builder(
+                      padding: const EdgeInsets.only(
+                        right: 8,
+                        bottom: 24,
+                        top: 8,
+                      ),
+                      gridDelegate: delegate,
+                      itemCount: row.streams.length,
+                      itemBuilder: (context, i) {
+                        final stream = row.streams[i];
+                        final onSelected = () {
+                          if (row.title.startsWith('Live')) {
+                            _playLive(_liveResults[i]);
+                          } else if (row.title.startsWith('Movies')) {
+                            _playMovie(_movieResults[i]);
+                          } else {
+                            _openSeries(_seriesResults[i]);
+                          }
+                        };
+                        if (stream.posterStyle == TvPosterStyle.vodPortrait) {
+                          return Align(
+                            alignment: Alignment.topCenter,
+                            child: _SearchVodPosterCard(
+                              stream: stream,
+                              onSelected: onSelected,
+                            ),
+                          );
+                        }
+                        return TvChannelCard(
+                          stream: stream,
+                          onSelected: onSelected,
+                        );
+                      },
+                    );
                   },
                 ),
               ),
@@ -847,6 +962,165 @@ class _RecentChipState extends State<_RecentChip> {
                 ),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Search-only VOD card: real posters + 2-line titles outside the image.
+/// Does not modify [CinematicPosterCard] (Movies stays frozen).
+class _SearchVodPosterCard extends StatefulWidget {
+  static const double posterW = 140;
+  static const double posterH = 210;
+
+  final TvStreamRecord stream;
+  final VoidCallback onSelected;
+
+  const _SearchVodPosterCard({
+    required this.stream,
+    required this.onSelected,
+  });
+
+  @override
+  State<_SearchVodPosterCard> createState() => _SearchVodPosterCardState();
+}
+
+class _SearchVodPosterCardState extends State<_SearchVodPosterCard> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    // Milder than Movies focus so scaled cards stay inside Search grid cells.
+    const focusScale = 1.05;
+    return Focus(
+      onFocusChange: (value) => setState(() => _focused = value),
+      onKeyEvent: (node, event) {
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        final k = event.logicalKey;
+        if (k == LogicalKeyboardKey.select ||
+            k == LogicalKeyboardKey.enter ||
+            k == LogicalKeyboardKey.gameButtonA ||
+            k == LogicalKeyboardKey.space) {
+          widget.onSelected();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: AnimatedScale(
+        scale: _focused ? focusScale : 1.0,
+        duration: CinematicMotion.focus,
+        curve: CinematicMotion.standard,
+        child: SizedBox(
+          width: _SearchVodPosterCard.posterW,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  canRequestFocus: false,
+                  onTap: widget.onSelected,
+                  borderRadius:
+                      BorderRadius.circular(CinematicTokens.radiusPoster),
+                  child: AnimatedContainer(
+                    duration: CinematicMotion.focus,
+                    width: _SearchVodPosterCard.posterW,
+                    height: _SearchVodPosterCard.posterH,
+                    decoration: BoxDecoration(
+                      borderRadius:
+                          BorderRadius.circular(CinematicTokens.radiusPoster),
+                      border: Border.all(
+                        width: _focused ? 1.4 : 0,
+                        color: _focused
+                            ? CinematicTokens.focus.withValues(alpha: 0.9)
+                            : Colors.transparent,
+                      ),
+                      boxShadow: _focused
+                          ? [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.45),
+                                blurRadius: 14,
+                                offset: const Offset(0, 8),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: ListenableBuilder(
+                      listenable: TmdbEnrichmentWorker.instance,
+                      builder: (context, _) {
+                        final extra = widget.stream.enrichmentKey == null
+                            ? null
+                            : TmdbEnrichmentWorker.instance
+                                .lookup(widget.stream.enrichmentKey!);
+                        final art = CinematicArtwork.fromRecord(
+                          widget.stream,
+                          extra: extra,
+                        );
+                        return Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            CinematicTitlePlaceholder(
+                              title: widget.stream.title,
+                            ),
+                            if (ArtworkUrlResolver.isUsableImageUrl(art.poster))
+                              Positioned.fill(
+                                child: CachedNetworkImage(
+                                  imageUrl: art.poster!,
+                                  fit: BoxFit.cover,
+                                  memCacheWidth: 320,
+                                  fadeInDuration: CinematicMotion.backdrop,
+                                  httpHeaders: ArtworkUrlResolver.imageHeaders,
+                                  placeholder: (_, _) =>
+                                      const TvArtworkShimmer(),
+                                  errorWidget: (_, _, _) =>
+                                      const SizedBox.expand(),
+                                ),
+                              ),
+                            if (_focused)
+                              const DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: Color(0x18FFFFFF),
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                widget.stream.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: _focused
+                      ? CinematicTokens.textPrimary
+                      : CinematicTokens.textSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  height: 1.2,
+                ),
+              ),
+              if (widget.stream.subtitle.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  widget.stream.subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.45),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ),

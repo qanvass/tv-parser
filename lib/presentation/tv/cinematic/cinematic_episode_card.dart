@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../repository/api/artwork_url_resolver.dart';
+import '../../../repository/provider/tmdb_enrichment_worker.dart';
 import '../widgets/tv_artwork_shimmer.dart';
 import '../widgets/tv_channel_grid.dart';
+import 'cinematic_artwork.dart';
 import 'cinematic_tokens.dart';
 
 /// 16:9 episode still. Uses already-grouped episode records only.
@@ -28,11 +30,29 @@ class CinematicEpisodeCard extends StatefulWidget {
 }
 
 class _CinematicEpisodeCardState extends State<CinematicEpisodeCard> {
+  static final Listenable _noopListenable = ValueNotifier<int>(0);
   bool _focused = false;
+
+  /// Provider still first; else the show's TMDB backdrop/poster (episodes
+  /// share the show's enrichment key) so rows are never blank tiles.
+  String? _stillFor(TvStreamRecord stream) {
+    final own = stream.backdropUrl ?? stream.imageUrl;
+    if (ArtworkUrlResolver.isUsableImageUrl(own)) return own;
+    final key = stream.enrichmentKey;
+    if (key == null) return own;
+    final art = CinematicArtwork.fromRecord(
+      stream,
+      extra: TmdbEnrichmentWorker.instance.lookup(key),
+    );
+    return art.episodeStill ?? art.backdrop ?? art.poster ?? own;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final still = widget.stream.backdropUrl ?? widget.stream.imageUrl;
+    final enrichmentKey = widget.stream.enrichmentKey;
+    final artListenable = enrichmentKey == null
+        ? _noopListenable
+        : TmdbEnrichmentWorker.instance.notifierFor(enrichmentKey);
     final progress = widget.stream.watchProgress ?? 0;
     final badge = widget.stream.badge;
     return Focus(
@@ -66,8 +86,9 @@ class _CinematicEpisodeCardState extends State<CinematicEpisodeCard> {
                 width: CinematicEpisodeCard.width,
                 height: CinematicEpisodeCard.height,
                 decoration: BoxDecoration(
-                  borderRadius:
-                      BorderRadius.circular(CinematicTokens.radiusPoster),
+                  borderRadius: BorderRadius.circular(
+                    CinematicTokens.radiusPoster,
+                  ),
                   border: Border.all(
                     width: _focused ? 1.4 : 0,
                     color: _focused
@@ -80,16 +101,23 @@ class _CinematicEpisodeCardState extends State<CinematicEpisodeCard> {
                   fit: StackFit.expand,
                   children: [
                     const ColoredBox(color: CinematicTokens.surface),
-                    if (ArtworkUrlResolver.isUsableImageUrl(still))
-                      CachedNetworkImage(
-                        imageUrl: still!,
-                        fit: BoxFit.cover,
-                        memCacheWidth: 480,
-                        placeholder: (_, _) => const TvArtworkShimmer(),
-                        errorWidget: (_, _, _) => const ColoredBox(
-                          color: CinematicTokens.surface,
-                        ),
-                      ),
+                    ListenableBuilder(
+                      listenable: artListenable,
+                      builder: (context, _) {
+                        final still = _stillFor(widget.stream);
+                        if (!ArtworkUrlResolver.isUsableImageUrl(still)) {
+                          return const SizedBox.expand();
+                        }
+                        return CachedNetworkImage(
+                          imageUrl: still!,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 480,
+                          placeholder: (_, _) => const TvArtworkShimmer(),
+                          errorWidget: (_, _, _) =>
+                              const ColoredBox(color: CinematicTokens.surface),
+                        );
+                      },
+                    ),
                     if (badge != null && badge.isNotEmpty)
                       Positioned(
                         left: 8,

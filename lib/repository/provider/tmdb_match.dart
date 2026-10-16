@@ -24,7 +24,8 @@ class TmdbMatch {
     if (q.isEmpty || r.isEmpty) return false;
     if (q != r) return false;
     if (queryYear != null && resultYear != null) {
-      return queryYear == resultYear;
+      // Exact title: allow ±1 year (festival vs. release, Dec/Jan premieres).
+      return (queryYear - resultYear).abs() <= 1;
     }
     // Exact name with no conflicting year is enough.
     return true;

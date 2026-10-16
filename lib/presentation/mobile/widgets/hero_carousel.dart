@@ -244,7 +244,13 @@ class _HeroCarouselState extends State<HeroCarousel> {
   Widget _buildCarouselItem(HeroCarouselItem movie, int index) {
     final title = movie.title;
     final imageUrl = movie.imageUrl ?? '';
-    final rating = movie.rawMovie.rating ?? '8.5';
+    final rawRating = movie.rawMovie.rating?.trim() ?? '';
+    final ratingValue = double.tryParse(rawRating);
+    final String? rating = (ratingValue != null && ratingValue > 0)
+        ? (ratingValue % 1 == 0
+            ? ratingValue.toStringAsFixed(0)
+            : ratingValue.toStringAsFixed(1))
+        : null;
 
     String tagText = "FEATURED MOVIE";
     Color tagColor = Colors.amber.shade700;
@@ -274,8 +280,11 @@ class _HeroCarouselState extends State<HeroCarousel> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Background static cover image
-          imageUrl.isNotEmpty
+          // Background: live channels show their logo crisp on a dark stage;
+          // movies use their backdrop full-bleed.
+          movie.isLive
+              ? _buildLiveStage(imageUrl, title, tagColor)
+              : imageUrl.isNotEmpty
               ? CachedNetworkImage(
                   imageUrl: imageUrl,
                   fit: BoxFit.cover,
@@ -318,7 +327,7 @@ class _HeroCarouselState extends State<HeroCarousel> {
                 // Movie Rating Badge & VOD Tag
                 Row(
                   children: [
-                    if (!movie.isLive) ...[
+                    if (!movie.isLive && rating != null) ...[
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
@@ -461,6 +470,73 @@ class _HeroCarouselState extends State<HeroCarousel> {
                 ),
                 const SizedBox(height: 20), // Lift above indicators
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Live slide backdrop: dark gradient with a soft accent glow and the
+  /// station logo at its natural size (never stretched), kept in the upper
+  /// area so the title and Play button below stay readable.
+  Widget _buildLiveStage(String logoUrl, String title, Color accent) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF15182B), Color(0xFF0B0C14), Color(0xFF050507)],
+        ),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(0.0, -0.35),
+                  radius: 0.75,
+                  colors: [
+                    accent.withValues(alpha: 0.28),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Align(
+            alignment: const Alignment(0.0, -0.38),
+            child: Container(
+              width: 168,
+              height: 168,
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.45),
+                    blurRadius: 30,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: logoUrl.isNotEmpty
+                  ? CachedNetworkImage(
+                      imageUrl: logoUrl,
+                      fit: BoxFit.contain,
+                      memCacheWidth: 360,
+                      fadeInDuration: const Duration(milliseconds: 250),
+                      errorWidget: (context, url, error) => const Icon(
+                        Icons.live_tv_rounded,
+                        color: Colors.white54,
+                        size: 56,
+                      ),
+                    )
+                  : const Icon(Icons.live_tv_rounded, color: Colors.white54, size: 56),
             ),
           ),
         ],

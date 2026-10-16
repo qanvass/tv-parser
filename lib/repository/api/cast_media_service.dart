@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:cast/cast.dart';
 import 'package:mbark_iptv/helpers/helpers.dart';
@@ -28,7 +29,8 @@ class CastDiagnosticsService {
       final String fullUrl = cleanDetails['url'].toString();
       try {
         final uri = Uri.parse(fullUrl);
-        cleanDetails['url'] = '${uri.scheme}://${uri.host}${uri.path} (sensitive params stripped)';
+        // Host only: provider paths often embed the account credentials.
+        cleanDetails['url'] = '${uri.scheme}://${uri.host}/… (path stripped)';
       } catch (_) {
         cleanDetails['url'] = '(invalid or obfuscated URL)';
       }
@@ -46,14 +48,27 @@ class CastMediaService {
 
   factory CastMediaService() => _instance;
 
+  static const String _defaultReceiverAppId = 'CC1AD845';
+
   CastSession? _session;
   CastDevice? _device;
   int? _mediaSessionId;
   bool _isCasting = false;
 
+  /// transportId of the launched Default Media Receiver. Media commands go
+  /// here directly: the cast package binds to whichever app reports first
+  /// (on Google TV often the home backdrop), which silently drops LOAD.
+  String? _appTransport;
+  final List<StreamSubscription<dynamic>> _subs = [];
+  final StreamController<Map<String, dynamic>> _messages =
+      StreamController<Map<String, dynamic>>.broadcast();
+
+  /// Connected device name (null when not casting) — drives cast icons.
+  final ValueNotifier<String?> connectedDevice = ValueNotifier<String?>(null);
+
   CastSession? get currentSession => _session;
   CastDevice? get selectedDevice => _device;
-  bool get isCasting => _isCasting;
+  bool get isCasting => _isCasting && _appTransport != null;
 
   /// Start discovery of Chromecast devices
   Future<List<CastDevice>> discoverDevices() async {
@@ -64,7 +79,8 @@ class CastMediaService {
     }
     CastDiagnosticsService.log('Starting Chromecast device scan...');
     try {
-      final devices = await CastDiscoveryService().search(timeout: const Duration(seconds: 4));
+      final devices = await CastDiscoveryService()
+          .search(timeout: const Duration(seconds: 5));
       CastDiagnosticsService.log('Scan complete. Found ${devices.length} devices.');
       return devices;
     } catch (e, stack) {
@@ -73,180 +89,290 @@ class CastMediaService {
     }
   }
 
-  /// Connect to a specific Chromecast device and launch default media receiver app
+  /// Connect, launch the Default Media Receiver and wait until it is ready.
   Future<bool> connectToDevice(CastDevice device) async {
     // TV gate: Cast is phone→TV only.
     if (!supportsCasting()) {
       CastDiagnosticsService.log('Blocked Cast connect on TV device.');
       return false;
     }
-    CastDiagnosticsService.log('Connecting to device: ${device.name} (${device.host}:${device.port})...');
+    CastDiagnosticsService.log(
+        'Connecting to device: ${device.name} (${device.host}:${device.port})...');
     try {
       await disconnect();
 
-      _session = await CastSessionManager().startSession(device, const Duration(seconds: 8));
+      final session = await CastSessionManager()
+          .startSession(device, const Duration(seconds: 8));
+      _session = session;
       _device = device;
-      
-      _session!.sendMessage(CastSession.kNamespaceReceiver, {
-        'type': 'LAUNCH',
-        'appId': 'CC1AD845', // Default Media Receiver App ID
-      });
 
-      _session!.stateStream.listen((state) {
+      _subs.add(session.stateStream.listen((state) {
         CastDiagnosticsService.log('Session state updated: $state');
-        if (state == CastSessionState.closed) {
-          _isCasting = false;
-          _session = null;
-          _device = null;
-          _mediaSessionId = null;
-        }
-      });
+        if (state == CastSessionState.closed) _reset();
+      }));
+      _subs.add(session.messageStream.listen(_onMessage, onError: (_) {}));
 
-      _session!.messageStream.listen((message) {
-        if (message['type'] == 'MEDIA_STATUS' || message['type'] == 'STATUS') {
-          final status = message['status'];
-          if (status is List && status.isNotEmpty) {
-            final mediaSessionId = status[0]['mediaSessionId'];
-            if (mediaSessionId != null) {
-              _mediaSessionId = mediaSessionId;
-              CastDiagnosticsService.log('Captured mediaSessionId: $_mediaSessionId');
-            }
-            final playerState = status[0]['playerState'];
-            if (playerState != null) {
-              CastDiagnosticsService.log('Receiver Player State: $playerState');
-            }
+      final ready = _waitFor((m) {
+        final apps = (m['status'] is Map) ? m['status']['applications'] : null;
+        if (apps is! List) return false;
+        for (final a in apps) {
+          if (a is Map &&
+              a['appId'] == _defaultReceiverAppId &&
+              a['transportId'] != null) {
+            _appTransport = a['transportId'] as String;
+            return true;
           }
         }
-      });
+        return false;
+      }, const Duration(seconds: 15));
+
+      // Always address the platform receiver for LAUNCH.
+      session.socket.sendMessage(
+        CastSession.kNamespaceReceiver,
+        session.sessionId,
+        'receiver-0',
+        {'type': 'LAUNCH', 'appId': _defaultReceiverAppId},
+      );
+
+      if (!await ready || _appTransport == null) {
+        throw StateError('Media receiver did not start');
+      }
+      _sendToApp(CastSession.kNamespaceConnection, {'type': 'CONNECT'});
 
       _isCasting = true;
-      CastDiagnosticsService.log('Successfully connected to ${device.name}. Session connected: true');
+      connectedDevice.value = device.name;
+      CastDiagnosticsService.log('Connected to ${device.name}; media receiver ready.');
       return true;
     } catch (e, stack) {
-      CastDiagnosticsService.logError('Failed to connect to ${device.name}. Session connected: false', stack);
-      _session = null;
-      _device = null;
-      _isCasting = false;
+      CastDiagnosticsService.logError('Failed to connect to ${device.name}: $e', stack);
+      await disconnect();
       return false;
     }
   }
 
-  /// Load a stream/media URL onto the connected Cast device
-  Future<void> castStream(
+  void _onMessage(Map<String, dynamic> message) {
+    final type = message['type'];
+    if (type == 'MEDIA_STATUS') {
+      final status = message['status'];
+      if (status is List && status.isNotEmpty && status[0] is Map) {
+        final id = status[0]['mediaSessionId'];
+        if (id is int) _mediaSessionId = id;
+        final playerState = status[0]['playerState'];
+        if (playerState != null) {
+          CastDiagnosticsService.log('Receiver Player State: $playerState');
+        }
+      }
+    } else if (type == 'RECEIVER_STATUS' && _isCasting && _appTransport != null) {
+      // Our receiver app was closed on the TV (e.g. user pressed Home).
+      final apps = (message['status'] is Map) ? message['status']['applications'] : null;
+      final stillRunning = apps is List &&
+          apps.any((a) => a is Map && a['transportId'] == _appTransport);
+      if (!stillRunning) {
+        CastDiagnosticsService.log('Media receiver closed on device.');
+        unawaited(disconnect());
+      }
+    }
+    if (!_messages.isClosed) _messages.add(message);
+  }
+
+  Future<bool> _waitFor(
+    bool Function(Map<String, dynamic>) match,
+    Duration timeout,
+  ) {
+    final completer = Completer<bool>();
+    final sub = _messages.stream.listen((m) {
+      if (!completer.isCompleted && match(m)) completer.complete(true);
+    });
+    return completer.future
+        .timeout(timeout, onTimeout: () => false)
+        .whenComplete(sub.cancel);
+  }
+
+  void _sendToApp(String namespace, Map<String, dynamic> payload) {
+    final session = _session;
+    final transport = _appTransport;
+    if (session == null || transport == null) return;
+    session.socket.sendMessage(namespace, session.sessionId, transport, payload);
+  }
+
+  /// MIME type for the receiver. Unknown URLs (e.g. /api/stream/123) are
+  /// probed with a HEAD request (following redirects).
+  static Future<String> resolveContentType(String url) async {
+    final known = _typeFromPath(url);
+    if (known != null) return known;
+    HttpClient? client;
+    try {
+      client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
+      final req = await client.headUrl(Uri.parse(url)).timeout(const Duration(seconds: 5));
+      req.followRedirects = true;
+      final res = await req.close().timeout(const Duration(seconds: 5));
+      final finalUrl =
+          res.redirects.isNotEmpty ? res.redirects.last.location.toString() : url;
+      final header = res.headers.contentType?.mimeType.toLowerCase();
+      await res.drain<void>().catchError((_) {});
+      final fromPath = _typeFromPath(finalUrl);
+      if (fromPath != null) return fromPath;
+      if (header != null && header.isNotEmpty && header != 'application/octet-stream') {
+        if (header.contains('mpegurl')) return 'application/x-mpegURL';
+        return header;
+      }
+    } catch (_) {
+    } finally {
+      client?.close(force: true);
+    }
+    // Extension-less IPTV live links are almost always HLS.
+    return 'application/x-mpegURL';
+  }
+
+  static String? _typeFromPath(String url) {
+    final path = url.toLowerCase().split('?').first;
+    if (path.endsWith('.m3u8') || path.contains('.m3u8/')) return 'application/x-mpegURL';
+    if (path.endsWith('.mp4') || path.endsWith('.m4v')) return 'video/mp4';
+    if (path.endsWith('.mpd')) return 'application/dash+xml';
+    if (path.endsWith('.webm')) return 'video/webm';
+    if (path.endsWith('.ts')) return 'video/mp2t';
+    if (path.endsWith('.mkv')) return 'video/x-matroska';
+    return null;
+  }
+
+  static bool _failed(Map<String, dynamic> m) {
+    final type = m['type'];
+    if (type == 'LOAD_FAILED' || type == 'LOAD_CANCELLED' || type == 'INVALID_REQUEST') {
+      return true;
+    }
+    final status = m['status'];
+    return type == 'MEDIA_STATUS' &&
+        status is List &&
+        status.isNotEmpty &&
+        status[0] is Map &&
+        status[0]['playerState'] == 'IDLE' &&
+        status[0]['idleReason'] == 'ERROR';
+  }
+
+  static bool _started(Map<String, dynamic> m) {
+    if (m['type'] != 'MEDIA_STATUS') return false;
+    final status = m['status'];
+    if (status is! List || status.isEmpty || status[0] is! Map) return false;
+    final state = status[0]['playerState'];
+    return state == 'PLAYING' || state == 'BUFFERING';
+  }
+
+  /// Load a stream onto the connected device. True only once the receiver
+  /// reports buffering/playing; false on LOAD_FAILED, error or timeout.
+  Future<bool> castStream(
     String url, {
     required String title,
     String? subtitle,
     String? posterUrl,
     required String streamType, // 'LIVE' or 'BUFFERED'
   }) async {
-    if (_session == null) {
+    if (!isCasting) {
       CastDiagnosticsService.log('Cannot cast stream: No active session.');
-      return;
+      return false;
     }
-
-    // Determine contentType (MIME) from URL
-    String contentType = 'application/octet-stream';
-    final lowerUrl = url.toLowerCase();
-    if (lowerUrl.contains('.m3u8')) {
-      contentType = 'application/x-mpegURL';
-    } else if (lowerUrl.contains('.ts')) {
-      contentType = 'video/mp2t';
-    } else if (lowerUrl.contains('.mp4')) {
-      contentType = 'video/mp4';
-    } else if (lowerUrl.contains('.mkv')) {
-      contentType = 'video/x-matroska';
-    }
+    final contentType = await resolveContentType(url);
 
     CastDiagnosticsService.logSessionEvent('LOAD_STREAM', {
       'url': url,
       'title': title,
-      'subtitle': subtitle ?? '',
       'contentType': contentType,
       'streamType': streamType,
-      'posterUrl': posterUrl ?? '',
     });
 
-    try {
-      _session!.sendMessage(CastSession.kNamespaceMedia, {
-        'type': 'LOAD',
-        'autoPlay': true,
-        'currentTime': 0,
-        'media': {
-          'contentId': url,
-          'contentType': contentType,
-          'streamType': streamType, // LIVE or BUFFERED
-          'metadata': {
-            'metadataType': 0, // Generic
-            'title': title,
-            if (subtitle != null && subtitle.isNotEmpty) 'subtitle': subtitle,
-            if (posterUrl != null && posterUrl.isNotEmpty) 'images': [
+    var failed = false;
+    String? failReason;
+    final outcome = _waitFor((m) {
+      if (_failed(m)) {
+        failed = true;
+        final st = m['status'];
+        failReason = '${m['type']} reason=${m['reason'] ?? (st is List && st.isNotEmpty && st[0] is Map ? st[0]['idleReason'] : '')} '
+            'detail=${m['detailedErrorCode'] ?? m['customData'] ?? ''}';
+        return true;
+      }
+      return _started(m);
+    }, const Duration(seconds: 20));
+
+    _sendToApp(CastSession.kNamespaceMedia, {
+      'type': 'LOAD',
+      'autoPlay': true,
+      'currentTime': 0,
+      'media': {
+        'contentId': url,
+        'contentType': contentType,
+        'streamType': streamType,
+        'metadata': {
+          'metadataType': 0,
+          'title': title,
+          if (subtitle != null && subtitle.isNotEmpty) 'subtitle': subtitle,
+          if (posterUrl != null && posterUrl.isNotEmpty)
+            'images': [
               {'url': posterUrl}
             ],
-          }
         },
-      });
-      CastDiagnosticsService.log('Sent LOAD request: true. Stream: $title ($contentType)');
-    } catch (e, stack) {
-      CastDiagnosticsService.logError('Failed to send LOAD request: false', stack);
-    }
+      },
+    });
+
+    final answered = await outcome;
+    final ok = answered && !failed;
+    CastDiagnosticsService.log(
+        'LOAD result: ${ok ? 'playing' : (answered ? 'failed: $failReason' : 'timeout')} ($contentType)');
+    return ok;
   }
 
   /// Pause playback on the Cast device
   Future<void> pause() async {
-    if (_session == null || _mediaSessionId == null) return;
-    try {
-      _session!.sendMessage(CastSession.kNamespaceMedia, {
-        'type': 'PAUSE',
-        'mediaSessionId': _mediaSessionId,
-      });
-      CastDiagnosticsService.log('Sent PAUSE command');
-    } catch (e) {
-      CastDiagnosticsService.logError('Pause command failed: $e');
-    }
+    if (_mediaSessionId == null) return;
+    _sendToApp(CastSession.kNamespaceMedia,
+        {'type': 'PAUSE', 'mediaSessionId': _mediaSessionId});
+    CastDiagnosticsService.log('Sent PAUSE command');
   }
 
   /// Play/Resume playback on the Cast device
   Future<void> play() async {
-    if (_session == null || _mediaSessionId == null) return;
-    try {
-      _session!.sendMessage(CastSession.kNamespaceMedia, {
-        'type': 'PLAY',
-        'mediaSessionId': _mediaSessionId,
-      });
-      CastDiagnosticsService.log('Sent PLAY command');
-    } catch (e) {
-      CastDiagnosticsService.logError('Play command failed: $e');
-    }
+    if (_mediaSessionId == null) return;
+    _sendToApp(CastSession.kNamespaceMedia,
+        {'type': 'PLAY', 'mediaSessionId': _mediaSessionId});
+    CastDiagnosticsService.log('Sent PLAY command');
   }
 
   /// Seek to a specific timestamp in seconds
   Future<void> seek(double positionInSeconds) async {
-    if (_session == null || _mediaSessionId == null) return;
-    try {
-      _session!.sendMessage(CastSession.kNamespaceMedia, {
-        'type': 'SEEK',
-        'mediaSessionId': _mediaSessionId,
-        'currentTime': positionInSeconds,
-      });
-      CastDiagnosticsService.log('Sent SEEK command to: $positionInSeconds seconds');
-    } catch (e) {
-      CastDiagnosticsService.logError('Seek command failed: $e');
+    if (_mediaSessionId == null) return;
+    _sendToApp(CastSession.kNamespaceMedia, {
+      'type': 'SEEK',
+      'mediaSessionId': _mediaSessionId,
+      'currentTime': positionInSeconds,
+    });
+    CastDiagnosticsService.log('Sent SEEK command to: $positionInSeconds seconds');
+  }
+
+  void _reset() {
+    for (final s in _subs) {
+      s.cancel();
     }
+    _subs.clear();
+    _session = null;
+    _device = null;
+    _mediaSessionId = null;
+    _appTransport = null;
+    _isCasting = false;
+    connectedDevice.value = null;
   }
 
   /// Stop casting and end session
   Future<void> disconnect() async {
-    if (_session != null) {
-      CastDiagnosticsService.log('Ending Cast session: ${_session!.sessionId}');
+    final session = _session;
+    if (session != null) {
+      CastDiagnosticsService.log('Ending Cast session: ${session.sessionId}');
       try {
-        await CastSessionManager().endSession(_session!.sessionId);
+        if (_appTransport != null) {
+          _sendToApp(CastSession.kNamespaceConnection, {'type': 'CLOSE'});
+        }
+        await CastSessionManager().endSession(session.sessionId);
       } catch (e) {
         CastDiagnosticsService.logError('Error ending session', null);
       }
-      _session = null;
-      _device = null;
-      _mediaSessionId = null;
-      _isCasting = false;
     }
+    _reset();
   }
 }

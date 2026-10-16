@@ -246,11 +246,15 @@ class TvLiveFocusHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final key = stream?.enrichmentKey;
+    final listenable = key == null
+        ? XmlTvRepository.instance
+        : Listenable.merge([
+            XmlTvRepository.instance,
+            TmdbEnrichmentWorker.instance.notifierFor(key),
+          ]);
     return ListenableBuilder(
-      listenable: Listenable.merge([
-        XmlTvRepository.instance,
-        TmdbEnrichmentWorker.instance,
-      ]),
+      listenable: listenable,
       builder: (context, _) => _buildHero(context),
     );
   }
@@ -1251,7 +1255,16 @@ class TvChannelCard extends StatefulWidget {
   State<TvChannelCard> createState() => _TvChannelCardState();
 }
 
+class _NoopChannelListenable extends Listenable {
+  const _NoopChannelListenable();
+  @override
+  void addListener(VoidCallback listener) {}
+  @override
+  void removeListener(VoidCallback listener) {}
+}
+
 class _TvChannelCardState extends State<TvChannelCard> {
+  static const Listenable _noopListenable = _NoopChannelListenable();
   bool _focused = false;
 
   KeyEventResult _onKey(FocusNode _, KeyEvent event) {
@@ -1268,101 +1281,103 @@ class _TvChannelCardState extends State<TvChannelCard> {
   }
 
   Widget _buildLiveCard() {
-    return Focus(
-      onFocusChange: (value) {
-        setState(() => _focused = value);
-        if (value) {
-          widget.onFocused?.call(widget.stream);
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            Scrollable.ensureVisible(
-              context,
-              alignment: 0.28,
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOutCubic,
-            );
-          });
-        }
-      },
-      onKeyEvent: _onKey,
-      child: AnimatedScale(
-        scale: _focused ? 1.055 : 1.0,
-        duration: const Duration(milliseconds: 160),
-        curve: Curves.easeOutCubic,
-        child: AnimatedSlide(
-          offset: _focused ? const Offset(0, -0.018) : Offset.zero,
+    return RepaintBoundary(
+      child: Focus(
+        onFocusChange: (value) {
+          setState(() => _focused = value);
+          if (value) {
+            widget.onFocused?.call(widget.stream);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              Scrollable.ensureVisible(
+                context,
+                alignment: 0.28,
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+              );
+            });
+          }
+        },
+        onKeyEvent: _onKey,
+        child: AnimatedScale(
+          scale: _focused ? 1.055 : 1.0,
           duration: const Duration(milliseconds: 160),
           curve: Curves.easeOutCubic,
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              canRequestFocus: false,
-              splashColor: Colors.transparent,
-              highlightColor: Colors.transparent,
-              hoverColor: Colors.transparent,
-              overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-              onTap: widget.onSelected,
-              child: SizedBox(
-                width: TvChannelCard.tileWidth,
-                height: TvChannelCard.tileHeight,
-                child: Column(
-                  children: [
-                    SizedBox(
-                      height: TvChannelCard.logoSlotHeight,
-                      width: double.infinity,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        clipBehavior: Clip.none,
-                        children: [
-                          if (_focused)
-                            IgnorePointer(
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: RadialGradient(
-                                    colors: [
-                                      Colors.white.withValues(alpha: 0.12),
-                                      Colors.white.withValues(alpha: 0.0),
-                                    ],
+          child: AnimatedSlide(
+            offset: _focused ? const Offset(0, -0.018) : Offset.zero,
+            duration: const Duration(milliseconds: 160),
+            curve: Curves.easeOutCubic,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                canRequestFocus: false,
+                splashColor: Colors.transparent,
+                highlightColor: Colors.transparent,
+                hoverColor: Colors.transparent,
+                overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+                onTap: widget.onSelected,
+                child: SizedBox(
+                  width: TvChannelCard.tileWidth,
+                  height: TvChannelCard.tileHeight,
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        height: TvChannelCard.logoSlotHeight,
+                        width: double.infinity,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          clipBehavior: Clip.none,
+                          children: [
+                            if (_focused)
+                              IgnorePointer(
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: RadialGradient(
+                                      colors: [
+                                        Colors.white.withValues(alpha: 0.12),
+                                        Colors.white.withValues(alpha: 0.0),
+                                      ],
+                                    ),
                                   ),
+                                  child: const SizedBox(width: 88, height: 88),
                                 ),
-                                child: const SizedBox(width: 88, height: 88),
+                              ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                              child: _LiveLogoArt(
+                                imageUrl: widget.stream.imageUrl,
+                                channelName: widget.stream.title,
                               ),
                             ),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                            child: _LiveLogoArt(
-                              imageUrl: widget.stream.imageUrl,
-                              channelName: widget.stream.title,
-                            ),
+                          ],
+                        ),
+                      ),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 160),
+                        height: 1.5,
+                        width: _focused ? 36 : 0,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(
+                            alpha: _focused ? 0.55 : 0.0,
                           ),
-                        ],
-                      ),
-                    ),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 160),
-                      height: 1.5,
-                      width: _focused ? 36 : 0,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(
-                          alpha: _focused ? 0.55 : 0.0,
-                        ),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    SizedBox(
-                      height: TvChannelCard.captionSlotHeight,
-                      width: double.infinity,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: _LiveCardCaption(
-                          stream: widget.stream,
-                          focused: _focused,
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        height: TvChannelCard.captionSlotHeight,
+                        width: double.infinity,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: _LiveCardCaption(
+                            stream: widget.stream,
+                            focused: _focused,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1376,84 +1391,90 @@ class _TvChannelCardState extends State<TvChannelCard> {
   Widget build(BuildContext context) {
     final vod = widget.stream.isVod;
     if (!vod) return _buildLiveCard();
-    return Focus(
-      onFocusChange: (value) {
-        setState(() {
-          _focused = value;
-        });
-        if (value) {
-          widget.onFocused?.call(widget.stream);
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            Scrollable.ensureVisible(
-              context,
-              alignment: 0.28,
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOutCubic,
-            );
+    final enrichmentKey = widget.stream.enrichmentKey;
+    final listenable = enrichmentKey == null
+        ? _noopListenable
+        : TmdbEnrichmentWorker.instance.notifierFor(enrichmentKey);
+
+    return RepaintBoundary(
+      child: Focus(
+        onFocusChange: (value) {
+          setState(() {
+            _focused = value;
           });
-        }
-      },
-      onKeyEvent: _onKey,
-      child: AnimatedScale(
-        scale: _focused ? (vod ? 1.08 : 1.06) : 1.0,
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.easeOutCubic,
-        child: Material(
-          color: Colors.transparent,
-          elevation: _focused ? 10 : 0,
-          shadowColor: kColorPrimary.withValues(alpha: 0.45),
-          borderRadius: BorderRadius.circular(12),
-          child: InkWell(
+          if (value) {
+            widget.onFocused?.call(widget.stream);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              Scrollable.ensureVisible(
+                context,
+                alignment: 0.28,
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+              );
+            });
+          }
+        },
+        onKeyEvent: _onKey,
+        child: AnimatedScale(
+          scale: _focused ? (vod ? 1.08 : 1.06) : 1.0,
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOutCubic,
+          child: Material(
+            color: Colors.transparent,
+            elevation: _focused ? 10 : 0,
+            shadowColor: kColorPrimary.withValues(alpha: 0.45),
             borderRadius: BorderRadius.circular(12),
-            canRequestFocus: false,
-            onTap: widget.onSelected,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              curve: Curves.easeOutCubic,
-              width: vod ? TvChannelCard.posterWidth : TvChannelCard.tileWidth,
-              height: vod ? TvChannelCard.posterHeight : TvChannelCard.tileHeight,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: const Color(0xFF121C2C),
-                border: Border.all(
-                  width: _focused ? 2.8 : 1.0,
-                  color: _focused
-                      ? kColorFocus
-                      : Colors.white.withValues(alpha: 0.10),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.36),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              canRequestFocus: false,
+              onTap: widget.onSelected,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOutCubic,
+                width: vod ? TvChannelCard.posterWidth : TvChannelCard.tileWidth,
+                height: vod ? TvChannelCard.posterHeight : TvChannelCard.tileHeight,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: const Color(0xFF121C2C),
+                  border: Border.all(
+                    width: _focused ? 2.8 : 1.0,
+                    color: _focused
+                        ? kColorFocus
+                        : Colors.white.withValues(alpha: 0.10),
                   ),
-                  if (_focused)
+                  boxShadow: [
                     BoxShadow(
-                      color: kColorPrimary.withValues(alpha: 0.5),
-                      blurRadius: 24,
-                      spreadRadius: 0.6,
+                      color: Colors.black.withValues(alpha: 0.36),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
-                ],
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: ListenableBuilder(
-                listenable: TmdbEnrichmentWorker.instance,
-                builder: (context, _) {
-                  final extra = widget.stream.enrichmentKey == null
-                      ? null
-                      : TmdbEnrichmentWorker.instance
-                          .lookup(widget.stream.enrichmentKey!);
-                  final image = extra?.posterUrl ?? widget.stream.imageUrl;
-                  final year = extra?.year ?? widget.stream.year;
-                  final rating = extra?.rating ?? widget.stream.rating;
-                  return Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      Padding(
-                        padding: vod
-                            ? const EdgeInsets.fromLTRB(0, 0, 0, 36)
-                            : const EdgeInsets.fromLTRB(10, 26, 10, 34),
+                    if (_focused)
+                      BoxShadow(
+                        color: kColorPrimary.withValues(alpha: 0.5),
+                        blurRadius: 24,
+                        spreadRadius: 0.6,
+                      ),
+                  ],
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: ListenableBuilder(
+                  listenable: listenable,
+                  builder: (context, _) {
+                    final extra = enrichmentKey == null
+                        ? null
+                        : TmdbEnrichmentWorker.instance
+                            .lookup(enrichmentKey);
+                    final image = extra?.posterUrl ?? widget.stream.imageUrl;
+                    final year = extra?.year ?? widget.stream.year;
+                    final rating = extra?.rating ?? widget.stream.rating;
+                    return Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Padding(
+                          padding: vod
+                              ? const EdgeInsets.fromLTRB(0, 0, 0, 36)
+                              : const EdgeInsets.fromLTRB(10, 26, 10, 34),
                         child: _CardArtwork(
                           imageUrl: image,
                           channelName: widget.stream.title,
@@ -1515,6 +1536,7 @@ class _TvChannelCardState extends State<TvChannelCard> {
           ),
         ),
       ),
+    ),
     );
   }
 

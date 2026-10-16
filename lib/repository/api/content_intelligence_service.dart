@@ -186,6 +186,20 @@ class ContentIntelligenceService {
     return score;
   }
 
+  /// Sorts by score, highest first, scoring each item exactly once.
+  /// The old comparator re-scored both items on every comparison
+  /// (~2·n·log n string scans) which stalled the UI thread on large shelves.
+  /// Ties keep their incoming order (stable).
+  static List<T> _sortByScoreDesc<T>(List<T> items, double Function(T) score) {
+    final scores = List<double>.generate(items.length, (i) => score(items[i]));
+    final order = List<int>.generate(items.length, (i) => i);
+    order.sort((a, b) {
+      final c = scores[b].compareTo(scores[a]);
+      return c != 0 ? c : a.compareTo(b);
+    });
+    return [for (final i in order) items[i]];
+  }
+
   static List<ChannelLive> sortLives(
       List<ChannelLive> items, UserPreferenceProfile profile, List<CategoryModel> categories) {
     final sorted = List<ChannelLive>.from(items);
@@ -194,10 +208,10 @@ class ContentIntelligenceService {
         if (cat.categoryId != null && cat.categoryName != null)
           cat.categoryId!: cat.categoryName!
     };
-    sorted.sort((a, b) {
-      return scoreLive(b, profile, categoryIdToName).compareTo(scoreLive(a, profile, categoryIdToName));
-    });
-    return sorted;
+    return _sortByScoreDesc(
+      sorted,
+      (item) => scoreLive(item, profile, categoryIdToName),
+    );
   }
 
   static List<ChannelMovie> sortMovies(
@@ -208,10 +222,10 @@ class ContentIntelligenceService {
         if (cat.categoryId != null && cat.categoryName != null)
           cat.categoryId!: cat.categoryName!
     };
-    sorted.sort((a, b) {
-      return scoreMovie(b, profile, categoryIdToName).compareTo(scoreMovie(a, profile, categoryIdToName));
-    });
-    return sorted;
+    return _sortByScoreDesc(
+      sorted,
+      (item) => scoreMovie(item, profile, categoryIdToName),
+    );
   }
 
   static List<ChannelSerie> sortSeries(
@@ -222,10 +236,10 @@ class ContentIntelligenceService {
         if (cat.categoryId != null && cat.categoryName != null)
           cat.categoryId!: cat.categoryName!
     };
-    sorted.sort((a, b) {
-      return scoreSerie(b, profile, categoryIdToName).compareTo(scoreSerie(a, profile, categoryIdToName));
-    });
-    return sorted;
+    return _sortByScoreDesc(
+      sorted,
+      (item) => scoreSerie(item, profile, categoryIdToName),
+    );
   }
 
   // ─── Presentational Content Guards & Classifiers [NEW] ─────────────────────

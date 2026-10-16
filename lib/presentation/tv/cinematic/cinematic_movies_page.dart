@@ -39,16 +39,28 @@ class CinematicMoviesPage extends StatefulWidget {
   State<CinematicMoviesPage> createState() => _CinematicMoviesPageState();
 }
 
+class _NoopMoviesListenable extends Listenable {
+  const _NoopMoviesListenable();
+  @override
+  void addListener(VoidCallback listener) {}
+  @override
+  void removeListener(VoidCallback listener) {}
+}
+
 class _CinematicMoviesPageState extends State<CinematicMoviesPage> {
+  static const Listenable _noopListenable = _NoopMoviesListenable();
   late final HeroPreviewController _preview;
   TvStreamRecord? _focused;
+  Listenable? _focusedKeyListenable;
+  List<TvChannelRow> _cachedRows = const [];
 
   @override
   void initState() {
     super.initState();
     _preview = HeroPreviewController();
     _focused = _firstStream(widget.rows);
-    TmdbEnrichmentWorker.instance.addListener(_onEnrichment);
+    _cachedRows = _dedupedRows(_focused);
+    _bindFocusedKeyListener(_focused);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       MovieArtDebug.logRailSample(widget.rows);
@@ -56,27 +68,42 @@ class _CinematicMoviesPageState extends State<CinematicMoviesPage> {
     });
   }
 
-  void _onEnrichment() {
+  void _bindFocusedKeyListener(TvStreamRecord? rec) {
+    _focusedKeyListenable?.removeListener(_onFocusedEnrichment);
+    final key = rec?.enrichmentKey;
+    if (key != null && key.isNotEmpty) {
+      final l = TmdbEnrichmentWorker.instance.notifierFor(key);
+      l.addListener(_onFocusedEnrichment);
+      _focusedKeyListenable = l;
+    } else {
+      _focusedKeyListenable = null;
+    }
+  }
+
+  void _onFocusedEnrichment() {
     if (!mounted || _focused == null) return;
     _pushHero(_focused!);
-    setState(() {});
   }
 
   @override
   void didUpdateWidget(CinematicMoviesPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.rows != oldWidget.rows) {
+    if (!identical(widget.rows, oldWidget.rows)) {
       MovieArtDebug.logRailSample(widget.rows);
+      final seed = _focused ?? _firstStream(widget.rows);
+      _cachedRows = _dedupedRows(seed);
     }
     if (_focused == null && widget.rows.isNotEmpty) {
       _focused = _firstStream(widget.rows);
+      _cachedRows = _dedupedRows(_focused);
+      _bindFocusedKeyListener(_focused);
       if (_focused != null) _pushHero(_focused!);
     }
   }
 
   @override
   void dispose() {
-    TmdbEnrichmentWorker.instance.removeListener(_onEnrichment);
+    _focusedKeyListenable?.removeListener(_onFocusedEnrichment);
     _preview.dispose();
     super.dispose();
   }
@@ -90,7 +117,10 @@ class _CinematicMoviesPageState extends State<CinematicMoviesPage> {
 
   void _onFocused(TvStreamRecord stream) {
     if (!mounted) return;
-    setState(() => _focused = stream);
+    if (!identical(_focused, stream)) {
+      setState(() => _focused = stream);
+      _bindFocusedKeyListener(stream);
+    }
     widget.onStreamFocused?.call(stream);
     _pushHero(stream);
   }
@@ -224,18 +254,23 @@ class _CinematicMoviesPageState extends State<CinematicMoviesPage> {
     final favs = context.watch<FavoritesCubit>().state;
     final continueItems = _continueWatching(watch);
     final inList = _inMyList(favs, _focused);
+    final rows = _cachedRows;
+    final hasContinue = continueItems.isNotEmpty;
+    final totalShelves = rows.length + (hasContinue ? 1 : 0);
+    final heroListenable = _focused?.enrichmentKey == null
+        ? _noopListenable
+        : TmdbEnrichmentWorker.instance.notifierFor(_focused!.enrichmentKey!);
 
-    return ListenableBuilder(
-      listenable: TmdbEnrichmentWorker.instance,
-      builder: (context, _) {
-        final selected = _selectedOf(_focused);
-        final rows = _dedupedRows(_focused);
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              flex: 5,
-              child: CinematicHero(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          flex: 5,
+          child: ListenableBuilder(
+            listenable: heroListenable,
+            builder: (context, _) {
+              final selected = _selectedOf(_focused);
+              return CinematicHero(
                 selected: selected,
                 preview: _preview,
                 kenBurns: !cinematicLowPower(context),
@@ -247,48 +282,52 @@ class _CinematicMoviesPageState extends State<CinematicMoviesPage> {
                     ? null
                     : () => _toggleMyList(selected.stream),
                 inMyList: inList,
-              ),
-            ),
-            if (widget.categoryChips.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              _MovieChips(
-                labels: widget.categoryChips,
-                selected: widget.selectedCategory,
-                onSelected: widget.onCategorySelected,
-              ),
-            ],
-            Expanded(
-              flex: 6,
-              child: ListView(
-                padding: const EdgeInsets.only(top: 12, bottom: 28),
-                children: [
-                  if (continueItems.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 18),
-                      child: CinematicPivotRow(
-                        title: 'Continue Watching',
-                        streams: continueItems,
-                        onChannelSelected: widget.onChannelSelected,
-                        onStreamFocused: _onFocused,
-                      ),
-                    ),
-                  for (final row in rows)
-                    if (row.streams.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 18),
-                        child: CinematicPivotRow(
-                          title: row.title,
-                          streams: row.streams,
-                          onChannelSelected: widget.onChannelSelected,
-                          onStreamFocused: _onFocused,
-                        ),
-                      ),
-                ],
-              ),
-            ),
-          ],
-        );
-      },
+              );
+            },
+          ),
+        ),
+        if (widget.categoryChips.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          _MovieChips(
+            labels: widget.categoryChips,
+            selected: widget.selectedCategory,
+            onSelected: widget.onCategorySelected,
+          ),
+        ],
+        Expanded(
+          flex: 6,
+          child: ListView.builder(
+            padding: const EdgeInsets.only(top: 12, bottom: 28),
+            cacheExtent: 520,
+            itemCount: totalShelves,
+            itemBuilder: (context, index) {
+              if (hasContinue && index == 0) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 18),
+                  child: CinematicPivotRow(
+                    title: 'Continue Watching',
+                    streams: continueItems,
+                    onChannelSelected: widget.onChannelSelected,
+                    onStreamFocused: _onFocused,
+                  ),
+                );
+              }
+              final rowIndex = hasContinue ? index - 1 : index;
+              final row = rows[rowIndex];
+              if (row.streams.isEmpty) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 18),
+                child: CinematicPivotRow(
+                  title: row.title,
+                  streams: row.streams,
+                  onChannelSelected: widget.onChannelSelected,
+                  onStreamFocused: _onFocused,
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
