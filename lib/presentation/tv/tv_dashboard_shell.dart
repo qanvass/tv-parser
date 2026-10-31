@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -38,8 +39,7 @@ import '../../repository/api/premium_plus_service.dart';
 import '../../repository/provider/title_normalizer.dart';
 import '../../repository/provider/tmdb_enrichment_worker.dart';
 import '../../logic/cubits/watch/watching_cubit.dart';
-import 'series_rail_grouper.dart';
-import 'series_shelf_planner.dart';
+import 'series_rails_isolate.dart';
 import 'widgets/tv_live_category_chips.dart';
 import 'widgets/tv_premium_plus_row.dart';
 import 'widgets/tv_home_rows.dart';
@@ -1021,26 +1021,6 @@ class _TvDashboardShellState extends State<TvDashboardShell>
       final categories = seriesCats.isNotEmpty
           ? seriesCats
           : LocaleApi.getM3uSeriesCategories();
-      final normalCats = categories
-          .where(
-            (c) =>
-                c.categoryName != null &&
-                !ProviderCurationRules.isAdultCategory(c.categoryName!),
-          )
-          .toList();
-      final sortedCats = ProviderCurationRules.sortCategoriesForNormalDashboard(
-        normalCats,
-      );
-      final byCat = <String, List<ChannelSerie>>{};
-      var seriesUnassigned = 0;
-      for (final ch in allSeries) {
-        final id = ch.categoryId;
-        if (id == null || id.isEmpty) {
-          seriesUnassigned++;
-          continue;
-        }
-        byCat.putIfAbsent(id, () => []).add(ch);
-      }
       Map<String, double> watchById = const {};
       try {
         final watching = context.read<WatchingCubit>().state.series;
@@ -1050,67 +1030,41 @@ class _TvDashboardShellState extends State<TvDashboardShell>
               w.streamId: (w.sliderValue / w.durationStrm).clamp(0.0, 1.0),
         };
       } catch (_) {}
-      if (SeriesShelfPlanner.looksPerShow(normalCats)) {
-        await _publishPerShowSeries(
-          shows: normalCats,
-          byCat: byCat,
-          watchById: watchById,
-          allSeriesCount: allSeries.length,
-          groupWatch: seriesGroupWatch,
+
+      // Grouping, sorting and record building for 100k+ series ran on the UI
+      // isolate (series_group_ms=64785 -> ANR). It now runs in a worker
+      // isolate; the UI isolate only publishes the finished shelves.
+      final SeriesRailsResult built;
+      try {
+        built = await compute(
+          buildSeriesRailsInBackground,
+          SeriesRailsJob(
+            series: allSeries,
+            categories: categories,
+            fallbackCategories: LocaleApi.getM3uSeriesCategories(),
+            profile: profile,
+            watchById: watchById,
+            headCount: _kShelfHeadCount,
+            headLimit: _kShelfHeadLimit,
+          ),
         );
+      } catch (e) {
+        debugPrint('[SERIES_PIPE] background build failed: $e');
+        if (mounted) setState(() => _isSeriesRefreshing = false);
         return;
       }
-      // Same two-pass build as Movies. The full pass waits for the Series tab:
-      // 100k+ series must not compete with Live browsing for the UI thread.
-      final shelves = <(CategoryModel, List<ChannelSerie>)>[];
-      for (final cat in sortedCats) {
-        final catId = cat.categoryId;
-        if (catId == null) continue;
-        final chs = byCat[catId];
-        if (chs == null || chs.isEmpty) continue;
-        try {
-          shelves.add((
-            cat,
-            ContentIntelligenceService.sortSeries(chs, profile, categories),
-          ));
-        } catch (_) {}
-        if (!await _yieldIfBusy()) return;
+      if (!mounted) return;
+
+      if (_seriesRows.isEmpty && built.heads.isNotEmpty) {
+        setState(() {
+          _seriesRows = built.heads;
+          _isSeriesRefreshing = false;
+        });
+        CatalogPerf.timeline('SERIES_HEAD_READY');
+        _enqueueSeriesTmdb();
       }
-      TvStreamRecord buildSerie(CategoryModel cat, ChannelSerie ch) =>
-          _seriesStreamRecord(
-            ch,
-            cat.categoryName ?? 'Series',
-            providerCategoryId: cat.categoryId,
-            providerCategoryName: cat.categoryName,
-            watchProgress: watchById[ch.seriesId ?? ''],
-          );
-      if (_seriesRows.isEmpty) {
-        final heads = <TvChannelRow>[];
-        for (final (cat, chs) in shelves.take(_kShelfHeadLimit)) {
-          try {
-            final head = [
-              for (final ch in chs.take(_kShelfHeadCount)) buildSerie(cat, ch),
-            ];
-            if (head.isNotEmpty) {
-              heads.add(
-                TvChannelRow(
-                  title: cat.categoryName ?? 'Series Shows',
-                  streams: SeriesRailGrouper.groupForRail(head),
-                ),
-              );
-            }
-          } catch (_) {}
-          if (!await _yieldIfBusy()) return;
-        }
-        if (heads.isNotEmpty && _seriesRows.isEmpty) {
-          setState(() {
-            _seriesRows = heads;
-            _isSeriesRefreshing = false;
-          });
-          CatalogPerf.timeline('SERIES_HEAD_READY');
-          _enqueueSeriesTmdb();
-        }
-      }
+      // The full pass waits for the Series tab so publishing 100k+ cards does
+      // not compete with Live browsing for the UI thread.
       final gen = ++_seriesLoadGen;
       if (_selectedNavIndex != _TvNav.series) {
         _releaseSeriesFullPass();
@@ -1118,218 +1072,43 @@ class _TvDashboardShellState extends State<TvDashboardShell>
         await gate.future;
         if (!mounted || gen != _seriesLoadGen) return;
       }
-      var rows = <TvChannelRow>[];
-      for (final (cat, chs) in shelves) {
-        final records = <TvStreamRecord>[];
-        for (final ch in chs) {
-          try {
-            records.add(buildSerie(cat, ch));
-          } catch (_) {}
-          if ((records.length & 63) == 0 && !await _yieldIfBusy()) return;
-        }
-        if (records.isNotEmpty) {
-          rows.add(
-            TvChannelRow(
-              title: cat.categoryName ?? 'Series Shows',
-              streams: SeriesRailGrouper.groupForRail(records),
-            ),
-          );
-        }
-        if (!await _yieldIfBusy()) return;
-      }
 
-      // FIX 2: category metadata missing or produced zero rails.
-      // Content data > category metadata — never publish an empty Series
-      // tab when valid series records exist.
-      if (rows.isEmpty && allSeries.isNotEmpty) {
-        final nameById = <String, String>{
-          for (final c in [
-            ...categories,
-            ...LocaleApi.getM3uSeriesCategories(),
-          ])
-            if (c.categoryId != null && c.categoryId!.isNotEmpty)
-              c.categoryId!:
-                  (c.categoryName != null && c.categoryName!.trim().isNotEmpty)
-                  ? c.categoryName!
-                  : 'All Series',
-        };
-        final byOwn = <String, List<ChannelSerie>>{};
-        seriesUnassigned = 0;
-        for (final ch in allSeries) {
-          final id = ch.categoryId;
-          if (id == null || id.isEmpty) {
-            seriesUnassigned++;
-            byOwn.putIfAbsent('_none', () => []).add(ch);
-          } else {
-            byOwn.putIfAbsent(id, () => []).add(ch);
-          }
-        }
-        for (final entry in byOwn.entries) {
-          final label = nameById[entry.key] ?? 'All Series';
-          final records = <TvStreamRecord>[
-            for (final ch in entry.value)
-              _seriesStreamRecord(
-                ch,
-                label,
-                providerCategoryId: entry.key == '_none'
-                    ? ch.categoryId
-                    : entry.key,
-                providerCategoryName: label,
-                watchProgress: watchById[ch.seriesId ?? ''],
-              ),
-          ];
-          if (records.isNotEmpty) {
-            rows.add(
-              TvChannelRow(
-                title: label,
-                streams: SeriesRailGrouper.groupForRail(records),
-              ),
-            );
-          }
-        }
-      }
-
+      final rows = built.rows;
       final assigned = rows.fold<int>(0, (n, r) => n + r.streams.length);
       debugPrint(
-        '[SERIES_PIPE] rawSeries=${allSeries.length} '
-        'seriesCategories=${categories.length} '
+        '[SERIES_PIPE] perShow=${built.perShow} rawSeries=${allSeries.length} '
+        'seriesCategories=${categories.length} shows=${built.showCount} '
         'generatedSeriesRows=${rows.length} '
         'seriesAssignedToRows=$assigned '
-        'seriesUnassigned=$seriesUnassigned '
-        'shelfTitles=${rows.map((r) => r.title).join('|')}',
+        'seriesUnassigned=${built.unassigned} '
+        'shelfTitles=${rows.map((r) => '${r.title}:${r.streams.length}').join('|')}',
       );
       CatalogPerf.span('series_group_ms', seriesGroupWatch.elapsedMilliseconds);
       CatalogPerf.timeline('SERIES_GROUP_READY');
-      if (mounted) {
-        if (rows.isNotEmpty) {
-          setState(() {
-            _seriesRows = rows;
-            _isSeriesRefreshing = false;
-          });
-          CatalogPerf.mark('firstSeriesMs');
-          if (_seriesRailStartedAt != null) {
-            CatalogPerf.span(
-              'series_first_row_ms',
-              DateTime.now().difference(_seriesRailStartedAt!).inMilliseconds,
-            );
-          }
-          CatalogPerf.count('seriesRowsPublished', rows.length);
-          CatalogPerf.count('seriesRowCount', rows.length);
-          CatalogPerf.count('seriesCount', allSeries.length);
-          CatalogPerf.timeline('SERIES_FIRST_ROW');
-          CatalogPerf.flush('first_series_ui');
-          _enqueueSeriesTmdb();
-        } else {
-          setState(() => _isSeriesRefreshing = false);
+      if (rows.isNotEmpty) {
+        setState(() {
+          _seriesRows = rows;
+          _isSeriesRefreshing = false;
+        });
+        CatalogPerf.mark('firstSeriesMs');
+        if (_seriesRailStartedAt != null) {
+          CatalogPerf.span(
+            'series_first_row_ms',
+            DateTime.now().difference(_seriesRailStartedAt!).inMilliseconds,
+          );
         }
+        CatalogPerf.count('seriesRowsPublished', rows.length);
+        CatalogPerf.count('seriesRowCount', rows.length);
+        CatalogPerf.count('seriesCount', allSeries.length);
+        CatalogPerf.timeline('SERIES_FIRST_ROW');
+        CatalogPerf.flush('first_series_ui');
+        _enqueueSeriesTmdb();
+      } else {
+        setState(() => _isSeriesRefreshing = false);
       }
     } else if (mounted) {
       setState(() => _isSeriesRefreshing = false);
     }
-  }
-
-  /// Playlists with one group per show: one card per show (episodes inside),
-  /// shelved by release year. Same head-then-full passes as other shelves.
-  Future<void> _publishPerShowSeries({
-    required List<CategoryModel> shows,
-    required Map<String, List<ChannelSerie>> byCat,
-    required Map<String, double> watchById,
-    required int allSeriesCount,
-    required Stopwatch groupWatch,
-  }) async {
-    final plan = SeriesShelfPlanner.plan(shows);
-
-    TvStreamRecord? showCard(CategoryModel cat) {
-      final eps = byCat[cat.categoryId];
-      if (eps == null || eps.isEmpty) return null;
-      final name = cat.categoryName ?? 'Series';
-      final title = SeriesShelfPlanner.showTitle(cat);
-      final year = SeriesShelfPlanner.yearOf(cat);
-      final card = SeriesRailGrouper.showCard(
-        [
-          for (final ch in eps)
-            _seriesStreamRecord(
-              ch,
-              name,
-              providerCategoryId: cat.categoryId,
-              providerCategoryName: name,
-              watchProgress: watchById[ch.seriesId ?? ''],
-            ),
-        ],
-        title: title,
-        year: year,
-      );
-      return card.copyWith(
-        enrichmentKey: TmdbEnrichmentWorker.cacheKeyFor(
-          title,
-          cat.categoryId,
-          type: ContentType.series,
-          year: year,
-        ),
-      );
-    }
-
-    Future<List<TvChannelRow>?> build(int perShelf) async {
-      final rows = <TvChannelRow>[];
-      for (final shelf in plan) {
-        final cards = <TvStreamRecord>[];
-        for (final cat in shelf.shows.take(perShelf)) {
-          try {
-            final card = showCard(cat);
-            if (card != null) cards.add(card);
-          } catch (_) {}
-          if (!await _yieldIfBusy()) return null;
-        }
-        if (cards.isNotEmpty) {
-          rows.add(TvChannelRow(title: shelf.title, streams: cards));
-        }
-      }
-      return rows;
-    }
-
-    if (_seriesRows.isEmpty) {
-      final heads = await build(_kShelfHeadCount);
-      if (heads == null || !mounted) return;
-      if (heads.isNotEmpty && _seriesRows.isEmpty) {
-        setState(() {
-          _seriesRows = heads;
-          _isSeriesRefreshing = false;
-        });
-        CatalogPerf.timeline('SERIES_HEAD_READY');
-        _enqueueSeriesTmdb();
-      }
-    }
-    final gen = ++_seriesLoadGen;
-    if (_selectedNavIndex != _TvNav.series) {
-      _releaseSeriesFullPass();
-      final gate = _seriesFullPassGate = Completer<void>();
-      await gate.future;
-      if (!mounted || gen != _seriesLoadGen) return;
-    }
-    final rows = await build(1 << 30);
-    if (rows == null || !mounted) return;
-    final shown = rows.fold<int>(0, (n, r) => n + r.streams.length);
-    debugPrint(
-      '[SERIES_PIPE] perShow=true rawSeries=$allSeriesCount '
-      'shows=${shows.length} showCards=$shown shelves=${rows.length} '
-      'shelfTitles=${rows.map((r) => '${r.title}:${r.streams.length}').join('|')}',
-    );
-    CatalogPerf.span('series_group_ms', groupWatch.elapsedMilliseconds);
-    CatalogPerf.timeline('SERIES_GROUP_READY');
-    if (rows.isEmpty) {
-      setState(() => _isSeriesRefreshing = false);
-      return;
-    }
-    setState(() {
-      _seriesRows = rows;
-      _isSeriesRefreshing = false;
-    });
-    CatalogPerf.mark('firstSeriesMs');
-    CatalogPerf.count('seriesRowsPublished', rows.length);
-    CatalogPerf.count('seriesCount', allSeriesCount);
-    CatalogPerf.timeline('SERIES_FIRST_ROW');
-    CatalogPerf.flush('first_series_ui');
-    _enqueueSeriesTmdb();
   }
 
   void _onMoviesCatalogReady() {
@@ -1427,57 +1206,6 @@ class _TvDashboardShellState extends State<TvDashboardShell>
       enrichmentKey: key,
       providerCategoryId: providerCategoryId ?? ch.categoryId,
       providerCategoryName: providerName,
-    );
-  }
-
-  /// Poster/year/TMDB optional — never drop a playable series row.
-  TvStreamRecord _seriesStreamRecord(
-    ChannelSerie ch,
-    String subtitle, {
-    String? providerCategoryId,
-    String? providerCategoryName,
-    double? watchProgress,
-  }) {
-    String streamUrl = '';
-    if (ch.directSource != null && ch.directSource!.isNotEmpty) {
-      streamUrl = ch.directSource!;
-    } else if (ch.seriesId != null) {
-      streamUrl = ch.seriesId!;
-    }
-    final poster = ArtworkUrlResolver.resolveVodPoster(cover: ch.cover);
-    final parsed = TitleNormalizer.parse(ch.name ?? '');
-    final rating = _parseRating(ch.rating ?? ch.rating5based);
-    final seriesTitle = parsed.displayTitle.isEmpty
-        ? (ch.name ?? 'Series')
-        : parsed.displayTitle;
-    final key = TmdbEnrichmentWorker.cacheKeyFor(
-      seriesTitle,
-      ch.seriesId,
-      type: ContentType.series,
-      year: parsed.year,
-      matchTitle: parsed.matchTitle,
-    );
-    return TvStreamRecord(
-      title: seriesTitle,
-      subtitle: providerCategoryName ?? subtitle,
-      streamUrl: streamUrl,
-      imageUrl: poster,
-      backdropUrl: ArtworkUrlResolver.resolveHeroBackdrop(
-        posterFallback: poster,
-      ),
-      streamId: ch.seriesId,
-      posterStyle: TvPosterStyle.vodPortrait,
-      year: parsed.year,
-      rating: rating,
-      qualityLabel: parsed.qualityLabel,
-      season: parsed.season,
-      episode: parsed.episode,
-      badge: parsed.episodeBadge,
-      overview: ch.plot,
-      watchProgress: watchProgress,
-      enrichmentKey: key,
-      providerCategoryId: providerCategoryId ?? ch.categoryId,
-      providerCategoryName: providerCategoryName ?? subtitle,
     );
   }
 

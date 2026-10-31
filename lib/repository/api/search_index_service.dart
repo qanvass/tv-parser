@@ -15,12 +15,37 @@ class SearchIndexEntry {
   final String normalizedName;
   final Set<String> tokens;
 
+  /// Lowercased display name, computed once at index time so search never
+  /// re-lowercases 100k names per keystroke.
+  final String nameLower;
+
+  /// Region/language boost flag, also computed once at index time.
+  final bool isUsaOrEng;
+
   SearchIndexEntry({
     required this.item,
     required this.type,
     required this.normalizedName,
     required this.tokens,
-  });
+  })  : nameLower = _displayNameOf(item).toLowerCase(),
+        isUsaOrEng = _usaOrEngOf(normalizedName);
+
+  static final RegExp _usWord = RegExp(r'\bus\b');
+
+  static String _displayNameOf(dynamic item) {
+    if (item is ChannelLive) return item.name ?? '';
+    if (item is ChannelMovie) return item.name ?? '';
+    if (item is ChannelSerie) return item.name ?? '';
+    return '';
+  }
+
+  static bool _usaOrEngOf(String n) =>
+      n.contains('usa') ||
+      n.contains('united states') ||
+      n.contains('uk') ||
+      n.contains('canada') ||
+      n.contains('english') ||
+      _usWord.hasMatch(n);
 }
 
 class SearchIndexService {
@@ -243,126 +268,155 @@ class SearchIndexService {
     }
   }
 
-  /// Queries the built index, scoring matches based on string containments and token overlays
+  /// Index size above which [searchAsync] slices its scan across event-loop
+  /// turns instead of running one long synchronous pass.
+  static const int asyncScanThreshold = 10000;
+
+  /// Queries the built index, scoring matches based on string containments and token overlays.
+  /// Synchronous; prefer [searchAsync] from UI code once the index is large.
   static List<SearchIndexEntry> search(
     String queryText, {
     List<String> expandedKeywords = const [],
   }) {
+    final ctx = _SearchContext.create(queryText, expandedKeywords, _index);
+    if (ctx == null) return [];
     final stopwatch = Stopwatch()..start();
-    final clean = queryText.toLowerCase().trim();
-    if (clean.isEmpty) return [];
-
-    final activeMarket = LocalMarketService.getActiveMarket();
-    final prefProfile = UserPreferenceProfile.load();
-    final bool isPersonalized = prefProfile.locationFeatureEnabled;
-    Set<String> localLiveStreamIds = {};
-
-    if (isPersonalized && activeMarket != null) {
-      final localLiveChannels = LocalMarketService.getLocalChannelsForCategory(
-        categoryKey: 'all',
-        market: activeMarket,
-        playlist: _index
-            .where((e) => e.type == 'live')
-            .map((e) => e.item as ChannelLive)
-            .toList(),
-      );
-      localLiveStreamIds = localLiveChannels
-          .map((c) => c.streamId ?? '')
-          .where((id) => id.isNotEmpty)
-          .toSet();
-    }
-
-    final searchTokens = _tokenize(clean);
-    final List<MapEntry<SearchIndexEntry, double>> scored = [];
-
+    final scored = <MapEntry<SearchIndexEntry, double>>[];
     for (final entry in _index) {
-      double score = 0.0;
+      final score = _scoreEntry(entry, ctx);
+      if (score > 0) scored.add(MapEntry(entry, score));
+    }
+    return _finish(queryText, scored, stopwatch);
+  }
 
-      // Primary: exact phrase / prefix on searchable blob (name + group + tvg-id)
-      if (entry.normalizedName.contains(clean)) {
-        score += 100.0;
-        if (entry.normalizedName.startsWith(clean)) {
-          score += 50.0;
-        }
-      }
-
-      // Prefer channel-name prefix over category-only hits
-      final nameOnly = _itemDisplayName(entry).toLowerCase();
-      if (nameOnly.startsWith(clean)) {
-        score += 40.0;
-      } else if (nameOnly.contains(clean)) {
-        score += 20.0;
-      }
-
-      // Secondary: token matches
-      for (final st in searchTokens) {
-        if (entry.tokens.contains(st)) {
-          score += 30.0;
-        } else {
-          for (final et in entry.tokens) {
-            if (et.contains(st)) {
-              score += 15.0;
-              break;
-            }
-          }
-        }
-      }
-
-      // Tertiary: AI intent expanded tokens
-      for (final et in expandedKeywords) {
-        final cleanEt = et.toLowerCase().trim();
-        if (cleanEt.isEmpty) continue;
-        if (searchTokens.contains(cleanEt)) continue;
-
-        if (entry.tokens.contains(cleanEt)) {
-          score += 10.0;
-        } else {
-          for (final token in entry.tokens) {
-            if (token.contains(cleanEt)) {
-              score += 5.0;
-              break;
-            }
-          }
-        }
-      }
-
-      if (score > 0) {
-        if (entry.type == 'live' &&
-            localLiveStreamIds
-                .contains((entry.item as ChannelLive).streamId)) {
-          score += 40.0;
-        }
-
-        final isUsaOrEng = entry.normalizedName.contains('usa') ||
-            entry.normalizedName.contains('united states') ||
-            entry.normalizedName.contains('uk') ||
-            entry.normalizedName.contains('canada') ||
-            entry.normalizedName.contains('english') ||
-            RegExp(r'\bus\b').hasMatch(entry.normalizedName);
-        if (isUsaOrEng) {
-          score += 25.0;
-        }
-
-        scored.add(MapEntry(entry, score));
+  /// Same results as [search], but for large indexes the scan yields to the
+  /// event loop every few milliseconds so typing and D-pad focus stay
+  /// responsive. Returns null if [isStale] reported a newer query mid-scan.
+  static Future<List<SearchIndexEntry>?> searchAsync(
+    String queryText, {
+    List<String> expandedKeywords = const [],
+    bool Function()? isStale,
+  }) async {
+    final snapshot = _index;
+    if (snapshot.length <= asyncScanThreshold) {
+      return search(queryText, expandedKeywords: expandedKeywords);
+    }
+    final ctx = _SearchContext.create(queryText, expandedKeywords, snapshot);
+    if (ctx == null) return [];
+    final stopwatch = Stopwatch()..start();
+    final slice = Stopwatch()..start();
+    final scored = <MapEntry<SearchIndexEntry, double>>[];
+    for (var i = 0; i < snapshot.length; i++) {
+      final entry = snapshot[i];
+      final score = _scoreEntry(entry, ctx);
+      if (score > 0) scored.add(MapEntry(entry, score));
+      if ((i & 255) == 0 && slice.elapsedMilliseconds >= 8) {
+        await Future<void>.delayed(Duration.zero);
+        if (isStale != null && isStale()) return null;
+        slice
+          ..reset()
+          ..start();
       }
     }
+    return _finish(queryText, scored, stopwatch);
+  }
 
+  static List<SearchIndexEntry> _finish(
+    String queryText,
+    List<MapEntry<SearchIndexEntry, double>> scored,
+    Stopwatch stopwatch,
+  ) {
     scored.sort((a, b) => b.value.compareTo(a.value));
     stopwatch.stop();
     debugPrint(
       "[SearchIndexService] Search for '$queryText' completed in "
       "${stopwatch.elapsedMilliseconds} ms. Results found: ${scored.length}",
     );
-
     return scored.map((e) => e.key).toList();
   }
 
-  static String _itemDisplayName(SearchIndexEntry entry) {
-    final item = entry.item;
-    if (item is ChannelLive) return item.name ?? '';
-    if (item is ChannelMovie) return item.name ?? '';
-    if (item is ChannelSerie) return item.name ?? '';
-    return '';
+  static double _scoreEntry(SearchIndexEntry entry, _SearchContext ctx) {
+    final clean = ctx.clean;
+    final normalized = entry.normalizedName;
+
+    // Cheap reject: every scoring rule below needs the query, a query token,
+    // or an expanded keyword to appear as a substring of the searchable blob
+    // (tokens are substrings of it). Skips the token loops for ~all entries.
+    var candidate = normalized.contains(clean);
+    if (!candidate) {
+      for (final st in ctx.searchTokens) {
+        if (normalized.contains(st)) {
+          candidate = true;
+          break;
+        }
+      }
+    }
+    if (!candidate) {
+      for (final et in ctx.expanded) {
+        if (normalized.contains(et)) {
+          candidate = true;
+          break;
+        }
+      }
+    }
+    if (!candidate && !entry.nameLower.contains(clean)) return 0.0;
+
+    double score = 0.0;
+
+    // Primary: exact phrase / prefix on searchable blob (name + group + tvg-id)
+    if (normalized.contains(clean)) {
+      score += 100.0;
+      if (normalized.startsWith(clean)) {
+        score += 50.0;
+      }
+    }
+
+    // Prefer channel-name prefix over category-only hits
+    final nameOnly = entry.nameLower;
+    if (nameOnly.startsWith(clean)) {
+      score += 40.0;
+    } else if (nameOnly.contains(clean)) {
+      score += 20.0;
+    }
+
+    // Secondary: token matches
+    for (final st in ctx.searchTokens) {
+      if (entry.tokens.contains(st)) {
+        score += 30.0;
+      } else {
+        for (final et in entry.tokens) {
+          if (et.contains(st)) {
+            score += 15.0;
+            break;
+          }
+        }
+      }
+    }
+
+    // Tertiary: AI intent expanded tokens
+    for (final cleanEt in ctx.expanded) {
+      if (ctx.searchTokens.contains(cleanEt)) continue;
+      if (entry.tokens.contains(cleanEt)) {
+        score += 10.0;
+      } else {
+        for (final token in entry.tokens) {
+          if (token.contains(cleanEt)) {
+            score += 5.0;
+            break;
+          }
+        }
+      }
+    }
+
+    if (score > 0) {
+      if (entry.type == 'live' &&
+          ctx.localLiveStreamIds
+              .contains((entry.item as ChannelLive).streamId)) {
+        score += 40.0;
+      }
+      if (entry.isUsaOrEng) score += 25.0;
+    }
+    return score;
   }
 
   /// Safely clears the memory index
@@ -493,4 +547,53 @@ List<SearchIndexEntry> buildSearchIndexInBackground(SearchIndexParams params) {
   });
 
   return tempIndex;
+}
+
+/// Per-query state computed once, not per index entry.
+class _SearchContext {
+  final String clean;
+  final Set<String> searchTokens;
+  final List<String> expanded;
+  final Set<String> localLiveStreamIds;
+
+  _SearchContext._(
+    this.clean,
+    this.searchTokens,
+    this.expanded,
+    this.localLiveStreamIds,
+  );
+
+  static _SearchContext? create(
+    String queryText,
+    List<String> expandedKeywords,
+    List<SearchIndexEntry> index,
+  ) {
+    final clean = queryText.toLowerCase().trim();
+    if (clean.isEmpty) return null;
+
+    var localLiveStreamIds = <String>{};
+    final activeMarket = LocalMarketService.getActiveMarket();
+    final prefProfile = UserPreferenceProfile.load();
+    if (prefProfile.locationFeatureEnabled && activeMarket != null) {
+      final localLiveChannels = LocalMarketService.getLocalChannelsForCategory(
+        categoryKey: 'all',
+        market: activeMarket,
+        playlist: index
+            .where((e) => e.type == 'live')
+            .map((e) => e.item as ChannelLive)
+            .toList(),
+      );
+      localLiveStreamIds = localLiveChannels
+          .map((c) => c.streamId ?? '')
+          .where((id) => id.isNotEmpty)
+          .toSet();
+    }
+
+    final searchTokens = SearchIndexService._tokenize(clean);
+    final expanded = <String>[
+      for (final et in expandedKeywords)
+        if (et.toLowerCase().trim().isNotEmpty) et.toLowerCase().trim(),
+    ];
+    return _SearchContext._(clean, searchTokens, expanded, localLiveStreamIds);
+  }
 }

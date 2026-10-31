@@ -212,6 +212,40 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     );
   }
 
+  /// True when [url] is a playlist movie or episode and its player was opened.
+  bool _openCatalogVod(String url) {
+    for (final m in LocaleApi.getM3uMovies()) {
+      if (m.directSource == url) {
+        Get.to(
+          () => MoviePlayerScreen(
+            link: url,
+            title: m.name ?? 'Movie',
+            streamId: m.streamId,
+            image: m.streamIcon,
+            recordHistory: true,
+          ),
+        );
+        return true;
+      }
+    }
+    for (final s in LocaleApi.getM3uSeries()) {
+      if (s.directSource == url) {
+        Get.to(
+          () => MoviePlayerScreen(
+            link: url,
+            title: s.name ?? 'Episode',
+            streamId: s.seriesId,
+            image: s.cover,
+            recordHistory: true,
+            historyIsSeries: true,
+          ),
+        );
+        return true;
+      }
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     Widget dashboardChild;
@@ -221,6 +255,9 @@ class _WelcomeScreenState extends State<WelcomeScreen>
           if (url == "adult_locked") {
             _showTvAdultPinDialog(context);
           } else {
+            // Playlist movies/episodes share the /api/stream/ URL shape with
+            // live channels; the catalog says which player they belong in.
+            if (_openCatalogVod(url)) return;
             final streamId = extractStreamIdFromUrl(url);
             // M3U providers (e.g. /api/stream/.../*.m3u8) are not Xtream /live/<id>.
             if (isLikelyLiveStreamUrl(url)) {

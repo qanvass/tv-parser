@@ -1325,6 +1325,7 @@ class MoviePlayerScreen extends StatefulWidget {
     this.streamId,
     this.image,
     this.recordHistory = false,
+    this.historyIsSeries = false,
   });
 
   final String link;
@@ -1337,6 +1338,9 @@ class MoviePlayerScreen extends StatefulWidget {
   /// Save resume position to History on exit. Callers that already save the
   /// returned [position, duration] themselves leave this off.
   final bool recordHistory;
+
+  /// Save to History's Series section instead of Movies.
+  final bool historyIsSeries;
 
   @override
   State<MoviePlayerScreen> createState() => _MoviePlayerScreenState();
@@ -1680,16 +1684,20 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
       routeBefore: Get.currentRoute,
     );
     if (widget.recordHistory && pos > 0 && dur > 0) {
-      context.read<WatchingCubit>().addMovie(
-        WatchingModel(
-          sliderValue: pos,
-          durationStrm: dur,
-          stream: widget.link,
-          title: widget.title,
-          image: widget.image ?? '',
-          streamId: widget.streamId ?? widget.link,
-        ),
+      final model = WatchingModel(
+        sliderValue: pos,
+        durationStrm: dur,
+        stream: widget.link,
+        title: widget.title,
+        image: widget.image ?? '',
+        streamId: widget.streamId ?? widget.link,
       );
+      final watching = context.read<WatchingCubit>();
+      if (widget.historyIsSeries) {
+        watching.addSerie(model);
+      } else {
+        watching.addMovie(model);
+      }
     }
     Get.back(result: pos > 0 ? [pos, dur] : null);
   }

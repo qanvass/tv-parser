@@ -48,6 +48,7 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
       NativeTextFieldController();
   final FocusNode _fieldFocus = FocusNode(debugLabel: 'TvSearchField');
   Timer? _debounceTimer;
+  int _searchSeq = 0;
 
   List<ChannelLive> _allLiveChannels = [];
   List<ChannelMovie> _allMovies = [];
@@ -290,10 +291,13 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
     final aiIntent = AiIntentMapper.parseQuery(clean);
     UserBehaviorService.trackSearch(clean);
 
-    final searchResults = SearchIndexService.search(
+    final searchSeq = ++_searchSeq;
+    final searchResults = await SearchIndexService.searchAsync(
       clean,
       expandedKeywords: aiIntent.keywords,
+      isStale: () => !mounted || searchSeq != _searchSeq,
     );
+    if (searchResults == null || !mounted || searchSeq != _searchSeq) return;
 
     final lives = <ChannelLive>[];
     final movies = <ChannelMovie>[];
