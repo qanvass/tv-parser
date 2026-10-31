@@ -53,7 +53,17 @@ class _CinematicPosterCardState extends State<CinematicPosterCard> {
       child: Focus(
         onFocusChange: (value) {
           setState(() => _focused = value);
-          if (value) widget.onFocused?.call(widget.stream);
+          if (value) {
+            widget.onFocused?.call(widget.stream);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              Scrollable.ensureVisible(
+                context,
+                alignment: 0.28,
+                duration: const Duration(milliseconds: 180),
+              );
+            });
+          }
         },
         onKeyEvent: (node, event) {
           if (event is! KeyDownEvent) return KeyEventResult.ignored;
@@ -61,6 +71,7 @@ class _CinematicPosterCardState extends State<CinematicPosterCard> {
           if (k == LogicalKeyboardKey.select ||
               k == LogicalKeyboardKey.enter ||
               k == LogicalKeyboardKey.gameButtonA ||
+              k == LogicalKeyboardKey.numpadEnter ||
               k == LogicalKeyboardKey.space) {
             widget.onSelected();
             return KeyEventResult.handled;
@@ -131,15 +142,26 @@ class _CinematicPosterCardState extends State<CinematicPosterCard> {
                               widget.stream,
                               extra: extra,
                             );
+                            final isSeries =
+                                widget.stream.groupedEpisodes.isNotEmpty ||
+                                widget.stream.season != null ||
+                                widget.stream.episode != null ||
+                                (widget.stream.enrichmentKey != null &&
+                                    widget.stream.enrichmentKey!.contains(
+                                      ':series:',
+                                    ));
+                            final badge = isSeries ? 'SERIES' : 'MOVIE';
                             return Stack(
                               fit: StackFit.expand,
                               children: [
                                 CinematicTitlePlaceholder(
                                   title: widget.stream.title,
+                                  badge: badge,
                                 ),
                                 _PosterArt(
                                   url: art.poster,
                                   title: widget.stream.title,
+                                  badge: badge,
                                   hasProvider:
                                       ArtworkUrlResolver.isUsableImageUrl(
                                         widget.stream.imageUrl,
@@ -223,6 +245,7 @@ class _CinematicPosterCardState extends State<CinematicPosterCard> {
 class _PosterArt extends StatelessWidget {
   final String? url;
   final String title;
+  final String badge;
   final bool hasProvider;
   final bool hasResolved;
   final bool hasBackdrop;
@@ -230,6 +253,7 @@ class _PosterArt extends StatelessWidget {
   const _PosterArt({
     this.url,
     required this.title,
+    this.badge = 'MOVIE',
     required this.hasProvider,
     required this.hasResolved,
     required this.hasBackdrop,
@@ -254,22 +278,11 @@ class _PosterArt extends StatelessWidget {
         fit: BoxFit.cover,
         width: CinematicPosterCard.width,
         height: CinematicPosterCard.height,
-        memCacheWidth: 320,
-        memCacheHeight: 480,
-        fadeInDuration: CinematicMotion.backdrop,
+        memCacheWidth: 280,
+        memCacheHeight: 420,
+        fadeInDuration: const Duration(milliseconds: 120),
         httpHeaders: ArtworkUrlResolver.imageHeaders,
-        placeholder: (_, _) => const TvArtworkShimmer(),
-        imageBuilder: (context, provider) {
-          MovieArtDebug.logCard(
-            title: title,
-            hasProviderArtwork: hasProvider,
-            hasResolvedPoster: true,
-            hasBackdrop: hasBackdrop,
-            posterHost: ArtworkUrlResolver.hostOnly(url),
-            load: 'success',
-          );
-          return Image(image: provider, fit: BoxFit.cover);
-        },
+        placeholder: (_, _) => const SizedBox.expand(),
         errorWidget: (_, _, error) {
           MovieArtDebug.logCard(
             title: title,
@@ -279,7 +292,7 @@ class _PosterArt extends StatelessWidget {
             posterHost: ArtworkUrlResolver.hostOnly(url),
             load: 'failure_${error.runtimeType}',
           );
-          return CinematicTitlePlaceholder(title: title);
+          return CinematicTitlePlaceholder(title: title, badge: badge);
         },
       ),
     );

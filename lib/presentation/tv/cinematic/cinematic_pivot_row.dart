@@ -10,6 +10,7 @@ class CinematicPivotRow extends StatefulWidget {
   final List<TvStreamRecord> streams;
   final ValueChanged<String> onChannelSelected;
   final ValueChanged<TvStreamRecord>? onStreamFocused;
+  final ValueChanged<TvStreamRecord>? onCardNearView;
 
   const CinematicPivotRow({
     super.key,
@@ -17,6 +18,7 @@ class CinematicPivotRow extends StatefulWidget {
     required this.streams,
     required this.onChannelSelected,
     this.onStreamFocused,
+    this.onCardNearView,
   });
 
   @override
@@ -85,6 +87,7 @@ class _CinematicPivotRowState extends State<CinematicPivotRow> {
               separatorBuilder: (_, _) => const SizedBox(width: _gap),
               itemBuilder: (context, index) {
                 final stream = widget.streams[index];
+                widget.onCardNearView?.call(stream);
                 final key =
                     stream.streamId ??
                     stream.enrichmentKey ??

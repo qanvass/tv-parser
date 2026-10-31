@@ -10,8 +10,10 @@ class StarliteVodM3uUrls {
     defaultValue: true,
   );
 
-  /// Safety cap for tvshows shard pagination (legacy catalogs cited ~14).
-  static const int maxTvShowShards = 20;
+  /// Safety cap for tvshows shard pagination; the fetch stops at the first
+  /// empty/404 page. Catalogs run newest to oldest (~52 pages seen), so a low
+  /// cap silently drops every older show.
+  static const int maxTvShowShards = 80;
 
   /// Expected shard size tip from probe (~5k EXTINF); not a hard stop.
   static const int typicalShardExtinf = 5000;

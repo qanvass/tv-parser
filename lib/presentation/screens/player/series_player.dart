@@ -39,6 +39,10 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
   bool _isDeadStream = false;
   late int _epIdx;
 
+  /// Bumped per media load; a slower [HlsVodPlaylist.prepare] must not override
+  /// the episode the user has since moved to.
+  int _mediaLoad = 0;
+
   // Playback state
   bool _isPlaying = false;
   bool _isBuffering = true;
@@ -104,23 +108,32 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
     _initPlayer();
   }
 
+  /// Try Again builds a new player; the failed one must be torn down first.
+  void _releaseCtrl() {
+    if (!_ctrlInitialized) return;
+    _ctrlInitialized = false;
+    final old = _ctrl;
+    try {
+      old.removeListener(_onVlc);
+      old.stopRendererScanning().catchError((_) {});
+      old.dispose().catchError((_) {});
+    } catch (_) {}
+  }
+
   Future<void> _initPlayer() async {
-    if (_ctrlInitialized) {
-      try {
-        _ctrl.removeListener(_onVlc);
-        await _ctrl.stopRendererScanning();
-        await _ctrl.dispose();
-      } catch (_) {}
-      _ctrlInitialized = false;
-    }
+    _releaseCtrl();
+    final load = ++_mediaLoad;
+    final url = _currentUrl;
 
     // [TV_PARSER_PERF] Bypass blocking pre-playback health checks to initialize VLC player instantly.
     // This aligns with MoviePlayerScreen and LivePlayerScreen designs and avoids false negatives.
+    final playUrl = await HlsVodPlaylist.prepare(url);
+    if (!mounted || load != _mediaLoad) return;
     _ctrl = VlcPlayerController.network(
-      _currentUrl,
+      playUrl,
       hwAcc: HwAcc.auto,
       autoPlay: true,
-      options: buildVlcPlaybackOptions(isLive: false, streamUrl: _currentUrl),
+      options: buildVlcPlaybackOptions(isLive: false, streamUrl: url),
     );
     _ctrl.addListener(_onVlc);
     OrientationGuard.applyPlayerOrientation();
@@ -150,17 +163,8 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
 
   @override
   void dispose() {
-    if (_ctrlInitialized) {
-      try {
-        _ctrl.removeListener(_onVlc);
-      } catch (_) {}
-      _ctrl.stopRendererScanning().catchError((_) {});
-      try {
-        if (_ctrl.value.isInitialized) {
-          _ctrl.dispose().catchError((_) {});
-        }
-      } catch (_) {}
-    }
+    _mediaLoad++;
+    _releaseCtrl();
     _hideTimer?.cancel();
     _seekHudTimer?.cancel();
     _focusNode.dispose();
@@ -231,6 +235,7 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
   }
 
   void _togglePlay() {
+    if (!_ctrlInitialized) return;
     if (_isPlaying) {
       _ctrl.pause();
     } else {
@@ -395,9 +400,17 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
     });
     _stopwatch.reset();
     _stopwatch.start();
+    // Still opening the first episode: restart that load with the new one.
+    if (!_ctrlInitialized) {
+      unawaited(_initPlayer());
+      return;
+    }
+    final load = ++_mediaLoad;
+    final playUrl = await HlsVodPlaylist.prepare(newUrl);
+    if (!mounted || load != _mediaLoad) return;
     try {
       await _ctrl.setMediaFromNetwork(
-        newUrl,
+        playUrl,
         autoPlay: true,
         hwAcc: HwAcc.auto,
       );
@@ -704,7 +717,7 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
                     setState(() {
                       _castDevice = null;
                     });
-                    _ctrl.play();
+                    if (_ctrlInitialized) _ctrl.play();
                   },
                   icon: const Icon(Icons.link_off_rounded, size: 18),
                   label: const Text(
@@ -855,10 +868,10 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
                                     ),
                                   ),
                                   onPressed: () {
+                                    _releaseCtrl();
                                     setState(() {
                                       _isDeadStream = false;
                                       _isCheckingHealth = true;
-                                      _ctrlInitialized = false;
                                     });
                                     _initPlayer();
                                   },

@@ -47,6 +47,7 @@ class PremiumPlusCard extends StatelessWidget {
                       ? const Icon(Icons.live_tv_rounded, color: Colors.white70)
                       : CachedNetworkImage(
                           imageUrl: iconUrl,
+                          memCacheWidth: 128,
                           fit: BoxFit.contain,
                           errorWidget: (_, __, ___) => const Icon(
                             Icons.live_tv_rounded,

@@ -320,6 +320,7 @@ class LivePlayerScreen extends StatefulWidget {
 class _LivePlayerScreenState extends State<LivePlayerScreen> {
   late VlcPlayerController _ctrl;
   bool _ctrlInitialized = false;
+  int _mediaLoad = 0;
   bool _isCheckingHealth = true;
   bool _isDeadStream = false;
   String _deadStreamMessage =
@@ -365,6 +366,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
   }
 
   Future<void> _initPlayer() async {
+    final load = ++_mediaLoad;
     final raw = widget.link.trim();
     LivePreviewTrace.log(
       'fullscreen_open',
@@ -380,7 +382,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
 
     // Classify entitlement/auth failures before VLC so we don't show "offline".
     final probe = await StreamHealthService.probe(widget.link);
-    if (!mounted) return;
+    if (!mounted || load != _mediaLoad) return;
     if (probe == StreamProbeResult.subscriptionGated ||
         probe == StreamProbeResult.unauthorized ||
         probe == StreamProbeResult.unreachable) {
@@ -435,6 +437,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
 
   @override
   void dispose() {
+    _mediaLoad++;
     if (_ctrlInitialized) {
       try {
         _ctrl.removeListener(_onVlc);
@@ -601,6 +604,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
   }
 
   void _togglePlay() {
+    if (!_ctrlInitialized) return;
     if (_isPlaying) {
       _ctrl.pause();
     } else {
@@ -641,11 +645,23 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
   bool _isFocused(int row, int col) =>
       _showControls && _focusRow == row && _focusCol == col;
 
+  /// Try Again builds a new player; the failed one must be torn down first.
+  void _releaseCtrl() {
+    if (!_ctrlInitialized) return;
+    _ctrlInitialized = false;
+    final old = _ctrl;
+    try {
+      old.removeListener(_onVlc);
+      old.stopRendererScanning().catchError((_) {});
+      old.dispose().catchError((_) {});
+    } catch (_) {}
+  }
+
   void _retryDeadStream() {
+    _releaseCtrl();
     setState(() {
       _isDeadStream = false;
       _isCheckingHealth = true;
-      _ctrlInitialized = false;
       _deadActionIdx = 0;
       _deadStreamMessage =
           'This stream is temporarily unavailable. Try another source or run Connection Test.';
@@ -982,7 +998,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
                     setState(() {
                       _castDevice = null;
                     });
-                    _ctrl.play();
+                    if (_ctrlInitialized) _ctrl.play();
                   },
                   icon: const Icon(Icons.link_off_rounded, size: 18),
                   label: const Text(
@@ -1326,6 +1342,7 @@ class MoviePlayerScreen extends StatefulWidget {
     this.image,
     this.recordHistory = false,
     this.historyIsSeries = false,
+    this.startAt,
   });
 
   final String link;
@@ -1342,6 +1359,9 @@ class MoviePlayerScreen extends StatefulWidget {
   /// Save to History's Series section instead of Movies.
   final bool historyIsSeries;
 
+  /// Resume position; ignored near the start or end of the title.
+  final Duration? startAt;
+
   @override
   State<MoviePlayerScreen> createState() => _MoviePlayerScreenState();
 }
@@ -1349,6 +1369,7 @@ class MoviePlayerScreen extends StatefulWidget {
 class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
   late VlcPlayerController _ctrl;
   bool _ctrlInitialized = false;
+  int _mediaLoad = 0;
   bool _isCheckingHealth = true;
   bool _isDeadStream = false;
   int _deadActionIdx = 0;
@@ -1400,14 +1421,17 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
   }
 
   Future<void> _initPlayer() async {
+    final load = ++_mediaLoad;
     debugPrint(
       "[TV_PARSER_PERF] MoviePlayerScreen: _initPlayer started for ${widget.title}",
     );
     _stopwatch.reset();
     _stopwatch.start();
 
+    final playUrl = await HlsVodPlaylist.prepare(widget.link);
+    if (!mounted || load != _mediaLoad) return;
     _ctrl = VlcPlayerController.network(
-      widget.link,
+      playUrl,
       hwAcc: HwAcc.auto,
       autoPlay: true,
       options: buildVlcPlaybackOptions(isLive: false, streamUrl: widget.link),
@@ -1439,6 +1463,7 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
 
   @override
   void dispose() {
+    _mediaLoad++;
     if (_ctrlInitialized) {
       try {
         _ctrl.removeListener(_onVlc);
@@ -1458,6 +1483,17 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
 
   // ── VLC listener ──────────────────────────────────────────────────────────
 
+  bool _resumeChecked = false;
+
+  void _resumeOnce(VlcPlayerValue v) {
+    if (_resumeChecked || !v.isPlaying || v.duration <= Duration.zero) return;
+    _resumeChecked = true;
+    final at = widget.startAt;
+    if (at == null || at < const Duration(seconds: 15)) return;
+    if (at > v.duration - const Duration(seconds: 60)) return;
+    _ctrl.seekTo(at).catchError((_) {});
+  }
+
   void _onVlc() {
     if (!mounted) return;
     final v = _ctrl.value;
@@ -1467,6 +1503,7 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
       _position = v.position;
       _duration = v.duration;
     });
+    _resumeOnce(v);
     if (v.isInitialized && _stopwatch.isRunning) {
       _stopwatch.stop();
       debugPrint(
@@ -1524,6 +1561,7 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
   }
 
   void _togglePlay() {
+    if (!_ctrlInitialized) return;
     if (_isPlaying) {
       _ctrl.pause();
     } else {
@@ -1704,11 +1742,23 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
 
   void _goBack() => _commitMovieExit(source: 'chrome');
 
+  /// Try Again builds a new player; the failed one must be torn down first.
+  void _releaseCtrl() {
+    if (!_ctrlInitialized) return;
+    _ctrlInitialized = false;
+    final old = _ctrl;
+    try {
+      old.removeListener(_onVlc);
+      old.stopRendererScanning().catchError((_) {});
+      old.dispose().catchError((_) {});
+    } catch (_) {}
+  }
+
   void _retryDeadStream() {
+    _releaseCtrl();
     setState(() {
       _isDeadStream = false;
       _isCheckingHealth = true;
-      _ctrlInitialized = false;
       _deadActionIdx = 0;
     });
     _initPlayer();
@@ -1993,7 +2043,7 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
                     setState(() {
                       _castDevice = null;
                     });
-                    _ctrl.play();
+                    if (_ctrlInitialized) _ctrl.play();
                   },
                   icon: const Icon(Icons.link_off_rounded, size: 18),
                   label: const Text(

@@ -379,4 +379,42 @@ https://cdn.example/movie/3
       expect(listenerFires, 0);
     });
   });
+
+  test('title and year find a poster stored under a provider id', () async {
+    final dir = await Directory.systemTemp.createTemp('tmdb_title_year');
+    addTearDown(() => dir.delete(recursive: true));
+    final cache = TmdbMetadataCache(overrideDir: dir);
+    final key = TmdbEnrichmentWorker.cacheKeyFor(
+      'Rose (2026)',
+      'stream-99',
+      type: ContentType.movie,
+      year: 2026,
+    );
+    await cache.putHit(
+      key,
+      const UnifiedMediaMetadata(
+        posterUrl: 'https://image.tmdb.org/t/p/w500/rose.jpg',
+        contentType: ContentType.movie,
+      ),
+    );
+    final worker = TmdbEnrichmentWorker(
+      cache: cache,
+      client: TmdbClient(enabledForTest: false),
+    );
+    final hit = worker.findByTitleAndYear(
+      'Rose (2026)',
+      year: 2026,
+      type: ContentType.movie,
+    );
+    expect(key.contains('stream-99'), isTrue);
+    expect(hit?.posterUrl, 'https://image.tmdb.org/t/p/w500/rose.jpg');
+    expect(
+      worker.findByTitleAndYear(
+        'Rose (2026)',
+        year: 2026,
+        type: ContentType.series,
+      ),
+      isNull,
+    );
+  });
 }

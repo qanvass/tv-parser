@@ -110,6 +110,7 @@ class _MobileDetailScreenState extends State<MobileDetailScreen> {
             child: imageUrl.isNotEmpty
                 ? CachedNetworkImage(
                     imageUrl: imageUrl,
+                    memCacheWidth: 1280,
                     fit: BoxFit.cover,
                     fadeInDuration: const Duration(milliseconds: 300),
                     placeholder: (context, url) =>

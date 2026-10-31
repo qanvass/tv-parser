@@ -12,7 +12,9 @@ import '../../../logic/cubits/favorites/favorites_cubit.dart';
 import '../../../repository/api/artwork_url_resolver.dart';
 import '../../../repository/epg/xmltv_repository.dart';
 import '../../../repository/models/channel_live.dart';
+import '../../../repository/provider/provider_enums.dart';
 import '../../../repository/provider/tmdb_enrichment_worker.dart';
+import '../../../repository/provider/title_normalizer.dart';
 import '../../widgets/smart_channel_logo.dart';
 import '../live/live_hero_preview_controller.dart';
 import '../live/live_hero_preview_surface.dart';
@@ -94,7 +96,14 @@ class TvStreamRecord {
     this.providerCategoryName,
   });
 
-  bool get isVod => posterStyle == TvPosterStyle.vodPortrait;
+  bool get isVod =>
+      posterStyle == TvPosterStyle.vodPortrait ||
+      subtitle == 'Movie' ||
+      subtitle == 'Series' ||
+      subtitle == 'Episode' ||
+      season != null ||
+      episode != null ||
+      groupedEpisodes.isNotEmpty;
 
   TvStreamRecord copyWith({
     String? title,
@@ -908,6 +917,10 @@ class _LiveChromeButtonState extends State<_LiveChromeButton> {
           widget.onPressed?.call();
           return KeyEventResult.handled;
         }
+        if (k == LogicalKeyboardKey.arrowUp) {
+          // Prevent directional UP from obliquely escaping leftward into the rail
+          return KeyEventResult.handled;
+        }
         return KeyEventResult.ignored;
       },
       child: AnimatedScale(
@@ -1699,17 +1712,89 @@ class _CardArtwork extends StatelessWidget {
   }
 }
 
-class _LiveLogoArt extends StatelessWidget {
+class _LiveLogoArt extends StatefulWidget {
   final String? imageUrl;
   final String channelName;
 
   const _LiveLogoArt({this.imageUrl, required this.channelName});
 
   @override
+  State<_LiveLogoArt> createState() => _LiveLogoArtState();
+}
+
+class _LiveLogoArtState extends State<_LiveLogoArt> {
+  bool _listening = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _armLookup();
+  }
+
+  @override
+  void didUpdateWidget(covariant _LiveLogoArt oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.imageUrl != widget.imageUrl ||
+        oldWidget.channelName != widget.channelName) {
+      _armLookup();
+    }
+  }
+
+  void _armLookup() {
+    final needsLookup = (widget.imageUrl ?? '').isEmpty &&
+        TitleNormalizer.parse(widget.channelName).year != null;
+    if (needsLookup && !_listening) {
+      _listening = true;
+      TmdbEnrichmentWorker.instance.addListener(_onCache);
+      TmdbEnrichmentWorker.instance.ensureStarted().then((_) {
+        if (mounted) setState(() {});
+      });
+    } else if (!needsLookup && _listening) {
+      TmdbEnrichmentWorker.instance.removeListener(_onCache);
+      _listening = false;
+    }
+  }
+
+  void _onCache() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    if (_listening) {
+      TmdbEnrichmentWorker.instance.removeListener(_onCache);
+    }
+    super.dispose();
+  }
+
+  String? _resolvedUrl() {
+    final image = widget.imageUrl;
+    if (image != null && image.isNotEmpty) return image;
+    final parsed = TitleNormalizer.parse(widget.channelName);
+    if (parsed.year == null) return image;
+    final worker = TmdbEnrichmentWorker.instance;
+    final movie = worker.findByTitleAndYear(
+      widget.channelName,
+      year: parsed.year,
+      type: ContentType.movie,
+    );
+    final series = worker.findByTitleAndYear(
+      widget.channelName,
+      year: parsed.year,
+      type: ContentType.series,
+    );
+    for (final meta in [movie, series]) {
+      final poster = meta?.posterUrl;
+      if (poster != null && poster.isNotEmpty) return poster;
+    }
+    return movie?.backdropUrl ?? series?.backdropUrl ?? image;
+  }
+
+  @override
   Widget build(BuildContext context) {
     return SmartChannelLogo(
-      primaryUrl: imageUrl,
-      channelName: channelName,
+      primaryUrl: _resolvedUrl(),
+      channelName: widget.channelName,
       fit: BoxFit.contain,
       memCacheWidth: 320,
       initialsSize: 36,

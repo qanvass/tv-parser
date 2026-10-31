@@ -18,9 +18,9 @@ void main() {
     );
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
-      const MethodChannel('plugins.flutter.io/path_provider'),
-      (MethodCall methodCall) async => storageDirectory.path,
-    );
+          const MethodChannel('plugins.flutter.io/path_provider'),
+          (MethodCall methodCall) async => storageDirectory.path,
+        );
     await GetStorage.init('preferences');
   });
 
@@ -39,20 +39,16 @@ void main() {
   tearDown(SearchIndexService.clearIndex);
 
   ChannelLive live(String name, {String id = '1'}) => ChannelLive(
-        name: name,
-        streamId: id,
-        directSource: 'http://example.test/$id',
-      );
+    name: name,
+    streamId: id,
+    directSource: 'http://example.test/$id',
+  );
 
-  ChannelMovie movie(String name, {String id = 'm1'}) => ChannelMovie(
-        name: name,
-        streamId: id,
-      );
+  ChannelMovie movie(String name, {String id = 'm1'}) =>
+      ChannelMovie(name: name, streamId: id);
 
-  ChannelSerie series(String name, {String id = 's1'}) => ChannelSerie(
-        name: name,
-        seriesId: id,
-      );
+  ChannelSerie series(String name, {String id = 's1'}) =>
+      ChannelSerie(name: name, seriesId: id);
 
   List<SearchIndexEntry> hits(String query) => SearchIndexService.search(query);
 
@@ -72,9 +68,7 @@ void main() {
     await SearchIndexService.indexMovies(
       movies: [movie('Inception', id: 'mov')],
     );
-    await SearchIndexService.indexLive(
-      liveChannels: [live('Atlanta News')],
-    );
+    await SearchIndexService.indexLive(liveChannels: [live('Atlanta News')]);
     expect(SearchIndexService.moviesIndexReady, isTrue);
     final movies = hits('Inception');
     expect(movies, isNotEmpty);
@@ -86,9 +80,7 @@ void main() {
     await SearchIndexService.indexSeries(
       series: [series('Atlanta FX', id: 'ser')],
     );
-    await SearchIndexService.indexLive(
-      liveChannels: [live('WSB Atlanta')],
-    );
+    await SearchIndexService.indexLive(liveChannels: [live('WSB Atlanta')]);
     expect(SearchIndexService.seriesIndexReady, isTrue);
     final seriesHits = hits('FX');
     expect(seriesHits.any((e) => e.type == 'series'), isTrue);
@@ -104,9 +96,7 @@ void main() {
     await SearchIndexService.indexLive(
       liveChannels: [live('Atlanta News', id: 'atl')],
     );
-    await SearchIndexService.indexMovies(
-      movies: [movie('Inception')],
-    );
+    await SearchIndexService.indexMovies(movies: [movie('Inception')]);
     final found = hits('Atlanta');
     expect(found.any((e) => e.type == 'live'), isTrue);
     expect(SearchIndexService.liveIndexReady, isTrue);
@@ -116,9 +106,7 @@ void main() {
     await SearchIndexService.indexLive(
       liveChannels: [live('Atlanta News', id: 'atl')],
     );
-    await SearchIndexService.indexSeries(
-      series: [series('The Bear')],
-    );
+    await SearchIndexService.indexSeries(series: [series('The Bear')]);
     final found = hits('Atlanta');
     expect(found.any((e) => e.type == 'live'), isTrue);
     expect(SearchIndexService.liveIndexReady, isTrue);
@@ -136,26 +124,26 @@ void main() {
     final found = hits('Atlanta');
     expect(found, isNotEmpty);
     expect(found.first.type, 'live');
-    expect(
-      (found.first.item as ChannelLive).name,
-      contains('Atlanta'),
-    );
+    expect((found.first.item as ChannelLive).name, contains('Atlanta'));
   });
 
-  test('7. partial index search works while seriesIndexReady is false', () async {
-    await SearchIndexService.indexLive(
-      liveChannels: [live('Atlanta News', id: 'atl')],
-    );
-    await SearchIndexService.indexMovies(
-      movies: [movie('Atlanta Dream', id: 'dream')],
-    );
-    expect(SearchIndexService.seriesIndexReady, isFalse);
-    final found = hits('Atlanta');
-    expect(found.length, greaterThanOrEqualTo(2));
-    expect(found.any((e) => e.type == 'live'), isTrue);
-    expect(found.any((e) => e.type == 'movie'), isTrue);
-    expect(found.any((e) => e.type == 'series'), isFalse);
-  });
+  test(
+    '7. partial index search works while seriesIndexReady is false',
+    () async {
+      await SearchIndexService.indexLive(
+        liveChannels: [live('Atlanta News', id: 'atl')],
+      );
+      await SearchIndexService.indexMovies(
+        movies: [movie('Atlanta Dream', id: 'dream')],
+      );
+      expect(SearchIndexService.seriesIndexReady, isFalse);
+      final found = hits('Atlanta');
+      expect(found.length, greaterThanOrEqualTo(2));
+      expect(found.any((e) => e.type == 'live'), isTrue);
+      expect(found.any((e) => e.type == 'movie'), isTrue);
+      expect(found.any((e) => e.type == 'series'), isFalse);
+    },
+  );
 
   test('8. duplicate domain indexing replaces that domain', () async {
     await SearchIndexService.indexLive(
@@ -178,5 +166,24 @@ void main() {
     expect((liveHits.first.item as ChannelLive).streamId, 'a1');
     expect(hits('CBS').where((e) => e.type == 'live'), isEmpty);
     expect(hits('Inception').any((e) => e.type == 'movie'), isTrue);
+  });
+
+  test('onePerShow keeps one row per show for per-show playlists', () {
+    final perShow = [
+      for (var c = 0; c < 40; c++)
+        for (var e = 1; e <= 3; e++)
+          ChannelSerie(
+            seriesId: '$c-$e',
+            name: 'Show $c (2001) S01 E0$e',
+            categoryId: 'c$c',
+          ),
+    ];
+    expect(SearchIndexService.onePerShow(perShow).length, 40);
+
+    final genres = [
+      for (var i = 0; i < 90; i++)
+        ChannelSerie(seriesId: '$i', name: 'Show $i', categoryId: 'g${i % 3}'),
+    ];
+    expect(SearchIndexService.onePerShow(genres).length, 90);
   });
 }

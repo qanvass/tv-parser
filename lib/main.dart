@@ -19,10 +19,15 @@ import 'presentation/screens/screens.dart';
 import 'presentation/mobile/adult_content_screen.dart';
 import 'presentation/tv/tv_search_screen.dart';
 import 'presentation/tv/live_rows_prebuild.dart';
+import 'presentation/tv/multiview/multiview_screen.dart';
 
 void main() async {
   // Ensure Flutter engine bindings are initialized prior to loading services
   WidgetsFlutterBinding.ensureInitialized();
+  // Decoded posters were unbounded. Cap slots and bytes; the byte cap is the
+  // one that matters on a 2 GB device. Live hero images are not resized here.
+  PaintingBinding.instance.imageCache.maximumSize = 200;
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 64 * 1024 * 1024;
 
   // Initialize local GetStorage instances for state and favorites
   await GetStorage.init();
@@ -188,6 +193,10 @@ class _MyAppState extends State<MyApp> {
                 GetPage(
                   name: screenTvSearch,
                   page: () => const TvSearchScreen(),
+                ),
+                GetPage(
+                  name: screenMultiview,
+                  page: () => const MultiviewScreen(),
                 ),
               ],
             );

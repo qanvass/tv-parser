@@ -41,6 +41,40 @@ void main() {
       ),
   ];
 
+  test('head slice stays bounded on a 100k catalog', () {
+    final sw = Stopwatch()..start();
+    final slice = sliceSeriesHead(series, cats, shelfLimit: 4, perShelf: 24);
+    expect(sw.elapsedMilliseconds, lessThan(2000));
+    expect(slice.categories.length, lessThanOrEqualTo(4));
+    expect(slice.series.length, lessThanOrEqualTo(4 * 24));
+    expect(slice.series.length, lessThan(series.length));
+  });
+
+  test('per-show head slice keeps the first shows only', () {
+    final showCats = [
+      for (var c = 0; c < 40; c++)
+        CategoryModel(categoryId: 'p$c', categoryName: 'Show $c (2026)'),
+    ];
+    final episodes = [
+      for (var c = 0; c < 40; c++)
+        for (var e = 0; e < 30; e++)
+          ChannelSerie(
+            name: 'Show $c S01E$e',
+            seriesId: 'p$c-e$e',
+            categoryId: 'p$c',
+          ),
+    ];
+    final slice = sliceSeriesHead(
+      episodes,
+      showCats,
+      shelfLimit: 2,
+      perShelf: 3,
+    );
+    expect(slice.categories.length, lessThanOrEqualTo(6));
+    expect(slice.series.length, lessThanOrEqualTo(6 * 30));
+    expect(slice.series.length, lessThan(episodes.length));
+  });
+
   test('series rails build in a worker isolate for 100k items', () async {
     final sw = Stopwatch()..start();
     final result = await compute(

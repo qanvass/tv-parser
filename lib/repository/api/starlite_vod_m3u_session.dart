@@ -22,20 +22,20 @@ import 'package:mbark_iptv/repository/provider/provider_enums.dart';
 /// [StarliteVodM3uUrls.isFeatureEnabled].
 class StarliteVodM3uSession {
   StarliteVodM3uSession._({Dio? dio})
-      : _dio = dio ??
-            Dio(
-              BaseOptions(
-                connectTimeout: const Duration(seconds: 15),
-                receiveTimeout: const Duration(seconds: 120),
-                validateStatus: (s) => s != null && s < 500,
-                headers: {
-                  'User-Agent':
-                      'Mozilla/5.0 (Linux; Android 12; Android TV) AppleWebKit/537.36',
-                  'Accept':
-                      'application/vnd.apple.mpegurl, audio/mpegurl, */*',
-                },
-              ),
-            );
+    : _dio =
+          dio ??
+          Dio(
+            BaseOptions(
+              connectTimeout: const Duration(seconds: 15),
+              receiveTimeout: const Duration(seconds: 120),
+              validateStatus: (s) => s != null && s < 500,
+              headers: {
+                'User-Agent':
+                    'Mozilla/5.0 (Linux; Android 12; Android TV) AppleWebKit/537.36',
+                'Accept': 'application/vnd.apple.mpegurl, audio/mpegurl, */*',
+              },
+            ),
+          );
 
   static final StarliteVodM3uSession instance = StarliteVodM3uSession._();
 
@@ -62,15 +62,15 @@ class StarliteVodM3uSession {
   String? lastXmlTvUrl;
 
   Future<void> Function(List<CategoryModel>, List<ChannelMovie>)?
-      _moviesPersister;
+  _moviesPersister;
   Future<void> Function(List<CategoryModel>, List<ChannelSerie>)?
-      _seriesPersister;
+  _seriesPersister;
 
   void bindPersisters({
     required Future<void> Function(List<CategoryModel>, List<ChannelMovie>)
-        movies,
+    movies,
     required Future<void> Function(List<CategoryModel>, List<ChannelSerie>)
-        series,
+    series,
   }) {
     _moviesPersister = movies;
     _seriesPersister = series;
@@ -270,10 +270,8 @@ class StarliteVodM3uSession {
       return false;
     }
 
-    final parsed = M3uParser.parseCatalog(
-      buf.toString(),
-      forceEntryType: M3uEntryType.series,
-    );
+    // 250k+ entries: parsing on the main isolate froze the UI (ANR).
+    final parsed = await compute(_parseSeriesCatalog, buf.toString());
     final sp = _seriesPersister;
     if (sp != null &&
         (parsed.seriesChannels.isNotEmpty ||
@@ -348,7 +346,8 @@ class StarliteVodM3uSession {
 
   Future<void> _publishCapabilities(String playlistUrl) async {
     final xmlTv = lastXmlTvUrl;
-    final prev = ProviderCapabilityInspector.instance.lastCapabilities ??
+    final prev =
+        ProviderCapabilityInspector.instance.lastCapabilities ??
         ProviderCapabilityStore.instance.cached ??
         ProviderCapabilities.m3uMinimum(hasLive: true);
 
@@ -359,13 +358,13 @@ class StarliteVodM3uSession {
       supportsSeries: lastSeriesCount > 0 || prev.supportsSeries,
       supportsXmlTv: (xmlTv != null && xmlTv.isNotEmpty) || prev.supportsXmlTv,
       xmlTvUrl: (xmlTv != null && xmlTv.isNotEmpty) ? xmlTv : prev.xmlTvUrl,
-      vodStreamSample:
-          lastMovieCount > 0 ? lastMovieCount : prev.vodStreamSample,
+      vodStreamSample: lastMovieCount > 0
+          ? lastMovieCount
+          : prev.vodStreamSample,
       vodCategorySample: lastMovieCategoryCount > 0
           ? lastMovieCategoryCount
           : prev.vodCategorySample,
-      seriesSample:
-          lastSeriesCount > 0 ? lastSeriesCount : prev.seriesSample,
+      seriesSample: lastSeriesCount > 0 ? lastSeriesCount : prev.seriesSample,
       seriesCategorySample: lastSeriesCategoryCount > 0
           ? lastSeriesCategoryCount
           : prev.seriesCategorySample,
@@ -384,3 +383,6 @@ class StarliteVodM3uSession {
     debugPrint(caps.capabilityLogLine);
   }
 }
+
+M3uParseResult _parseSeriesCatalog(String body) =>
+    M3uParser.parseCatalog(body, forceEntryType: M3uEntryType.series);

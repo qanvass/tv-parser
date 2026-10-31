@@ -286,6 +286,27 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
       );
     }
 
+    if (_allSeries.isNotEmpty && !SearchIndexService.seriesIndexReady) {
+      unawaited(
+        SearchIndexService.indexSeries(
+              series: _allSeries,
+              categoryIdToName: _categoryIdToName,
+            )
+            .then((_) {
+              // indexSeries logs failures and returns normally; searching again
+              // after one would start another build, in a loop.
+              if (SearchIndexService.seriesIndexReady &&
+                  mounted &&
+                  _searchController.text.trim() == clean) {
+                _performSearch(clean);
+              }
+            })
+            .catchError((Object e) {
+              debugPrint('TV search series index: $e');
+            }),
+      );
+    }
+
     if (!mounted) return;
 
     final aiIntent = AiIntentMapper.parseQuery(clean);
@@ -374,8 +395,13 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
       StreamLauncher.openStreamWithBrandedLoading(
         context: context,
         streamUrl: url,
-        playerBuilder: () =>
-            MoviePlayerScreen(link: url!, title: movie.name ?? 'Movie'),
+        playerBuilder: () => MoviePlayerScreen(
+          link: url!,
+          title: movie.name ?? 'Movie',
+          streamId: movie.streamId,
+          image: movie.streamIcon,
+          recordHistory: true,
+        ),
       );
     }
   }

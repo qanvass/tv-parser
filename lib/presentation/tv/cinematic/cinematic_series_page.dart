@@ -20,6 +20,7 @@ class CinematicSeriesPage extends StatefulWidget {
   final List<TvChannelRow> rows;
   final ValueChanged<String> onChannelSelected;
   final ValueChanged<TvStreamRecord>? onStreamFocused;
+  final ValueChanged<TvStreamRecord>? onCardNearView;
   final List<String> categoryChips;
   final String? selectedCategory;
   final ValueChanged<String?>? onCategorySelected;
@@ -29,6 +30,7 @@ class CinematicSeriesPage extends StatefulWidget {
     required this.rows,
     required this.onChannelSelected,
     this.onStreamFocused,
+    this.onCardNearView,
     this.categoryChips = const [],
     this.selectedCategory,
     this.onCategorySelected,
@@ -49,14 +51,24 @@ class _NoopSeriesListenable extends Listenable {
 class _CinematicSeriesPageState extends State<CinematicSeriesPage> {
   static const Listenable _noopListenable = _NoopSeriesListenable();
   late final HeroPreviewController _preview;
+  late final ValueNotifier<TvStreamRecord?> _heroStream;
   TvStreamRecord? _focused;
+
+  /// Show whose episode shelf stays up. Focusing an episode must not clear it.
+  TvStreamRecord? _episodeShow;
   Listenable? _focusedKeyListenable;
+  List<TvChannelRow>? _indexedRows;
+  Map<String, TvStreamRecord>? _seriesById;
 
   @override
   void initState() {
     super.initState();
     _preview = HeroPreviewController();
     _focused = _firstStream(widget.rows);
+    _heroStream = ValueNotifier(_focused);
+    if ((_focused?.groupedEpisodes.length ?? 0) > 1) {
+      _episodeShow = _focused;
+    }
     _bindFocusedKeyListener(_focused);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -84,8 +96,14 @@ class _CinematicSeriesPageState extends State<CinematicSeriesPage> {
   @override
   void didUpdateWidget(CinematicSeriesPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.selectedCategory != oldWidget.selectedCategory) {
+      _episodeShow = null;
+      _indexedRows = null;
+    }
+    if (!identical(widget.rows, _indexedRows)) _indexedRows = null;
     if (_focused == null && widget.rows.isNotEmpty) {
       _focused = _firstStream(widget.rows);
+      _heroStream.value = _focused;
       _bindFocusedKeyListener(_focused);
       if (_focused != null) _pushHero(_focused!);
     }
@@ -94,6 +112,7 @@ class _CinematicSeriesPageState extends State<CinematicSeriesPage> {
   @override
   void dispose() {
     _focusedKeyListenable?.removeListener(_onFocusedEnrichment);
+    _heroStream.dispose();
     _preview.dispose();
     super.dispose();
   }
@@ -107,12 +126,16 @@ class _CinematicSeriesPageState extends State<CinematicSeriesPage> {
 
   void _onFocused(TvStreamRecord stream) {
     if (!mounted) return;
-    if (!identical(_focused, stream)) {
-      setState(() => _focused = stream);
-      _bindFocusedKeyListener(stream);
-    }
+    final changed = !identical(_focused, stream);
+    _focused = stream;
+    _heroStream.value = stream;
+    if (changed) _bindFocusedKeyListener(stream);
     widget.onStreamFocused?.call(stream);
     _pushHero(stream);
+    if (stream.groupedEpisodes.length > 1 &&
+        !identical(_episodeShow, stream)) {
+      setState(() => _episodeShow = stream);
+    }
   }
 
   void _pushHero(TvStreamRecord stream) {
@@ -127,8 +150,10 @@ class _CinematicSeriesPageState extends State<CinematicSeriesPage> {
     );
   }
 
-  List<TvStreamRecord> _continueWatching(WatchingState watch) {
-    if (watch.series.isEmpty) return const [];
+  Map<String, TvStreamRecord> _catalogById() {
+    if (identical(_indexedRows, widget.rows) && _seriesById != null) {
+      return _seriesById!;
+    }
     final byId = <String, TvStreamRecord>{};
     for (final row in widget.rows) {
       for (final s in row.streams) {
@@ -136,6 +161,14 @@ class _CinematicSeriesPageState extends State<CinematicSeriesPage> {
         if (id != null && id.isNotEmpty) byId[id] = s;
       }
     }
+    _indexedRows = widget.rows;
+    _seriesById = byId;
+    return byId;
+  }
+
+  List<TvStreamRecord> _continueWatching(WatchingState watch) {
+    if (watch.series.isEmpty) return const [];
+    final byId = _catalogById();
     final out = <TvStreamRecord>[];
     for (final w in watch.series.take(12)) {
       final matched = byId[w.streamId];
@@ -197,13 +230,42 @@ class _CinematicSeriesPageState extends State<CinematicSeriesPage> {
     );
   }
 
+  String _rowShelfKey(TvChannelRow row) {
+    final id = row.streams.isEmpty
+        ? ''
+        : (row.streams.first.streamId ?? row.streams.first.title);
+    return 'shelf-row-${row.title}-$id';
+  }
+
+  int? _shelfIndex(
+    Key key, {
+    required bool hasEpisodes,
+    required bool hasContinue,
+    required List<TvChannelRow> rows,
+  }) {
+    if (key is! ValueKey<String>) return null;
+    final id = key.value;
+    var index = 0;
+    if (hasEpisodes) {
+      if (id == 'shelf-episodes') return index;
+      index++;
+    }
+    if (hasContinue) {
+      if (id == 'shelf-continue') return index;
+      index++;
+    }
+    for (var i = 0; i < rows.length; i++) {
+      if (id == _rowShelfKey(rows[i])) return index + i;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final watch = context.watch<WatchingCubit>().state;
-    final favs = context.watch<FavoritesCubit>().state;
     final continueItems = _continueWatching(watch);
-    final inList = _inMyList(favs, _focused);
-    final episodes = _focused?.groupedEpisodes ?? const <TvStreamRecord>[];
+    final show = _episodeShow;
+    final episodes = show?.groupedEpisodes ?? const <TvStreamRecord>[];
     final hasEpisodes = episodes.length > 1;
     final hasContinue = continueItems.isNotEmpty;
     final nonEmptyRows = widget.rows
@@ -211,31 +273,46 @@ class _CinematicSeriesPageState extends State<CinematicSeriesPage> {
         .toList(growable: false);
     final prefixCount = (hasEpisodes ? 1 : 0) + (hasContinue ? 1 : 0);
     final totalShelves = prefixCount + nonEmptyRows.length;
-    final heroListenable = _focused?.enrichmentKey == null
-        ? _noopListenable
-        : TmdbEnrichmentWorker.instance.notifierFor(_focused!.enrichmentKey!);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Expanded(
           flex: 5,
-          child: ListenableBuilder(
-            listenable: heroListenable,
-            builder: (context, _) {
-              final selected = _selectedOf(_focused);
-              return CinematicHero(
-                selected: selected,
-                preview: _preview,
-                kenBurns: !cinematicLowPower(context),
-                eyebrow: 'SERIES',
-                onWatch: selected == null || selected.stream.streamUrl.isEmpty
-                    ? null
-                    : () => widget.onChannelSelected(selected.stream.streamUrl),
-                onMyList: selected == null
-                    ? null
-                    : () => _toggleMyList(selected.stream),
-                inMyList: inList,
+          child: ValueListenableBuilder<TvStreamRecord?>(
+            valueListenable: _heroStream,
+            builder: (context, stream, _) {
+              return BlocBuilder<FavoritesCubit, FavoritesState>(
+                builder: (context, favs) {
+                  final extra = stream?.enrichmentKey == null
+                      ? _noopListenable
+                      : TmdbEnrichmentWorker.instance.notifierFor(
+                          stream!.enrichmentKey!,
+                        );
+                  return ListenableBuilder(
+                    listenable: extra,
+                    builder: (context, _) {
+                      final selected = _selectedOf(stream);
+                      return CinematicHero(
+                        selected: selected,
+                        preview: _preview,
+                        kenBurns: !cinematicLowPower(context),
+                        eyebrow: 'SERIES',
+                        onWatch:
+                            selected == null ||
+                                selected.stream.streamUrl.isEmpty
+                            ? null
+                            : () => widget.onChannelSelected(
+                                selected.stream.streamUrl,
+                              ),
+                        onMyList: selected == null
+                            ? null
+                            : () => _toggleMyList(selected.stream),
+                        inMyList: _inMyList(favs, stream),
+                      );
+                    },
+                  );
+                },
               );
             },
           ),
@@ -254,17 +331,25 @@ class _CinematicSeriesPageState extends State<CinematicSeriesPage> {
             padding: const EdgeInsets.only(top: 12, bottom: 28),
             cacheExtent: 520,
             itemCount: totalShelves,
+            findChildIndexCallback: (key) => _shelfIndex(
+              key,
+              hasEpisodes: hasEpisodes,
+              hasContinue: hasContinue,
+              rows: nonEmptyRows,
+            ),
             itemBuilder: (context, index) {
               var cursor = index;
               if (hasEpisodes) {
                 if (cursor == 0) {
                   return Padding(
+                    key: const ValueKey('shelf-episodes'),
                     padding: const EdgeInsets.only(bottom: 18),
                     child: CinematicEpisodeRow(
-                      title: 'Episodes',
+                      title: 'Episodes · ${show!.title}',
                       streams: episodes.take(24).toList(growable: false),
                       onChannelSelected: widget.onChannelSelected,
                       onStreamFocused: _onFocused,
+                      onCardNearView: widget.onCardNearView,
                     ),
                   );
                 }
@@ -273,12 +358,14 @@ class _CinematicSeriesPageState extends State<CinematicSeriesPage> {
               if (hasContinue) {
                 if (cursor == 0) {
                   return Padding(
+                    key: const ValueKey('shelf-continue'),
                     padding: const EdgeInsets.only(bottom: 18),
                     child: CinematicPivotRow(
                       title: 'Continue Watching',
                       streams: continueItems,
                       onChannelSelected: widget.onChannelSelected,
                       onStreamFocused: _onFocused,
+                      onCardNearView: widget.onCardNearView,
                     ),
                   );
                 }
@@ -286,12 +373,14 @@ class _CinematicSeriesPageState extends State<CinematicSeriesPage> {
               }
               final row = nonEmptyRows[cursor];
               return Padding(
+                key: ValueKey(_rowShelfKey(row)),
                 padding: const EdgeInsets.only(bottom: 18),
                 child: CinematicPivotRow(
                   title: row.title,
                   streams: row.streams,
                   onChannelSelected: widget.onChannelSelected,
                   onStreamFocused: _onFocused,
+                  onCardNearView: widget.onCardNearView,
                 ),
               );
             },
@@ -332,6 +421,10 @@ class _SeriesChips extends StatelessWidget {
                   event.logicalKey == LogicalKeyboardKey.enter) {
                 onSelected?.call(value);
                 return KeyEventResult.handled;
+              }
+              if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+                final moved = node.focusInDirection(TraversalDirection.down);
+                if (moved) return KeyEventResult.handled;
               }
               return KeyEventResult.ignored;
             },

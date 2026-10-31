@@ -14,6 +14,8 @@ import 'widgets/tv_channel_grid.dart';
 /// Input for [buildSeriesRailsInBackground]. Plain data only so it can cross
 /// an isolate boundary via `compute()`.
 class SeriesRailsJob {
+  /// Full series list from the JSON cache. A later switch can pass one
+  /// LIMIT/OFFSET page instead. This job does not open the catalog database.
   final List<ChannelSerie> series;
 
   /// Categories used for shelf order and the "no rails" fallback names.
@@ -33,6 +35,68 @@ class SeriesRailsJob {
     required this.headCount,
     required this.headLimit,
   });
+}
+
+/// Categories and episodes for the first screen only.
+///
+/// LOCK: the Series tab must paint from this slice before
+/// [buildSeriesRailsInBackground] runs on the full list. Folding them
+/// into one await puts the spinner back up for the whole catalog.
+class SeriesHeadSlice {
+  final List<ChannelSerie> series;
+  final List<CategoryModel> categories;
+
+  const SeriesHeadSlice({
+    required this.series,
+    required this.categories,
+  });
+}
+
+SeriesHeadSlice sliceSeriesHead(
+  List<ChannelSerie> series,
+  List<CategoryModel> categories, {
+  int shelfLimit = 4,
+  int perShelf = 24,
+}) {
+  final normal = [
+    for (final c in categories)
+      if (c.categoryName != null &&
+          !ProviderCurationRules.isAdultCategory(c.categoryName!))
+        c,
+  ];
+  final perShow = SeriesShelfPlanner.looksPerShow(normal);
+  final List<CategoryModel> picked;
+  if (perShow) {
+    final plan = SeriesShelfPlanner.plan(normal);
+    picked = [
+      for (final shelf in plan.take(shelfLimit)) ...shelf.shows.take(perShelf),
+    ];
+  } else {
+    picked = ProviderCurationRules.sortCategoriesForNormalDashboard(normal)
+        .take(shelfLimit)
+        .toList(growable: false);
+  }
+  final wanted = <String>{
+    for (final c in picked)
+      if (c.categoryId != null && c.categoryId!.isNotEmpty) c.categoryId!,
+  };
+  if (wanted.isEmpty) {
+    return const SeriesHeadSlice(series: [], categories: []);
+  }
+  // Visible shows keep enough episodes for one card. Genre shelves keep
+  // a short row. The rest of the catalog stays out of this pass.
+  final cap = perShow ? 400 : perShelf;
+  final counts = <String, int>{};
+  final kept = <ChannelSerie>[];
+  for (final ch in series) {
+    final id = ch.categoryId;
+    if (id == null || !wanted.contains(id)) continue;
+    final n = counts[id] ?? 0;
+    if (n >= cap) continue;
+    counts[id] = n + 1;
+    kept.add(ch);
+  }
+  return SeriesHeadSlice(series: kept, categories: picked);
 }
 
 class SeriesRailsResult {
@@ -288,11 +352,13 @@ SeriesRailsResult _buildPerShow(
       year: year,
     );
     return card.copyWith(
+      // Same id the shelf enqueue uses (stream.streamId). A category id
+      // here made the card listen on a key that never received artwork.
       enrichmentKey: TmdbEnrichmentWorker.cacheKeyFor(
         title,
-        cat.categoryId,
+        card.streamId,
         type: ContentType.series,
-        year: year,
+        year: year ?? card.year,
       ),
     );
   }

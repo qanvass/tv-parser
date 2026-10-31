@@ -24,6 +24,9 @@ class TmdbEnqueueRequest {
   final int? runtimeMinutes;
   final String? imdbId;
 
+  /// When set, this is the exact key the card already listens on.
+  final String? cacheKey;
+
   const TmdbEnqueueRequest({
     required this.rawTitle,
     required this.type,
@@ -36,14 +39,19 @@ class TmdbEnqueueRequest {
     this.rating,
     this.runtimeMinutes,
     this.imdbId,
+    this.cacheKey,
   });
 
-  String get key => TmdbEnrichmentWorker.cacheKeyFor(
-        rawTitle,
-        providerId,
-        type: type,
-        year: year,
-      );
+  String get key {
+    final existing = cacheKey;
+    if (existing != null && existing.isNotEmpty) return existing;
+    return TmdbEnrichmentWorker.cacheKeyFor(
+      rawTitle,
+      providerId,
+      type: type,
+      year: year,
+    );
+  }
 }
 
 /// Queued, rate-limited TMDB hydration. Never blocks splash / Live first frame.
@@ -73,6 +81,22 @@ class TmdbEnrichmentWorker extends ChangeNotifier {
   bool get isEnabled => _client.isEnabled;
 
   UnifiedMediaMetadata? lookup(String key) => _cache.get(key);
+
+  UnifiedMediaMetadata? findByTitleAndYear(
+    String rawTitle, {
+    int? year,
+    ContentType type = ContentType.movie,
+  }) {
+    final parsed = TitleNormalizer.parse(rawTitle);
+    final targetMatch = parsed.matchTitle.toLowerCase();
+    if (targetMatch.isEmpty) return null;
+    final targetYear = year ?? parsed.year;
+    return _cache.findByTitleAndYear(
+      targetMatch,
+      targetYear,
+      typeName: type.name,
+    );
+  }
 
   /// Per-key [ValueListenable] so individual poster/channel cards and hero
   /// panels only rebuild when their own [key] resolves, avoiding global

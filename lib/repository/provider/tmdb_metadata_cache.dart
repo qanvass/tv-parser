@@ -78,6 +78,36 @@ class TmdbMetadataCache {
     }
   }
 
+  /// Finds cached metadata by normalized title and release year, ignoring
+  /// provider id. [typeName] keeps a series hit from covering a movie.
+  UnifiedMediaMetadata? findByTitleAndYear(
+    String matchTitle,
+    int? year, {
+    String? typeName,
+  }) {
+    final match = matchTitle.toLowerCase();
+    if (match.isEmpty) return null;
+    final yrStr = year != null ? '$year' : '';
+    final suffix = '|$match|$yrStr';
+    UnifiedMediaMetadata? withoutPoster;
+    for (final entry in _mem.entries) {
+      final key = entry.key;
+      if (typeName != null && !key.startsWith('$typeName|')) continue;
+      if (!key.endsWith(suffix)) continue;
+      if (entry.value['miss'] == true) continue;
+      final UnifiedMediaMetadata meta;
+      try {
+        meta = UnifiedMediaMetadata.fromJson(entry.value);
+      } catch (_) {
+        continue;
+      }
+      final poster = meta.posterUrl;
+      if (poster != null && poster.isNotEmpty) return meta;
+      withoutPoster ??= meta;
+    }
+    return withoutPoster;
+  }
+
   Future<void> putHit(String key, UnifiedMediaMetadata meta) async {
     _mem[key] = meta.toJson();
     _dirty = true;

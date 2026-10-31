@@ -12,11 +12,15 @@ class CinematicTitlePlaceholder extends StatelessWidget {
   /// their own title (e.g. the hero), so text never ghosts underneath.
   final bool showLabels;
 
+  /// Shown on the gradient. Series callers pass `SERIES`. Movies keep `MOVIE`.
+  final String badge;
+
   const CinematicTitlePlaceholder({
     super.key,
     required this.title,
     this.hero = false,
     this.showLabels = true,
+    this.badge = 'MOVIE',
   });
 
   static int hueFor(String title) {
@@ -86,7 +90,7 @@ class CinematicTitlePlaceholder extends StatelessWidget {
                       ),
                     ),
                     child: Text(
-                      'MOVIE',
+                      badge,
                       style: TextStyle(
                         color: CinematicTokens.textSecondary.withValues(
                           alpha: 0.95,

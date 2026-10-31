@@ -55,6 +55,7 @@ class _CardMovieImagesBackgroundState extends State<CardMovieImagesBackground> {
           child: CachedNetworkImage(
             width: 100.w,
             height: 100.h,
+            memCacheWidth: 1280,
             fit: BoxFit.cover,
             imageUrl: widget.listImages[indexImage],
             errorWidget: (_, i, e) {

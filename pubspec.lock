@@ -362,10 +362,9 @@ packages:
   flutter_vlc_player_16kb:
     dependency: "direct main"
     description:
-      name: flutter_vlc_player_16kb
-      sha256: "69f44e648ad2c1b551d32be452b8e75d54169c9d7f58e23a853964f7e2aee5c5"
-      url: "https://pub.dev"
-    source: hosted
+      path: "packages/flutter_vlc_player_16kb"
+      relative: true
+    source: path
     version: "7.4.7"
   flutter_vlc_player_platform_interface:
     dependency: transitive
@@ -898,7 +897,7 @@ packages:
     source: hosted
     version: "1.10.1"
   sqflite:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: sqflite
       sha256: e2297b1da52f127bc7a3da11439985d9b536f75070f3325e62ada69a5c585d03

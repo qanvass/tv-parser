@@ -1157,6 +1157,7 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
               child: _cdnImageUrl != null
                   ? CachedNetworkImage(
                       imageUrl: _cdnImageUrl!,
+                      memCacheWidth: 1280,
                       fit: BoxFit.cover,
                       width: double.infinity,
                       height: double.infinity,

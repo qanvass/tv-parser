@@ -34,6 +34,7 @@ import '../../logic/cubits/settings/settings_cubit.dart';
 import '../../logic/cubits/video/video_cubit.dart';
 import '../../logic/cubits/watch/watching_cubit.dart';
 import '../../repository/api/api.dart';
+import '../../repository/api/hls_vod_playlist.dart';
 import '../../repository/models/user_preference_profile.dart';
 import '../../repository/api/location_preference_service.dart';
 import '../../repository/api/local_market_service.dart';
@@ -64,6 +65,7 @@ import '../tv/widgets/tv_epg_peek.dart';
 import '../tv/widgets/tv_branded_empty.dart';
 import '../tv/widgets/tv_channel_grid.dart';
 import '../../repository/provider/title_normalizer.dart';
+import '../../repository/provider/tmdb_enrichment_worker.dart';
 import '../../repository/provider/tmdb_client.dart';
 import '../mobile/mobile_watch_screen.dart';
 import '../mobile/mobile_detail_screen.dart';
@@ -147,9 +149,14 @@ String? m3uPlaylistUrlFromServerUrl(String? serverUrl) {
 }
 
 /// VLC options shared by live/VOD players (UA + reconnect help many CDN gates).
+///
+/// [adaptiveMaxHeight] is optional. Null keeps the existing full-screen
+/// players unchanged. Multiview passes 480 so each tile asks HLS for a
+/// short rendition (`--adaptive-maxheight`).
 VlcPlayerOptions buildVlcPlaybackOptions({
   required bool isLive,
   String? streamUrl,
+  int? adaptiveMaxHeight,
 }) {
   final buffers = getStreamQualityBuffers(isLive: isLive);
   String? referrer;
@@ -160,6 +167,7 @@ VlcPlayerOptions buildVlcPlaybackOptions({
     }
   } catch (_) {}
 
+  final maxHeight = adaptiveMaxHeight;
   return VlcPlayerOptions(
     advanced: VlcAdvancedOptions([
       VlcAdvancedOptions.networkCaching(buffers["network"]!),
@@ -171,6 +179,9 @@ VlcPlayerOptions buildVlcPlaybackOptions({
       VlcHttpOptions.httpReconnect(true),
       if (referrer != null) VlcHttpOptions.httpReferrer(referrer),
     ]),
+    extras: maxHeight == null || maxHeight <= 0
+        ? null
+        : <String>['--adaptive-maxheight=$maxHeight'],
   );
 }
 

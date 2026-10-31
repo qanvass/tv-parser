@@ -255,6 +255,7 @@ class _LocalTvScreenState extends State<LocalTvScreen>
                       imageUrl: channel.streamIcon!,
                       width: 48,
                       height: 48,
+                      memCacheWidth: 128,
                       fit: BoxFit.cover,
                       placeholder: (_, __) => const Icon(
                         Icons.live_tv_rounded,

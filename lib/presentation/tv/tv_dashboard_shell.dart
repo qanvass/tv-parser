@@ -52,6 +52,13 @@ import 'live/live_hero_preview_controller.dart';
 import 'live/live_preview_trace.dart';
 import 'live/live_browse_gate.dart';
 
+/// Four-screen view stays off unless a private test build passes
+/// `--dart-define=ENABLE_MULTIVIEW=true`. Default builds do not.
+const bool kMultiviewEnabled = bool.fromEnvironment(
+  'ENABLE_MULTIVIEW',
+  defaultValue: false,
+);
+
 class _NoopShellListenable extends Listenable {
   const _NoopShellListenable();
   @override
@@ -147,6 +154,8 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     FocusNode(debugLabel: 'TvNavSettings'),
   ];
   final FocusNode _retryFocus = FocusNode(debugLabel: 'TvContentRetry');
+  final FocusNode _multiviewFocus = FocusNode(debugLabel: 'MultiviewEntry');
+  bool _multiviewOpening = false;
 
   late final List<TvNavigationItem> _navItems;
   late final List<TvNavigationItem> _utilityItems;
@@ -1034,6 +1043,52 @@ class _TvDashboardShellState extends State<TvDashboardShell>
       // Grouping, sorting and record building for 100k+ series ran on the UI
       // isolate (series_group_ms=64785 -> ANR). It now runs in a worker
       // isolate; the UI isolate only publishes the finished shelves.
+      //
+      // LOCK: publish [sliceSeriesHead] before the full compute. The Series
+      // tab was waiting on every show (about two minutes) because heads and
+      // the full catalog shared one await.
+      final gen = ++_seriesLoadGen;
+      final headSlice = sliceSeriesHead(allSeries, categories);
+      if (headSlice.series.isNotEmpty) {
+        try {
+          final headBuilt = await compute(
+            buildSeriesRailsInBackground,
+            SeriesRailsJob(
+              series: headSlice.series,
+              categories: headSlice.categories,
+              fallbackCategories: const [],
+              profile: profile,
+              watchById: watchById,
+              headCount: _kShelfHeadCount,
+              headLimit: _kShelfHeadLimit,
+            ),
+          );
+          if (!mounted || gen != _seriesLoadGen) return;
+          final headRows = headBuilt.rows.isNotEmpty
+              ? headBuilt.rows
+              : headBuilt.heads;
+          if (headRows.isNotEmpty) {
+            setState(() {
+              _seriesRows = headRows;
+              _isSeriesRefreshing = false;
+            });
+            CatalogPerf.timeline('SERIES_HEAD_READY');
+            _enqueueSeriesTmdb();
+          }
+        } catch (e) {
+          debugPrint('[SERIES_PIPE] head slice failed: ${e.runtimeType}');
+        }
+      }
+      if (!mounted || gen != _seriesLoadGen) return;
+      // Full catalog waits until Series is opened. The head slice is already
+      // on screen, so this wait is not the spinner.
+      if (_selectedNavIndex != _TvNav.series) {
+        _releaseSeriesFullPass();
+        final gate = _seriesFullPassGate = Completer<void>();
+        await gate.future;
+        if (!mounted || gen != _seriesLoadGen) return;
+      }
+
       final SeriesRailsResult built;
       try {
         built = await compute(
@@ -1053,7 +1108,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
         if (mounted) setState(() => _isSeriesRefreshing = false);
         return;
       }
-      if (!mounted) return;
+      if (!mounted || gen != _seriesLoadGen) return;
 
       if (_seriesRows.isEmpty && built.heads.isNotEmpty) {
         setState(() {
@@ -1062,15 +1117,6 @@ class _TvDashboardShellState extends State<TvDashboardShell>
         });
         CatalogPerf.timeline('SERIES_HEAD_READY');
         _enqueueSeriesTmdb();
-      }
-      // The full pass waits for the Series tab so publishing 100k+ cards does
-      // not compete with Live browsing for the UI thread.
-      final gen = ++_seriesLoadGen;
-      if (_selectedNavIndex != _TvNav.series) {
-        _releaseSeriesFullPass();
-        final gate = _seriesFullPassGate = Completer<void>();
-        await gate.future;
-        if (!mounted || gen != _seriesLoadGen) return;
       }
 
       final rows = built.rows;
@@ -1245,6 +1291,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
       rating: stream.rating,
       runtimeMinutes: stream.runtimeMinutes,
       imdbId: stream.imdbId ?? stream.tvgId,
+      cacheKey: stream.enrichmentKey,
     );
   }
 
@@ -1264,18 +1311,18 @@ class _TvDashboardShellState extends State<TvDashboardShell>
   }
 
   void _enqueueSeriesTmdb() {
+    // Warm the disk cache only. Cards enqueue when a shelf builds them,
+    // so rows past the first screen are not stuck behind a 192-item queue.
     // ignore: unawaited_futures
     TmdbEnrichmentWorker.instance.ensureStarted();
-    var rows = 0;
-    final seriesReqs = <TmdbEnqueueRequest>[];
-    for (final row in _seriesRows) {
-      if (rows >= 8) break;
-      seriesReqs.addAll(
-        row.streams.take(24).map((s) => _tmdbRequest(s, ContentType.series)),
-      );
-      rows++;
-    }
-    TmdbEnrichmentWorker.instance.enqueueMany(seriesReqs);
+  }
+
+  void _enqueueSeriesCard(TvStreamRecord stream) {
+    // ignore: unawaited_futures
+    TmdbEnrichmentWorker.instance.ensureStarted();
+    TmdbEnrichmentWorker.instance.enqueue(
+      _tmdbRequest(stream, ContentType.series),
+    );
   }
 
   void _onPrimarySelected(int index) {
@@ -1336,6 +1383,34 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     }
   }
 
+  /// Opens the 2×2 multiview route. Does not change preview request,
+  /// stopAndRelease, or hero sync. Drops the one hero player first so the
+  /// grid does not start a fifth player beside it.
+  Future<void> _openMultiview() async {
+    if (_multiviewOpening) return;
+    _multiviewOpening = true;
+    try {
+      try {
+        await _livePreview.release(reason: 'navigation');
+      } catch (_) {}
+      if (!mounted) return;
+      await Get.toNamed(screenMultiview);
+      TvBackGate.noteRoutePopped();
+      if (!mounted) return;
+      _syncLivePreview(immediate: true);
+      _multiviewFocus.requestFocus();
+    } finally {
+      _multiviewOpening = false;
+    }
+  }
+
+  void _onRightFromRail() {
+    if (!mounted) return;
+    // When directional right from a rail item doesn't find a geometrically aligned
+    // child, advance focus into the active content pane.
+    FocusScope.of(context).nextFocus();
+  }
+
   void _onUtilitySelected(int index) {
     if (index == 0) {
       unawaited(_livePreview.release(reason: 'navigation'));
@@ -1379,6 +1454,8 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     }
   }
 
+  bool _backDownConsumed = false;
+
   /// Back contract for the post-login shell:
   /// - Search tab → return to Live + expand rail (never dump to Google TV Home)
   /// - Content focus → move focus back to the selected rail item
@@ -1389,13 +1466,19 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     // popped on this press's key down, its key up lands here — swallow it or
     // the Activity finishes (Settings -> Back used to exit the app).
     if (event is KeyUpEvent) {
-      return TvBackGate.shouldSuppressShellExit()
+      // Key down already acted on this press (e.g. focus -> rail): its key up
+      // must not reach Android too, or one press also leaves the app.
+      final consumed = _backDownConsumed;
+      _backDownConsumed = false;
+      return consumed || TvBackGate.shouldSuppressShellExit()
           ? KeyEventResult.handled
           : KeyEventResult.ignored;
     }
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    _backDownConsumed = false;
 
     if (_selectedNavIndex == _TvNav.search) {
+      _backDownConsumed = true;
       setState(() {
         _selectedNavIndex = _TvNav.live;
         _railCollapsed = false;
@@ -1408,6 +1491,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     }
 
     if (!_railHasFocus) {
+      _backDownConsumed = true;
       final idx = _selectedNavIndex.clamp(0, _navFocusNodes.length - 1);
       _navFocusNodes[idx].requestFocus();
       logTvBack(
@@ -1423,6 +1507,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     // Rail already focused. Swallow a leftover Back from a just-popped
     // child route so it cannot finish the Activity on the same press.
     if (TvBackGate.shouldSuppressShellExit()) {
+      _backDownConsumed = true;
       logTvBack(
         screen: 'TvShell',
         source: 'focus',
@@ -1449,6 +1534,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
       node.dispose();
     }
     _retryFocus.dispose();
+    _multiviewFocus.dispose();
     XmlTvRepository.instance.removeListener(_onXmlTvReady);
     if (identical(
       IptvProviderSession.instance.onMoviesCatalogReady,
@@ -1527,6 +1613,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
                           collapsed: _railCollapsed,
                           onSelected: _onPrimarySelected,
                           onUtilitySelected: _onUtilitySelected,
+                          onRightFromRail: _onRightFromRail,
                         ),
                         const SizedBox(width: 28),
                         Expanded(
@@ -1539,6 +1626,16 @@ class _TvDashboardShellState extends State<TvDashboardShell>
                                       _navItems[_selectedNavIndex].label,
                                   subtitle: _headerSubtitle(),
                                   liveTone: _selectedNavIndex == _TvNav.live,
+                                  multiviewFocus:
+                                      kMultiviewEnabled &&
+                                          _selectedNavIndex == _TvNav.live
+                                      ? _multiviewFocus
+                                      : null,
+                                  onMultiview:
+                                      kMultiviewEnabled &&
+                                          _selectedNavIndex == _TvNav.live
+                                      ? () => unawaited(_openMultiview())
+                                      : null,
                                 ),
                                 const SizedBox(height: 22),
                               ],
@@ -1812,6 +1909,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
             _tmdbRequest(stream, ContentType.series),
           );
         },
+        onCardNearView: _enqueueSeriesCard,
         categoryChips: _seriesRows
             .map((r) => r.title)
             .where((t) => t.isNotEmpty)
@@ -2157,11 +2255,15 @@ class _Header extends StatelessWidget {
   final String selectedLabel;
   final String? subtitle;
   final bool liveTone;
+  final FocusNode? multiviewFocus;
+  final VoidCallback? onMultiview;
 
   const _Header({
     required this.selectedLabel,
     this.subtitle,
     this.liveTone = false,
+    this.multiviewFocus,
+    this.onMultiview,
   });
 
   @override
@@ -2211,6 +2313,36 @@ class _Header extends StatelessWidget {
             ],
           ),
         ),
+        if (onMultiview != null && multiviewFocus != null) ...[
+          TextButton(
+            focusNode: multiviewFocus,
+            onPressed: onMultiview,
+            style: ButtonStyle(
+              foregroundColor: const WidgetStatePropertyAll(Color(0xFFF7F7F8)),
+              backgroundColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.focused)) {
+                  return const Color(0x33FFFFFF);
+                }
+                return const Color(0x14FFFFFF);
+              }),
+              side: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.focused)) {
+                  return const BorderSide(color: Colors.white, width: 2);
+                }
+                return const BorderSide(color: Color(0x38FFFFFF));
+              }),
+              minimumSize: const WidgetStatePropertyAll(Size(148, 48)),
+              padding: const WidgetStatePropertyAll(
+                EdgeInsets.symmetric(horizontal: 16),
+              ),
+            ),
+            child: const Text(
+              'Multiview',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+            ),
+          ),
+          const SizedBox(width: 12),
+        ],
         Container(
           margin: const EdgeInsets.only(right: 14),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),

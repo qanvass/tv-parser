@@ -212,17 +212,39 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     );
   }
 
+  Duration? _savedPosition(List<WatchingModel> history, String? id) {
+    for (final w in history) {
+      if (w.streamId == id) return Duration(seconds: w.sliderValue.round());
+    }
+    return null;
+  }
+
   /// True when [url] is a playlist movie or episode and its player was opened.
   bool _openCatalogVod(String url) {
     for (final m in LocaleApi.getM3uMovies()) {
       if (m.directSource == url) {
+        final parsed = TitleNormalizer.parse(m.name ?? '');
+        final key = TmdbEnrichmentWorker.cacheKeyFor(
+          m.name ?? '',
+          m.streamId,
+          type: ContentType.movie,
+          year: parsed.year,
+          matchTitle: parsed.matchTitle,
+        );
+        final resolvedImg = (m.streamIcon != null && m.streamIcon!.isNotEmpty)
+            ? m.streamIcon
+            : TmdbEnrichmentWorker.instance.lookup(key)?.posterUrl;
         Get.to(
           () => MoviePlayerScreen(
             link: url,
             title: m.name ?? 'Movie',
             streamId: m.streamId,
-            image: m.streamIcon,
+            image: resolvedImg,
             recordHistory: true,
+            startAt: _savedPosition(
+              context.read<WatchingCubit>().state.movies,
+              m.streamId,
+            ),
           ),
         );
         return true;
@@ -238,6 +260,10 @@ class _WelcomeScreenState extends State<WelcomeScreen>
             image: s.cover,
             recordHistory: true,
             historyIsSeries: true,
+            startAt: _savedPosition(
+              context.read<WatchingCubit>().state.series,
+              s.seriesId,
+            ),
           ),
         );
         return true;

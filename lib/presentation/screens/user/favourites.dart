@@ -234,7 +234,7 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
       if (_movieIdx >= favState.movies.length) return;
       final m = favState.movies[_movieIdx];
       if (isTv(context)) {
-        Get.to(() => MovieContent(channelMovie: m, videoId: m.streamId ?? ''));
+        _openMovieTv(m);
       } else {
         Get.to(
           () => MobileDetailScreen(
@@ -558,12 +558,7 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
                         _panel = 2;
                       });
                       if (isTv(context)) {
-                        Get.to(
-                          () => MovieContent(
-                            channelMovie: items[i],
-                            videoId: items[i].streamId ?? '',
-                          ),
-                        );
+                        _openMovieTv(items[i]);
                       } else {
                         Get.to(
                           () => MobileDetailScreen(
@@ -735,6 +730,15 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
         ],
       ),
     );
+  }
+
+  /// Playlist movies have no provider detail API (MovieContent can't play them).
+  void _openMovieTv(ChannelMovie m) {
+    if ((m.directSource ?? '').startsWith('http')) {
+      _playMovieMobile(m);
+    } else {
+      Get.to(() => MovieContent(channelMovie: m, videoId: m.streamId ?? ''));
+    }
   }
 
   Future<void> _playMovieMobile(ChannelMovie movie) async {

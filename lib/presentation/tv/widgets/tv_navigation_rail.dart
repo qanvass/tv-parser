@@ -26,6 +26,7 @@ class TvNavigationRail extends StatelessWidget {
   final List<FocusNode>? focusNodes;
   final List<FocusNode>? utilityFocusNodes;
   final bool collapsed;
+  final VoidCallback? onRightFromRail;
 
   const TvNavigationRail({
     super.key,
@@ -37,6 +38,7 @@ class TvNavigationRail extends StatelessWidget {
     this.focusNodes,
     this.utilityFocusNodes,
     this.collapsed = false,
+    this.onRightFromRail,
   });
 
   static const Color _surface = Color(0xE6090B0F);
@@ -143,6 +145,7 @@ class TvNavigationRail extends StatelessWidget {
                                     ? focusNodes![index]
                                     : null,
                                 onTap: () => onSelected(index),
+                                onRight: onRightFromRail,
                               ),
                             ),
                         ],
@@ -198,6 +201,7 @@ class _TvNavigationButton extends StatefulWidget {
   final FocusNode? focusNode;
   final bool collapsed;
   final bool compact;
+  final VoidCallback? onRight;
 
   const _TvNavigationButton({
     required this.item,
@@ -206,6 +210,7 @@ class _TvNavigationButton extends StatefulWidget {
     this.focusNode,
     this.collapsed = false,
     this.compact = false,
+    this.onRight,
   });
 
   @override
@@ -215,7 +220,7 @@ class _TvNavigationButton extends StatefulWidget {
 class _TvNavigationButtonState extends State<_TvNavigationButton> {
   bool _focused = false;
 
-  KeyEventResult _onKey(FocusNode _, KeyEvent event) {
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     final k = event.logicalKey;
     if (k == LogicalKeyboardKey.select ||
@@ -223,6 +228,15 @@ class _TvNavigationButtonState extends State<_TvNavigationButton> {
         k == LogicalKeyboardKey.gameButtonA) {
       widget.onTap();
       return KeyEventResult.handled;
+    }
+    if (k == LogicalKeyboardKey.arrowRight) {
+      final moved = node.focusInDirection(TraversalDirection.right);
+      if (moved) return KeyEventResult.handled;
+      if (widget.onRight != null) {
+        widget.onRight!.call();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
     }
     return KeyEventResult.ignored;
   }

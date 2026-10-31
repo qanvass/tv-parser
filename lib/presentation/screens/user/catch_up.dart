@@ -204,7 +204,11 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
       if (_movieIdx >= items.length) return;
       final model = items[_movieIdx];
       Get.to(
-        () => MoviePlayerScreen(link: model.stream, title: model.title),
+        () => MoviePlayerScreen(
+          link: model.stream,
+          title: model.title,
+          startAt: Duration(seconds: model.sliderValue.round()),
+        ),
       )?.then((result) {
         if (result != null) {
           watchingCubit.addMovie(
@@ -224,7 +228,11 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
       if (_serieIdx >= items.length) return;
       final model = items[_serieIdx];
       Get.to(
-        () => MoviePlayerScreen(link: model.stream, title: model.title),
+        () => MoviePlayerScreen(
+          link: model.stream,
+          title: model.title,
+          startAt: Duration(seconds: model.sliderValue.round()),
+        ),
       )?.then((result) {
         if (result != null) {
           watchingCubit.addSerie(
@@ -676,11 +684,11 @@ class _CatchUpItem extends StatelessWidget {
                     child: Row(
                       children: [
                         Expanded(
-                          flex: (model.sliderValue * 10).round().clamp(0, 100),
+                          flex: _progressFlex(model),
                           child: Container(color: kColorPrimary),
                         ),
                         Expanded(
-                          flex: (model.durationStrm * 10).round().clamp(0, 100),
+                          flex: 1000 - _progressFlex(model),
                           child: Container(
                             color: Colors.white.withValues(alpha: 0.15),
                           ),
@@ -696,4 +704,13 @@ class _CatchUpItem extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Watched share out of 1000 (position and duration are in seconds).
+int _progressFlex(WatchingModel model) {
+  if (model.durationStrm <= 0) return 0;
+  return ((model.sliderValue / model.durationStrm) * 1000).round().clamp(
+    0,
+    1000,
+  );
 }

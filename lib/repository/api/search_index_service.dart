@@ -27,8 +27,8 @@ class SearchIndexEntry {
     required this.type,
     required this.normalizedName,
     required this.tokens,
-  })  : nameLower = _displayNameOf(item).toLowerCase(),
-        isUsaOrEng = _usaOrEngOf(normalizedName);
+  }) : nameLower = _displayNameOf(item).toLowerCase(),
+       isUsaOrEng = _usaOrEngOf(normalizedName);
 
   static final RegExp _usWord = RegExp(r'\bus\b');
 
@@ -84,8 +84,7 @@ class SearchIndexService {
     Set<String>? adultCategoryIds,
     Map<String, String>? categoryIdToName,
   }) async {
-    final incoming =
-        liveChannels.length + movies.length + series.length;
+    final incoming = liveChannels.length + movies.length + series.length;
 
     // Wait for any in-flight build; skip rebuild if we already cover this catalog.
     if (_inFlight != null) {
@@ -123,7 +122,7 @@ class SearchIndexService {
       final params = SearchIndexParams(
         liveChannels: liveChannels,
         movies: movies,
-        series: series,
+        series: onePerShow(series),
         adultCategoryIds: adultCategoryIds ?? {},
         categoryIdToName: categoryIdToName ?? const {},
       );
@@ -229,6 +228,34 @@ class SearchIndexService {
     }
   }
 
+  static final RegExp _episodeTag = RegExp(
+    r'\bS\d{1,2}\s*E\d{1,3}\b',
+    caseSensitive: false,
+  );
+
+  /// Playlists with one group per show list every episode as a series row
+  /// (250k+). Results open the show anyway, so search needs one row per show:
+  /// indexing all of them took minutes on a Chromecast. Other catalogs (groups
+  /// like "Drama") are returned untouched.
+  @visibleForTesting
+  static List<ChannelSerie> onePerShow(List<ChannelSerie> series) {
+    final firstOfGroup = <String, ChannelSerie>{};
+    for (final s in series) {
+      final id = s.categoryId;
+      if (id != null && id.isNotEmpty) firstOfGroup.putIfAbsent(id, () => s);
+    }
+    if (firstOfGroup.length < 30) return series;
+    final tagged = firstOfGroup.values
+        .where((s) => _episodeTag.hasMatch(s.name ?? ''))
+        .length;
+    if (tagged * 2 < firstOfGroup.length) return series;
+    final seen = <String>{};
+    return [
+      for (final s in series)
+        if ((s.categoryId ?? '').isEmpty || seen.add(s.categoryId!)) s,
+    ];
+  }
+
   /// Index series only. Independent of movies.
   static Future<void> indexSeries({
     required List<ChannelSerie> series,
@@ -247,7 +274,7 @@ class SearchIndexService {
       final params = SearchIndexParams(
         liveChannels: const [],
         movies: const [],
-        series: series,
+        series: onePerShow(series),
         adultCategoryIds: adultCategoryIds ?? {},
         categoryIdToName: categoryIdToName ?? const {},
       );
@@ -297,10 +324,12 @@ class SearchIndexService {
     List<String> expandedKeywords = const [],
     bool Function()? isStale,
   }) async {
-    final snapshot = _index;
-    if (snapshot.length <= asyncScanThreshold) {
+    if (_index.length <= asyncScanThreshold) {
+      if (isStale?.call() ?? false) return null;
       return search(queryText, expandedKeywords: expandedKeywords);
     }
+    // A copy: indexLive/Movies/Series edit _index in place between our slices.
+    final snapshot = List<SearchIndexEntry>.of(_index);
     final ctx = _SearchContext.create(queryText, expandedKeywords, snapshot);
     if (ctx == null) return [];
     final stopwatch = Stopwatch()..start();
@@ -410,8 +439,9 @@ class SearchIndexService {
 
     if (score > 0) {
       if (entry.type == 'live' &&
-          ctx.localLiveStreamIds
-              .contains((entry.item as ChannelLive).streamId)) {
+          ctx.localLiveStreamIds.contains(
+            (entry.item as ChannelLive).streamId,
+          )) {
         score += 40.0;
       }
       if (entry.isUsaOrEng) score += 25.0;
@@ -477,12 +507,14 @@ List<SearchIndexEntry> buildSearchIndexInBackground(SearchIndexParams params) {
     final tvgId = ch.epgChannelId?.toString() ?? '';
     final searchable = '$name $group $tvgId'.trim();
     final tokens = tokenize(searchable);
-    tempIndex.add(SearchIndexEntry(
-      item: ch,
-      type: 'live',
-      normalizedName: searchable.toLowerCase(),
-      tokens: tokens,
-    ));
+    tempIndex.add(
+      SearchIndexEntry(
+        item: ch,
+        type: 'live',
+        normalizedName: searchable.toLowerCase(),
+        tokens: tokens,
+      ),
+    );
   }
 
   // 2. Movies VOD
@@ -497,12 +529,14 @@ List<SearchIndexEntry> buildSearchIndexInBackground(SearchIndexParams params) {
     }
 
     final searchable = '$name $group'.trim();
-    tempIndex.add(SearchIndexEntry(
-      item: mv,
-      type: 'movie',
-      normalizedName: searchable.toLowerCase(),
-      tokens: tokenize(searchable),
-    ));
+    tempIndex.add(
+      SearchIndexEntry(
+        item: mv,
+        type: 'movie',
+        normalizedName: searchable.toLowerCase(),
+        tokens: tokenize(searchable),
+      ),
+    );
   }
 
   // 3. Series VOD
@@ -517,30 +551,38 @@ List<SearchIndexEntry> buildSearchIndexInBackground(SearchIndexParams params) {
     }
 
     final searchable = '$name $group'.trim();
-    tempIndex.add(SearchIndexEntry(
-      item: sr,
-      type: 'series',
-      normalizedName: searchable.toLowerCase(),
-      tokens: tokenize(searchable),
-    ));
+    tempIndex.add(
+      SearchIndexEntry(
+        item: sr,
+        type: 'series',
+        normalizedName: searchable.toLowerCase(),
+        tokens: tokenize(searchable),
+      ),
+    );
   }
 
   tempIndex.sort((a, b) {
     final nameA = a.normalizedName;
     final nameB = b.normalizedName;
 
-    final isUsaA = nameA.contains('usa') ||
+    final isUsaA =
+        nameA.contains('usa') ||
         nameA.contains('united states') ||
         RegExp(r'\bus\b').hasMatch(nameA);
-    final isUsaB = nameB.contains('usa') ||
+    final isUsaB =
+        nameB.contains('usa') ||
         nameB.contains('united states') ||
         RegExp(r'\bus\b').hasMatch(nameB);
     if (isUsaA != isUsaB) return isUsaA ? -1 : 1;
 
     final isEngA =
-        nameA.contains('canada') || nameA.contains('uk') || nameA.contains('english');
+        nameA.contains('canada') ||
+        nameA.contains('uk') ||
+        nameA.contains('english');
     final isEngB =
-        nameB.contains('canada') || nameB.contains('uk') || nameB.contains('english');
+        nameB.contains('canada') ||
+        nameB.contains('uk') ||
+        nameB.contains('english');
     if (isEngA != isEngB) return isEngA ? -1 : 1;
 
     return nameA.compareTo(nameB);
@@ -589,10 +631,16 @@ class _SearchContext {
           .toSet();
     }
 
-    final searchTokens = SearchIndexService._tokenize(clean);
+    // "the drop" must not match every title containing "the".
+    const noise = {'the', 'a', 'an', 'of', 'and', 'in', 'on', 'to', 'for'};
+    final allTokens = SearchIndexService._tokenize(clean);
+    final meaningful = allTokens.difference(noise);
+    final searchTokens = meaningful.isEmpty ? allTokens : meaningful;
     final expanded = <String>[
       for (final et in expandedKeywords)
-        if (et.toLowerCase().trim().isNotEmpty) et.toLowerCase().trim(),
+        if (et.toLowerCase().trim().isNotEmpty &&
+            (meaningful.isEmpty || !noise.contains(et.toLowerCase().trim())))
+          et.toLowerCase().trim(),
     ];
     return _SearchContext._(clean, searchTokens, expanded, localLiveStreamIds);
   }

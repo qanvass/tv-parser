@@ -19,6 +19,12 @@ import '../models/watching.dart';
 
 import 'm3u_parser.dart';
 import 'catalog_perf.dart';
+import '../catalog/catalog_flags.dart';
+import '../catalog/catalog_ingest.dart';
+import '../catalog/catalog_kind.dart';
+import '../catalog/catalog_page.dart';
+import '../catalog/catalog_sqlite.dart';
+import '../catalog/catalog_store.dart';
 import 'apollo_native_catalog_session.dart';
 import 'starlite_vod_m3u_session.dart';
 import 'starlite_vod_m3u_urls.dart';

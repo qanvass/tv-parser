@@ -36,6 +36,26 @@ android {
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // Package native libs only for the ABIs Flutter built. libvlc ships x86 and
+        // x86_64 too (~60 MB) with no engine to run them. Must replace, not add to,
+        // the list the Flutter plugin put here; a build type filter only adds.
+        def flutterAbis = [
+            'android-arm': 'armeabi-v7a',
+            'android-arm64': 'arm64-v8a',
+            'android-x64': 'x86_64',
+            'android-x86': 'x86',
+        ]
+        def targetPlatform = project.findProperty('target-platform')
+        def builtAbis = targetPlatform
+            ? targetPlatform.toString().split(',').collect { flutterAbis[it] }.findAll { it }
+            : []
+        if (builtAbis) {
+            ndk {
+                abiFilters.clear()
+                abiFilters.addAll(builtAbis)
+            }
+        }
     }
     lintOptions {
         disable 'InvalidPackage'

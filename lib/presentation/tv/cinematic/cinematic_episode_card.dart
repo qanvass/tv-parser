@@ -182,6 +182,7 @@ class CinematicEpisodeRow extends StatelessWidget {
   final List<TvStreamRecord> streams;
   final ValueChanged<String> onChannelSelected;
   final ValueChanged<TvStreamRecord>? onStreamFocused;
+  final ValueChanged<TvStreamRecord>? onCardNearView;
 
   const CinematicEpisodeRow({
     super.key,
@@ -189,6 +190,7 @@ class CinematicEpisodeRow extends StatelessWidget {
     required this.streams,
     required this.onChannelSelected,
     this.onStreamFocused,
+    this.onCardNearView,
   });
 
   @override
@@ -218,6 +220,7 @@ class CinematicEpisodeRow extends StatelessWidget {
               separatorBuilder: (_, _) => const SizedBox(width: 12),
               itemBuilder: (context, index) {
                 final stream = streams[index];
+                onCardNearView?.call(stream);
                 return CinematicEpisodeCard(
                   stream: stream,
                   onSelected: () => onChannelSelected(stream.streamUrl),

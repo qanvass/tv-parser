@@ -52,6 +52,12 @@ class ChannelLogoResolverService {
     required String channelName,
     String? primaryUrl,
   }) async {
+    // Never run live TV channel logo heuristics (Wikipedia/favicons) on movie or series titles.
+    if (RegExp(r'\(\d{4}\)').hasMatch(channelName) ||
+        RegExp(r'S\d+\s*E\d+', caseSensitive: false).hasMatch(channelName)) {
+      return null;
+    }
+
     final normalized = _normalize(channelName);
     if (normalized.isEmpty) return null;
 

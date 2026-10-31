@@ -42,6 +42,7 @@ class LocaleApi {
   static List<CategoryModel>? _m3uSeriesCategoriesMem;
   static List<ChannelSerie>? _m3uSeriesMem;
   static Directory? _m3uDir;
+  static CatalogStore? _catalogStore;
 
   static const int _isolateStringThreshold = 32768;
   static const int _isolateEncodeItemThreshold = 500;
@@ -109,6 +110,9 @@ class LocaleApi {
           final f = File('${dir.path}/$name');
           if (await f.exists()) await f.delete();
         }
+      } catch (_) {}
+      try {
+        await _deleteCatalogDatabase();
       } catch (_) {}
       try {
         await ProviderCapabilityStore.instance.clear();
@@ -660,5 +664,217 @@ class LocaleApi {
       debugPrint("Error get $fileName: $e");
     }
     return [];
+  }
+
+  /// One shelf page. Reads SQLite only when [CatalogDbFlags.readsEnabled] is
+  /// true and that kind has committed rows. Otherwise slices the JSON list
+  /// already in memory, or returns an empty page without decoding the file.
+  /// [getM3uSeries], [getM3uMovies], and [getM3uChannels] stay on JSON.
+  static Future<CatalogPage<ChannelSerie>> pageM3uSeries({
+    int limit = 40,
+    int offset = 0,
+    String? categoryId,
+  }) {
+    return _pageCatalog<ChannelSerie>(
+      kind: CatalogKind.series,
+      limit: limit,
+      offset: offset,
+      categoryId: categoryId,
+      resident: _m3uSeriesMem,
+      categoryOf: (row) => row.categoryId,
+      read: (store) => store.pageSeries(
+        limit: limit,
+        offset: offset,
+        categoryId: categoryId,
+      ),
+    );
+  }
+
+  static Future<CatalogPage<ChannelMovie>> pageM3uMovies({
+    int limit = 40,
+    int offset = 0,
+    String? categoryId,
+  }) {
+    return _pageCatalog<ChannelMovie>(
+      kind: CatalogKind.movie,
+      limit: limit,
+      offset: offset,
+      categoryId: categoryId,
+      resident: _m3uMoviesMem,
+      categoryOf: (row) => row.categoryId,
+      read: (store) => store.pageMovies(
+        limit: limit,
+        offset: offset,
+        categoryId: categoryId,
+      ),
+    );
+  }
+
+  static Future<CatalogPage<ChannelLive>> pageM3uLive({
+    int limit = 40,
+    int offset = 0,
+    String? categoryId,
+  }) {
+    return _pageCatalog<ChannelLive>(
+      kind: CatalogKind.live,
+      limit: limit,
+      offset: offset,
+      categoryId: categoryId,
+      resident: _m3uChannelsMem,
+      categoryOf: (row) => row.categoryId,
+      read: (store) => store.pageLive(
+        limit: limit,
+        offset: offset,
+        categoryId: categoryId,
+      ),
+    );
+  }
+
+  /// Streams `m3u_series.json` into SQLite in batches. Does not fill
+  /// [_m3uSeriesMem]. Skips when that list is already loaded so the JSON
+  /// list and the database are not held together. Not called from warm/save.
+  static Future<bool> ingestM3uSeriesFileToCatalogDb() {
+    return _ingestCatalogFile(
+      kind: CatalogKind.series,
+      fileName: 'm3u_series.json',
+      blocked: _m3uSeriesMem != null && _m3uSeriesMem!.isNotEmpty,
+    );
+  }
+
+  static Future<bool> ingestM3uMoviesFileToCatalogDb() {
+    return _ingestCatalogFile(
+      kind: CatalogKind.movie,
+      fileName: 'm3u_movies.json',
+      blocked: _m3uMoviesMem != null && _m3uMoviesMem!.isNotEmpty,
+    );
+  }
+
+  static Future<bool> ingestM3uLiveFileToCatalogDb() {
+    return _ingestCatalogFile(
+      kind: CatalogKind.live,
+      fileName: 'm3u_channels.json',
+      blocked: _m3uChannelsMem != null && _m3uChannelsMem!.isNotEmpty,
+    );
+  }
+
+  static Future<CatalogPage<T>> _pageCatalog<T>({
+    required CatalogKind kind,
+    required int limit,
+    required int offset,
+    required String? categoryId,
+    required List<T>? resident,
+    required String? Function(T item) categoryOf,
+    required Future<List<T>> Function(CatalogStore store) read,
+  }) async {
+    final appliedLimit = _catalogLimit(limit);
+    final appliedOffset = offset < 0 ? 0 : offset;
+    if (CatalogDbFlags.readsEnabled) {
+      try {
+        final store = await _catalogStoreOpen();
+        if (await store.isReady(kind)) {
+          final rows = await read(store);
+          return CatalogPage<T>(
+            rows: rows,
+            limit: appliedLimit,
+            offset: appliedOffset,
+            fromDatabase: true,
+          );
+        }
+      } catch (_) {
+        debugPrint(
+          '[CATALOG_DB] ${kind.storageKey} page used the resident list',
+        );
+      }
+    }
+    return CatalogPage<T>(
+      rows: _sliceResident<T>(
+        resident,
+        limit: appliedLimit,
+        offset: appliedOffset,
+        categoryId: categoryId,
+        categoryOf: categoryOf,
+      ),
+      limit: appliedLimit,
+      offset: appliedOffset,
+      fromDatabase: false,
+    );
+  }
+
+  static Future<bool> _ingestCatalogFile({
+    required CatalogKind kind,
+    required String fileName,
+    required bool blocked,
+  }) async {
+    if (blocked) {
+      debugPrint(
+        '[CATALOG_DB] ${kind.storageKey} ingest skipped; JSON list is in memory',
+      );
+      return false;
+    }
+    try {
+      final dir = await _ensureM3uDir();
+      final file = File('${dir.path}/$fileName');
+      if (!await file.exists()) return false;
+      final store = await _catalogStoreOpen();
+      final count = await CatalogIngest.ingestFile(
+        store: store,
+        kind: kind,
+        path: file.path,
+      );
+      debugPrint('[CATALOG_DB] ${kind.storageKey} committed rows=$count');
+      return count > 0;
+    } catch (_) {
+      debugPrint('[CATALOG_DB] ${kind.storageKey} ingest failed');
+      return false;
+    }
+  }
+
+  static Future<CatalogStore> _catalogStoreOpen() async {
+    final existing = _catalogStore;
+    if (existing != null) return existing;
+    final support = await getApplicationSupportDirectory();
+    final dir = Directory('${support.path}/catalog');
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+    final store = await CatalogSqlite.open('${dir.path}/catalog.db');
+    _catalogStore = store;
+    return store;
+  }
+
+  static Future<void> _deleteCatalogDatabase() async {
+    final store = _catalogStore;
+    _catalogStore = null;
+    if (store != null) {
+      try {
+        await store.close();
+      } catch (_) {}
+    }
+    final support = await getApplicationSupportDirectory();
+    final path = '${support.path}/catalog/catalog.db';
+    if (!await File(path).exists()) return;
+    await CatalogSqlite.deleteFile(path);
+  }
+
+  static int _catalogLimit(int limit) {
+    if (limit <= 0) return 0;
+    if (limit > CatalogDbFlags.maxPage) return CatalogDbFlags.maxPage;
+    return limit;
+  }
+
+  static List<T> _sliceResident<T>(
+    List<T>? mem, {
+    required int limit,
+    required int offset,
+    String? categoryId,
+    required String? Function(T item) categoryOf,
+  }) {
+    if (mem == null || limit <= 0) return <T>[];
+    final start = offset < 0 ? 0 : offset;
+    Iterable<T> source = mem;
+    if (categoryId != null && categoryId.isNotEmpty) {
+      source = mem.where((item) => categoryOf(item) == categoryId);
+    }
+    return source.skip(start).take(limit).toList(growable: false);
   }
 }
