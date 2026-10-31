@@ -757,7 +757,8 @@ class _MovieGridItem extends StatelessWidget {
                       color: kColorFocus,
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(FontAwesomeIcons.play.data,
+                    child: Icon(
+                      FontAwesomeIcons.play.data,
                       color: Colors.white,
                       size: 10,
                     ),

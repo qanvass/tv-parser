@@ -451,8 +451,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context.read<AuthBloc>().add(AuthLoadM3u(account.playlistUrl!));
     } else {
       context.read<AuthBloc>().add(
-            AuthRegister(account.username, account.password, account.domain),
-          );
+        AuthRegister(account.username, account.password, account.domain),
+      );
     }
     Get.offAllNamed('/');
   }
@@ -469,11 +469,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _cycleSubtitleSize() {
     const sizes = ['Small', 'Medium', 'Large'];
-    final next = sizes[(_subtitleSize == 'Small'
+    final next =
+        sizes[(_subtitleSize == 'Small'
             ? 1
             : _subtitleSize == 'Medium'
-                ? 2
-                : 0)];
+            ? 2
+            : 0)];
     final box = GetStorage("preferences");
     box.write("subtitle_size", next);
     setState(() => _subtitleSize = next);
@@ -545,7 +546,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Navigator.of(ctx).pop();
                 _restoreFocus();
               },
-              child: const Text("Cancel", style: TextStyle(color: Colors.white54)),
+              child: const Text(
+                "Cancel",
+                style: TextStyle(color: Colors.white54),
+              ),
             ),
             TextButton(
               onPressed: () {
@@ -556,7 +560,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   box.write("parental_pin", pin);
                 }
                 Navigator.of(ctx).pop();
-                _snack(pin.isEmpty ? "Parental PIN cleared" : "Parental PIN saved");
+                _snack(
+                  pin.isEmpty ? "Parental PIN cleared" : "Parental PIN saved",
+                );
                 _restoreFocus();
               },
               child: const Text(
@@ -913,7 +919,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 10),
                 _InfoRow(
                   label: 'Server',
-                  value: serverInfo?.serverUrl ?? '—',
+                  value: _displayServer(serverInfo?.serverUrl),
                   icon: FontAwesomeIcons.server.data,
                 ),
                 const SizedBox(height: 10),
@@ -1029,7 +1035,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     SizedBox(height: 10),
                     _InfoRow(
                       label: 'Server',
-                      value: serverInfo?.serverUrl ?? '—',
+                      value: _displayServer(serverInfo?.serverUrl),
                       icon: FontAwesomeIcons.server.data,
                     ),
                   ],
@@ -1402,8 +1408,8 @@ class _TvDialogOptionTileState extends State<_TvDialogOptionTile> {
               color: _focused
                   ? Colors.amber.withValues(alpha: 0.16)
                   : widget.isSelected
-                      ? Colors.white.withValues(alpha: 0.06)
-                      : Colors.transparent,
+                  ? Colors.white.withValues(alpha: 0.06)
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: _focused
@@ -1665,4 +1671,13 @@ class _SettingsAction extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Host only: playlist URLs carry the account path (often user/password).
+String _displayServer(String? url) {
+  if (url == null || url.isEmpty) return '—';
+  final raw = url.replaceFirst(RegExp(r'^m3u:(//)?'), '');
+  final host = Uri.tryParse(raw)?.host ?? '';
+  if (host.isEmpty) return '—';
+  return url.startsWith('m3u:') ? 'Playlist · $host' : host;
 }

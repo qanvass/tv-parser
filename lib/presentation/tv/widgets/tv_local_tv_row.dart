@@ -69,9 +69,7 @@ class TvLocalTvRow extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TvRailSectionHeader(
-            title: 'Local TV · ${activeMarket.displayName}',
-          ),
+          TvRailSectionHeader(title: 'Local TV · ${activeMarket.displayName}'),
           const SizedBox(height: 10),
           Expanded(
             child: ListView.builder(

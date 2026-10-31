@@ -99,6 +99,44 @@ class _AllContentScreenState extends State<AllContentScreen> {
     if (seriesState is SeriesCatySuccess)
       _seriesCategories = seriesState.categories;
 
+    if (_getCategoryFilterList().isEmpty) {
+      _refetchCategories();
+    } else {
+      _autoSelectFirstCategory();
+    }
+  }
+
+  /// The splash fetch can finish before the playlist cache is readable, leaving
+  /// the shared blocs with empty lists. Ask the source again for this mode.
+  Future<void> _refetchCategories() async {
+    setState(() => _loading = true);
+    final api = IpTvApi();
+    try {
+      if (_currentMode == BrowseMode.movies) {
+        final cats = await api.getCategories("get_vod_categories");
+        if (!mounted) return;
+        _movieCategories = cats;
+        if (cats.isNotEmpty) {
+          context.read<MovieCatyBloc>().add(HydrateMovieCategories(cats));
+        }
+      } else if (_currentMode == BrowseMode.series) {
+        final cats = await api.getCategories("get_series_categories");
+        if (!mounted) return;
+        _seriesCategories = cats;
+        if (cats.isNotEmpty) {
+          context.read<SeriesCatyBloc>().add(HydrateSeriesCategories(cats));
+        }
+      } else {
+        final cats = await api.getCategories("get_live_categories");
+        if (!mounted) return;
+        _liveCategories = cats;
+        if (cats.isNotEmpty) {
+          context.read<LiveCatyBloc>().add(GetLiveCategories());
+        }
+      }
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() => _loading = false);
     _autoSelectFirstCategory();
   }
 
@@ -120,7 +158,8 @@ class _AllContentScreenState extends State<AllContentScreen> {
       final api = IpTvApi();
       if (_currentMode == BrowseMode.live ||
           _currentMode == BrowseMode.countries ||
-          _currentMode == BrowseMode.languages) {
+          _currentMode == BrowseMode.languages ||
+          _currentMode == BrowseMode.categories) {
         final data = await api.getLiveChannels(category.categoryId ?? '');
         final filtered = data
             .where(
@@ -190,7 +229,8 @@ class _AllContentScreenState extends State<AllContentScreen> {
       }).toList();
     }
 
-    if (_currentMode == BrowseMode.languages) {
+    if (_currentMode == BrowseMode.languages ||
+        _currentMode == BrowseMode.categories) {
       return _liveCategories.where((c) {
         final name = (c.categoryName ?? '').toLowerCase();
         return name.contains('english') ||
@@ -241,7 +281,8 @@ class _AllContentScreenState extends State<AllContentScreen> {
         .where((entry) {
           if (_currentMode == BrowseMode.live ||
               _currentMode == BrowseMode.countries ||
-              _currentMode == BrowseMode.languages) {
+              _currentMode == BrowseMode.languages ||
+              _currentMode == BrowseMode.categories) {
             return entry.type == 'live';
           } else if (_currentMode == BrowseMode.movies) {
             return entry.type == 'movie';
@@ -307,7 +348,8 @@ class _AllContentScreenState extends State<AllContentScreen> {
     final isLive =
         _currentMode == BrowseMode.live ||
         _currentMode == BrowseMode.countries ||
-        _currentMode == BrowseMode.languages;
+        _currentMode == BrowseMode.languages ||
+        _currentMode == BrowseMode.categories;
     final displayStreams = _searchQuery.isNotEmpty
         ? _searchResults
         : _loadedStreams;
@@ -344,6 +386,11 @@ class _AllContentScreenState extends State<AllContentScreen> {
               categories: categories,
               selectedCategoryId: _selectedCategory?.categoryId ?? '',
               onCategorySelected: (cat) => _onCategorySelected(cat),
+              title: _currentMode == BrowseMode.movies
+                  ? "Movie Categories"
+                  : _currentMode == BrowseMode.series
+                  ? "Series Categories"
+                  : "Live TV Categories",
             ),
 
           // Main Grid Area
@@ -370,7 +417,8 @@ class _AllContentScreenState extends State<AllContentScreen> {
     final isLive =
         _currentMode == BrowseMode.live ||
         _currentMode == BrowseMode.countries ||
-        _currentMode == BrowseMode.languages;
+        _currentMode == BrowseMode.languages ||
+        _currentMode == BrowseMode.categories;
     final displayStreams = _searchQuery.isNotEmpty
         ? _searchResults
         : _loadedStreams;
@@ -885,8 +933,13 @@ class _AllContentScreenState extends State<AllContentScreen> {
         StreamLauncher.openStreamWithBrandedLoading(
           context: context,
           streamUrl: streamUrl,
-          playerBuilder: () =>
-              MoviePlayerScreen(link: streamUrl, title: movie.name ?? 'Stream'),
+          playerBuilder: () => MoviePlayerScreen(
+            link: streamUrl,
+            title: movie.name ?? 'Stream',
+            streamId: movie.streamId,
+            image: movie.streamIcon,
+            recordHistory: true,
+          ),
         );
       }
     }

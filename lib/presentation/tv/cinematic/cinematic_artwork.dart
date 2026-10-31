@@ -12,11 +12,7 @@ enum CinematicArtKind {
   trailer,
 }
 
-enum CinematicHeroVisual {
-  video,
-  motionBackdrop,
-  posterCinematicFallback,
-}
+enum CinematicHeroVisual { video, motionBackdrop, posterCinematicFallback }
 
 /// First-class art slots. Null means missing — never invent, never block render.
 class CinematicArtwork {
@@ -74,10 +70,11 @@ class CinematicArtwork {
       streamIcon: extra?.posterUrl,
       cover: stream.imageUrl,
     );
-    final backdrop = ArtworkUrlResolver.resolveHeroBackdrop(
-      backdrop: extra?.backdropUrl,
-      posterFallback: null,
-    ) ??
+    final backdrop =
+        ArtworkUrlResolver.resolveHeroBackdrop(
+          backdrop: extra?.backdropUrl,
+          posterFallback: null,
+        ) ??
         ArtworkUrlResolver.resolveHeroBackdrop(
           backdrop: stream.backdropUrl,
           posterFallback: null,
@@ -88,7 +85,8 @@ class CinematicArtwork {
       clearLogo: null,
       channelLogo: stream.isVod ? null : _img(stream.imageUrl),
       episodeStill: null,
-      trailer: PlayableTrailerUrl.resolve(extra?.trailerUrl) ??
+      trailer:
+          PlayableTrailerUrl.resolve(extra?.trailerUrl) ??
           PlayableTrailerUrl.resolve(stream.trailerUrl),
     );
   }

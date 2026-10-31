@@ -11,7 +11,7 @@ enum DiagnosticState { notStarted, running, success, failed }
 
 class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
   bool _isRunning = false;
-  
+
   // Interactive TV focus management
   int _focusedBtnIdx = 0; // 0 = Run Diagnostics, 1 = Back Button
   final _screenFocusNode = FocusNode();
@@ -169,7 +169,8 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
             nameLower.contains("3g") ||
             nameLower.contains("5g")) {
           guessedType = "Cellular";
-        } else if (nameLower.contains("eth") || nameLower.contains("ethernet")) {
+        } else if (nameLower.contains("eth") ||
+            nameLower.contains("ethernet")) {
           guessedType = "Ethernet";
         }
       }
@@ -188,10 +189,12 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
 
   Future<void> _testDnsAndLatency() async {
     _log("[2/5] Testing Estimated Latency (Public DNS servers)...");
-    final dio = Dio(BaseOptions(
-      connectTimeout: const Duration(seconds: 4),
-      receiveTimeout: const Duration(seconds: 4),
-    ));
+    final dio = Dio(
+      BaseOptions(
+        connectTimeout: const Duration(seconds: 4),
+        receiveTimeout: const Duration(seconds: 4),
+      ),
+    );
 
     Future<int?> pingUrl(String url) async {
       final stopwatch = Stopwatch()..start();
@@ -237,7 +240,8 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
         _latencyRatingColor = Colors.redAccent;
       } else {
         _dnsState = DiagnosticState.success;
-        final avg = validLatencies.reduce((a, b) => a + b) ~/ validLatencies.length;
+        final avg =
+            validLatencies.reduce((a, b) => a + b) ~/ validLatencies.length;
         if (avg < 50) {
           _latencyRating = "Excellent (${avg}ms)";
           _latencyRatingColor = Colors.green;
@@ -256,14 +260,16 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
 
   Future<void> _pingProviderApi() async {
     _log("[3/5] Pinging IPTV Provider API endpoint...");
-    final dio = Dio(BaseOptions(
-      connectTimeout: const Duration(seconds: 5),
-      receiveTimeout: const Duration(seconds: 5),
-      headers: {
-        'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      },
-    ));
+    final dio = Dio(
+      BaseOptions(
+        connectTimeout: const Duration(seconds: 5),
+        receiveTimeout: const Duration(seconds: 5),
+        headers: {
+          'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+      ),
+    );
 
     String? providerUrl;
     final authBloc = context.read<AuthBloc>();
@@ -302,9 +308,11 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
       });
     }
 
-    _log(isM3uSession
-        ? "• M3U playlist URL: $targetUrl"
-        : "• IPTV Portal URL: $targetUrl");
+    _log(
+      isM3uSession
+          ? "• M3U playlist URL: $targetUrl"
+          : "• IPTV Portal URL: $targetUrl",
+    );
     final stopwatch = Stopwatch()..start();
     try {
       final res = await dio.get(targetUrl);
@@ -315,10 +323,12 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
         _providerState = DiagnosticState.success;
         _providerLatency = stopwatch.elapsedMilliseconds;
       });
-      _log(isM3uSession
-          ? "  M3U Playlist Ping Success: ${_providerLatency}ms"
-              "${looksLikeM3u ? ' (#EXTM3U OK)' : ''}"
-          : "  Provider API Ping Success: ${_providerLatency}ms");
+      _log(
+        isM3uSession
+            ? "  M3U Playlist Ping Success: ${_providerLatency}ms"
+                  "${looksLikeM3u ? ' (#EXTM3U OK)' : ''}"
+            : "  Provider API Ping Success: ${_providerLatency}ms",
+      );
     } catch (e) {
       stopwatch.stop();
       if (e is DioException && e.response != null) {
@@ -327,7 +337,9 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
           _providerState = DiagnosticState.success;
           _providerLatency = stopwatch.elapsedMilliseconds;
         });
-        _log("  Provider API Ping Reachable: ${_providerLatency}ms (status: ${e.response!.statusCode})");
+        _log(
+          "  Provider API Ping Reachable: ${_providerLatency}ms (status: ${e.response!.statusCode})",
+        );
       } else {
         setState(() {
           _providerState = DiagnosticState.failed;
@@ -339,13 +351,13 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
 
   Future<void> _testStreamHandshake() async {
     _log("[4/5] Initiating Stream Reachability Handshake...");
-    final dio = Dio(BaseOptions(
-      connectTimeout: const Duration(seconds: 6),
-      receiveTimeout: const Duration(seconds: 6),
-      headers: {
-        'User-Agent': 'VLC/3.0.21 LibVLC/3.0.21',
-      },
-    ));
+    final dio = Dio(
+      BaseOptions(
+        connectTimeout: const Duration(seconds: 6),
+        receiveTimeout: const Duration(seconds: 6),
+        headers: {'User-Agent': 'VLC/3.0.21 LibVLC/3.0.21'},
+      ),
+    );
 
     // We verify:
     // 1. Connection to public video stream (kDemoUrl)
@@ -459,7 +471,9 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
               providerDetail = "XC player_api OK";
               _log("  Provider Stream Portal: OK (Authentication Validated)");
             } else {
-              _log("  Provider Stream Portal: Returned Status ${res.statusCode}");
+              _log(
+                "  Provider Stream Portal: Returned Status ${res.statusCode}",
+              );
             }
           } catch (e) {
             _log("  Provider Stream Portal: Failed: $e");
@@ -492,11 +506,15 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
   }
 
   Future<void> _testCdnSpeedAndImage() async {
-    _log("[5/5] Performing CDN image load test and download speed estimation...");
-    final dio = Dio(BaseOptions(
-      connectTimeout: const Duration(seconds: 12),
-      receiveTimeout: const Duration(seconds: 12),
-    ));
+    _log(
+      "[5/5] Performing CDN image load test and download speed estimation...",
+    );
+    final dio = Dio(
+      BaseOptions(
+        connectTimeout: const Duration(seconds: 12),
+        receiveTimeout: const Duration(seconds: 12),
+      ),
+    );
 
     // Picsum dynamic high-res photo from CDN. Size is approx 1.0 MB.
     const testCdnUrl = "https://picsum.photos/1000/1000";
@@ -514,7 +532,7 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
       if (bytes != null && bytes.isNotEmpty) {
         final durationMs = stopwatch.elapsedMilliseconds;
         final sizeBytes = bytes.length;
-        
+
         final double sizeMb = sizeBytes / (1024.0 * 1024.0);
         final double durationSec = durationMs / 1000.0;
         // speed = (Size in Megabytes * 8 bits) / seconds
@@ -526,13 +544,20 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
           _cdnDownloadedBytes = sizeBytes;
           _cdnDurationMs = durationMs;
           // Trigger dynamic rendering
-          _cdnImageUrl = "$testCdnUrl?t=${DateTime.now().millisecondsSinceEpoch}";
+          _cdnImageUrl =
+              "$testCdnUrl?t=${DateTime.now().millisecondsSinceEpoch}";
         });
 
         _log("  CDN Speed Test: SUCCESS!");
-        _log("  Downloaded Size: ${sizeMb.toStringAsFixed(2)} MB (${sizeBytes} bytes)");
-        _log("  Duration: ${durationMs}ms (${durationSec.toStringAsFixed(2)}s)");
-        _log("  Estimated CDN Download Bandwidth: ${speedMbps.toStringAsFixed(2)} Mbps");
+        _log(
+          "  Downloaded Size: ${sizeMb.toStringAsFixed(2)} MB (${sizeBytes} bytes)",
+        );
+        _log(
+          "  Duration: ${durationMs}ms (${durationSec.toStringAsFixed(2)}s)",
+        );
+        _log(
+          "  Estimated CDN Download Bandwidth: ${speedMbps.toStringAsFixed(2)} Mbps",
+        );
       } else {
         _log("  CDN Speed Test: Empty response data returned.");
         setState(() {
@@ -556,7 +581,7 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
       _popTest(source: 'focus');
       return KeyEventResult.handled;
     }
-    
+
     if (k == LogicalKeyboardKey.arrowDown || k == LogicalKeyboardKey.arrowUp) {
       setState(() {
         _focusedBtnIdx = _focusedBtnIdx == 0 ? 1 : 0;
@@ -564,7 +589,9 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
       return KeyEventResult.handled;
     }
 
-    if (k == LogicalKeyboardKey.select || k == LogicalKeyboardKey.enter || k == LogicalKeyboardKey.gameButtonA) {
+    if (k == LogicalKeyboardKey.select ||
+        k == LogicalKeyboardKey.enter ||
+        k == LogicalKeyboardKey.gameButtonA) {
       if (_focusedBtnIdx == 0) {
         _runAllDiagnostics();
       } else {
@@ -601,7 +628,10 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
               children: [
                 // ── CUSTOM LIGHT PREMIUM APPBAR ──────────────────────────────
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 12.0,
+                  ),
                   child: Row(
                     children: [
                       // Back Button
@@ -612,10 +642,14 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
                           width: 40,
                           height: 40,
                           decoration: BoxDecoration(
-                            color: _focusedBtnIdx == 1 ? kColorPrimary : Colors.white,
+                            color: _focusedBtnIdx == 1
+                                ? kColorPrimary
+                                : Colors.white,
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: _focusedBtnIdx == 1 ? kColorPrimary : Colors.black.withOpacity(0.08),
+                              color: _focusedBtnIdx == 1
+                                  ? kColorPrimary
+                                  : Colors.black.withOpacity(0.08),
                               width: 1.5,
                             ),
                             boxShadow: [
@@ -625,13 +659,15 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
                                     : Colors.black.withOpacity(0.03),
                                 blurRadius: 8,
                                 offset: const Offset(0, 2),
-                              )
+                              ),
                             ],
                           ),
                           child: Icon(
                             FontAwesomeIcons.chevronLeft.data,
                             size: 15,
-                            color: _focusedBtnIdx == 1 ? Colors.white : Colors.black87,
+                            color: _focusedBtnIdx == 1
+                                ? Colors.white
+                                : Colors.black87,
                           ),
                         ),
                       ),
@@ -639,7 +675,10 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
                       // Title Pill
                       Flexible(
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
                           decoration: BoxDecoration(
                             color: kColorPrimary.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(12),
@@ -677,11 +716,16 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
                       const Spacer(),
                       // Active connection indicator
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.black.withOpacity(0.05)),
+                          border: Border.all(
+                            color: Colors.black.withOpacity(0.05),
+                          ),
                         ),
                         child: Row(
                           children: [
@@ -689,10 +733,10 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
                               _connectionType == "Wi-Fi"
                                   ? FontAwesomeIcons.wifi.data
                                   : _connectionType == "Cellular"
-                                      ? FontAwesomeIcons.signal.data
-                                      : _connectionType == "Ethernet"
-                                          ? FontAwesomeIcons.networkWired.data
-                                          : FontAwesomeIcons.globe.data,
+                                  ? FontAwesomeIcons.signal.data
+                                  : _connectionType == "Ethernet"
+                                  ? FontAwesomeIcons.networkWired.data
+                                  : FontAwesomeIcons.globe.data,
                               size: 11,
                               color: kColorPrimaryDark,
                             ),
@@ -711,7 +755,7 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
                     ],
                   ),
                 ),
-                
+
                 // ── MAIN CONTENT (IMMUNE TO OVERFLOWS) ───────────────────────
                 Expanded(
                   child: Padding(
@@ -730,7 +774,8 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
                                   physics: const BouncingScrollPhysics(),
                                   padding: const EdgeInsets.only(bottom: 24),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
                                     children: [
                                       _buildCoreTestCards(),
                                       const SizedBox(height: 16),
@@ -807,9 +852,17 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildTextRow("Cloudflare (1.1.1.1):", _cloudflareLatency != null ? "${_cloudflareLatency}ms" : "—"),
+                    _buildTextRow(
+                      "Cloudflare (1.1.1.1):",
+                      _cloudflareLatency != null
+                          ? "${_cloudflareLatency}ms"
+                          : "—",
+                    ),
                     const SizedBox(height: 6),
-                    _buildTextRow("Google (8.8.8.8):", _googleLatency != null ? "${_googleLatency}ms" : "—"),
+                    _buildTextRow(
+                      "Google (8.8.8.8):",
+                      _googleLatency != null ? "${_googleLatency}ms" : "—",
+                    ),
                     const SizedBox(height: 8),
                     Row(
                       children: [
@@ -847,17 +900,20 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
                   children: [
                     _buildTextRow("Server host:", _providerHost ?? "—"),
                     const SizedBox(height: 6),
-                    _buildTextRow("Ping Latency:", _providerLatency != null ? "${_providerLatency}ms" : "—"),
+                    _buildTextRow(
+                      "Ping Latency:",
+                      _providerLatency != null ? "${_providerLatency}ms" : "—",
+                    ),
                     const SizedBox(height: 8),
                     _buildTextRow(
                       "Panel State:",
                       _providerState == DiagnosticState.success
                           ? ((_providerHost ?? '').contains('M3U')
-                              ? "M3U Online"
-                              : "Online")
+                                ? "M3U Online"
+                                : "Online")
                           : _providerState == DiagnosticState.failed
-                              ? "Offline/No Login"
-                              : "—",
+                          ? "Offline/No Login"
+                          : "—",
                     ),
                   ],
                 ),
@@ -882,13 +938,15 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
                     const SizedBox(height: 6),
                     _buildTextRow(
                       "Provider API hand:",
-                      (_streamReachabilityDetails ?? '').toLowerCase().contains('gated')
+                      (_streamReachabilityDetails ?? '').toLowerCase().contains(
+                            'gated',
+                          )
                           ? "Playlist OK; live gated"
                           : _providerState == DiagnosticState.success
-                              ? ((_providerHost ?? '').contains('M3U')
-                                  ? "M3U playlist OK"
-                                  : "Authenticated")
-                              : "Unverified",
+                          ? ((_providerHost ?? '').contains('M3U')
+                                ? "M3U playlist OK"
+                                : "Authenticated")
+                          : "Unverified",
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -915,11 +973,24 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildTextRow("Download Speed:", _cdnSpeedMbps != null ? "${_cdnSpeedMbps!.toStringAsFixed(2)} Mbps" : "—"),
+                    _buildTextRow(
+                      "Download Speed:",
+                      _cdnSpeedMbps != null
+                          ? "${_cdnSpeedMbps!.toStringAsFixed(2)} Mbps"
+                          : "—",
+                    ),
                     const SizedBox(height: 6),
-                    _buildTextRow("Data size:", _cdnDownloadedBytes != null ? "${(_cdnDownloadedBytes! / (1024 * 1024)).toStringAsFixed(2)} MB" : "—"),
+                    _buildTextRow(
+                      "Data size:",
+                      _cdnDownloadedBytes != null
+                          ? "${(_cdnDownloadedBytes! / (1024 * 1024)).toStringAsFixed(2)} MB"
+                          : "—",
+                    ),
                     const SizedBox(height: 8),
-                    _buildTextRow("Time elapsed:", _cdnDurationMs != null ? "${_cdnDurationMs} ms" : "—"),
+                    _buildTextRow(
+                      "Time elapsed:",
+                      _cdnDurationMs != null ? "${_cdnDurationMs} ms" : "—",
+                    ),
                   ],
                 ),
               ),
@@ -947,7 +1018,11 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
           flex: 3,
           child: Text(
             value,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87),
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.end,
@@ -971,7 +1046,9 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
                 color: _focusedBtnIdx == 0 ? kColorPrimaryDark : kColorPrimary,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: _focusedBtnIdx == 0 ? Colors.white.withOpacity(0.8) : Colors.transparent,
+                  color: _focusedBtnIdx == 0
+                      ? Colors.white.withOpacity(0.8)
+                      : Colors.transparent,
                   width: 1.5,
                 ),
                 boxShadow: [
@@ -979,7 +1056,7 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
                     color: kColorPrimary.withOpacity(0.4),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
-                  )
+                  ),
                 ],
               ),
               alignment: Alignment.center,
@@ -997,7 +1074,11 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
                     ),
                     const SizedBox(width: 8),
                   ] else ...[
-                    Icon(FontAwesomeIcons.arrowsRotate.data, size: 14, color: Colors.white),
+                    Icon(
+                      FontAwesomeIcons.arrowsRotate.data,
+                      size: 14,
+                      color: Colors.white,
+                    ),
                     const SizedBox(width: 8),
                   ],
                   Text(
@@ -1030,7 +1111,7 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
             color: Colors.black.withOpacity(0.02),
             blurRadius: 12,
             offset: const Offset(0, 4),
-          )
+          ),
         ],
       ),
       child: Column(
@@ -1041,14 +1122,20 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: Colors.grey.shade50,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
+              ),
               border: Border(
                 bottom: BorderSide(color: Colors.black.withOpacity(0.05)),
               ),
             ),
             child: Row(
               children: [
-                Icon(FontAwesomeIcons.image.data, size: 12, color: Colors.black54),
+                Icon(
+                  FontAwesomeIcons.image.data,
+                  size: 12,
+                  color: Colors.black54,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   "CDN Image Load Test".toUpperCase(),
@@ -1077,16 +1164,28 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
                         width: 32,
                         height: 32,
                         child: CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(kColorPrimary),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            kColorPrimary,
+                          ),
                           strokeWidth: 2,
                         ),
                       ),
                       errorWidget: (context, url, error) => Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(FontAwesomeIcons.circleExclamation.data, size: 24, color: Colors.redAccent),
+                          Icon(
+                            FontAwesomeIcons.circleExclamation.data,
+                            size: 24,
+                            color: Colors.redAccent,
+                          ),
                           const SizedBox(height: 6),
-                          const Text("Failed to render loaded image", style: TextStyle(fontSize: 11, color: Colors.black54)),
+                          const Text(
+                            "Failed to render loaded image",
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.black54,
+                            ),
+                          ),
                         ],
                       ),
                     )
@@ -1100,8 +1199,14 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          _isRunning ? "Loading CDN assets..." : "Awaiting test execution",
-                          style: const TextStyle(fontSize: 11, color: Colors.black45, fontWeight: FontWeight.bold),
+                          _isRunning
+                              ? "Loading CDN assets..."
+                              : "Awaiting test execution",
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.black45,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
@@ -1124,7 +1229,7 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
             color: Colors.black.withOpacity(0.15),
             blurRadius: 16,
             offset: const Offset(0, 4),
-          )
+          ),
         ],
       ),
       child: Column(
@@ -1139,7 +1244,11 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
             ),
             child: Row(
               children: [
-                Icon(FontAwesomeIcons.terminal.data, size: 11, color: Colors.greenAccent),
+                Icon(
+                  FontAwesomeIcons.terminal.data,
+                  size: 11,
+                  color: Colors.greenAccent,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   "Interactive Diagnostic Log".toUpperCase(),
@@ -1237,7 +1346,10 @@ class _DiagnosticCard extends StatelessWidget {
         indicatorWidget = Container(
           width: 8,
           height: 8,
-          decoration: BoxDecoration(shape: BoxShape.circle, color: indicatorColor),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: indicatorColor,
+          ),
         );
         break;
       case DiagnosticState.running:
@@ -1287,7 +1399,7 @@ class _DiagnosticCard extends StatelessWidget {
                 : Colors.black.withOpacity(0.02),
             blurRadius: 12,
             offset: const Offset(0, 4),
-          )
+          ),
         ],
       ),
       child: Column(
@@ -1335,7 +1447,11 @@ class _DiagnosticCard extends StatelessWidget {
           ),
           // Card Content
           Padding(
-            padding: const EdgeInsets.only(left: 14.0, right: 14.0, bottom: 12.0),
+            padding: const EdgeInsets.only(
+              left: 14.0,
+              right: 14.0,
+              bottom: 12.0,
+            ),
             child: child,
           ),
         ],

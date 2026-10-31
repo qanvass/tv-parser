@@ -27,9 +27,7 @@ class TvLiveSpotlightRow extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const TvRailSectionHeader(
-            title: 'Live Tonight',
-          ),
+          const TvRailSectionHeader(title: 'Live Tonight'),
           const SizedBox(height: 10),
           Expanded(
             child: ListView.builder(

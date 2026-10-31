@@ -132,7 +132,9 @@ class _SmartChannelLogoState extends State<SmartChannelLogo> {
           ),
       errorWidget: (context, _, __) {
         if (!_resolveAttempted) {
-          WidgetsBinding.instance.addPostFrameCallback((_) => _resolveFallback());
+          WidgetsBinding.instance.addPostFrameCallback(
+            (_) => _resolveFallback(),
+          );
         }
         if (widget.placeholder != null && !widget.showInitialsFallback) {
           return widget.placeholder!;

@@ -88,7 +88,9 @@ class SeriesRailGrouper {
       }
     }
     final single = group.length == 1;
-    final parsed = _alreadyParsed(first) ? null : TitleNormalizer.parse(first.title);
+    final parsed = _alreadyParsed(first)
+        ? null
+        : TitleNormalizer.parse(first.title);
     final ep = single && !_alreadyParsed(best)
         ? TitleNormalizer.parse(best.title)
         : null;

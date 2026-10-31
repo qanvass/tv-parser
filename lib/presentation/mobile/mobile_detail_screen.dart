@@ -38,22 +38,33 @@ class _MobileDetailScreenState extends State<MobileDetailScreen> {
 
   Future<void> _fetchDetails() async {
     try {
-      final details = await IpTvApi.getMovieDetails(widget.movie.streamId.toString());
+      final details = await IpTvApi.getMovieDetails(
+        widget.movie.streamId.toString(),
+      );
       if (mounted) {
         setState(() {
           _movieDetail = details;
           _isLoading = false;
-          
+
           if (details != null) {
             // Asynchronously resolve trailer
-            _youtubeTrailerId = TrailerLookupService.getYoutubeIdFromMetadata(details);
-            
+            _youtubeTrailerId = TrailerLookupService.getYoutubeIdFromMetadata(
+              details,
+            );
+
             // Synopsis audit & debug log
             final plot = details.info?.plot;
-            if (plot != null && plot.isNotEmpty && !plot.toLowerCase().contains("iptv") && !plot.toLowerCase().contains("servicer")) {
-              debugPrint("TV_PARSER_DETAILS_QA: Synopsis loaded from 'info.plot' field. Length: ${plot.length}");
+            if (plot != null &&
+                plot.isNotEmpty &&
+                !plot.toLowerCase().contains("iptv") &&
+                !plot.toLowerCase().contains("servicer")) {
+              debugPrint(
+                "TV_PARSER_DETAILS_QA: Synopsis loaded from 'info.plot' field. Length: ${plot.length}",
+              );
             } else {
-              debugPrint("TV_PARSER_DETAILS_QA: Synopsis empty, null, or generic IPTV text. Displaying fallback synopsis.");
+              debugPrint(
+                "TV_PARSER_DETAILS_QA: Synopsis empty, null, or generic IPTV text. Displaying fallback synopsis.",
+              );
             }
           }
         });
@@ -72,11 +83,15 @@ class _MobileDetailScreenState extends State<MobileDetailScreen> {
   Widget build(BuildContext context) {
     final title = widget.movie.name ?? 'VOD Content';
     final imageUrl = widget.movie.streamIcon ?? '';
-    final rating = _movieDetail?.info?.rating ?? widget.movie.rating ?? '8.5';
+    // Show only a real provider rating; never invent one.
+    final rawRating = (_movieDetail?.info?.rating ?? widget.movie.rating ?? '')
+        .trim();
+    final rating = (double.tryParse(rawRating) ?? 0) > 0 ? rawRating : null;
     final primaryColor = Theme.of(context).primaryColor;
-    
+
     // Get synopsis
-    String synopsis = "This item is loaded from your active IPTV servicer playlist. Stream details, health controls, and direct links are fully active. Press Play below to connect directly to the player buffer and stream the media files dynamically.";
+    String synopsis =
+        "This item is loaded from your active IPTV servicer playlist. Stream details, health controls, and direct links are fully active. Press Play below to connect directly to the player buffer and stream the media files dynamically.";
     if (!_isLoading && _movieDetail != null) {
       final plot = _movieDetail!.info?.plot;
       synopsis = MetadataEnrichmentService.cleanPlot(plot);
@@ -97,7 +112,8 @@ class _MobileDetailScreenState extends State<MobileDetailScreen> {
                     imageUrl: imageUrl,
                     fit: BoxFit.cover,
                     fadeInDuration: const Duration(milliseconds: 300),
-                    placeholder: (context, url) => Container(color: const Color(0xFF141416)),
+                    placeholder: (context, url) =>
+                        Container(color: const Color(0xFF141416)),
                     errorWidget: (context, url, error) => _buildFallbackCover(),
                   )
                 : _buildFallbackCover(),
@@ -132,7 +148,6 @@ class _MobileDetailScreenState extends State<MobileDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 280), // Push below banner cover
-                  
                   // Text & Info Block
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20.0),
@@ -142,30 +157,42 @@ class _MobileDetailScreenState extends State<MobileDetailScreen> {
                         // Rating & Categories Row
                         Row(
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.amber.shade700,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.star_rounded, color: Colors.white, size: 11),
-                                  const SizedBox(width: 3),
-                                  Text(
-                                    rating,
-                                    style: const TextStyle(
+                            if (rating != null) ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.amber.shade700,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.star_rounded,
                                       color: Colors.white,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w900,
+                                      size: 11,
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      rating,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 10),
+                              const SizedBox(width: 10),
+                            ],
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.white12,
                                 borderRadius: BorderRadius.circular(6),
@@ -182,7 +209,10 @@ class _MobileDetailScreenState extends State<MobileDetailScreen> {
                             const SizedBox(width: 10),
                             Text(
                               "Extension: ${widget.movie.containerExtension ?? 'mp4'}",
-                              style: const TextStyle(color: Colors.white38, fontSize: 11),
+                              style: const TextStyle(
+                                color: Colors.white38,
+                                fontSize: 11,
+                              ),
                             ),
                           ],
                         ),
@@ -203,13 +233,29 @@ class _MobileDetailScreenState extends State<MobileDetailScreen> {
 
                         // Rich specs row (Director, Genre, Release Date)
                         if (!_isLoading && _movieDetail != null) ...[
-                          _buildDetailMetaRow(Icons.movie_creation_outlined, "Director", _movieDetail!.info?.director ?? "Unknown"),
+                          _buildDetailMetaRow(
+                            Icons.movie_creation_outlined,
+                            "Director",
+                            _movieDetail!.info?.director ?? "Unknown",
+                          ),
                           const SizedBox(height: 8),
-                          _buildDetailMetaRow(Icons.style_outlined, "Genre", _movieDetail!.info?.genre ?? "VOD Content"),
+                          _buildDetailMetaRow(
+                            Icons.style_outlined,
+                            "Genre",
+                            _movieDetail!.info?.genre ?? "VOD Content",
+                          ),
                           const SizedBox(height: 8),
-                          _buildDetailMetaRow(Icons.calendar_today_outlined, "Release", _movieDetail!.info?.releasedate ?? "N/A"),
+                          _buildDetailMetaRow(
+                            Icons.calendar_today_outlined,
+                            "Release",
+                            _movieDetail!.info?.releasedate ?? "N/A",
+                          ),
                           const SizedBox(height: 8),
-                          _buildDetailMetaRow(Icons.hourglass_empty_outlined, "Duration", _movieDetail!.info?.duration ?? "N/A"),
+                          _buildDetailMetaRow(
+                            Icons.hourglass_empty_outlined,
+                            "Duration",
+                            _movieDetail!.info?.duration ?? "N/A",
+                          ),
                           const SizedBox(height: 20),
                         ],
 
@@ -239,7 +285,10 @@ class _MobileDetailScreenState extends State<MobileDetailScreen> {
                         const SizedBox(height: 24),
 
                         // Cast details if available
-                        if (!_isLoading && _movieDetail?.info?.cast != null && _movieDetail!.info!.cast!.isNotEmpty && _movieDetail!.info!.cast != "null") ...[
+                        if (!_isLoading &&
+                            _movieDetail?.info?.cast != null &&
+                            _movieDetail!.info!.cast!.isNotEmpty &&
+                            _movieDetail!.info!.cast != "null") ...[
                           const Text(
                             "Casting",
                             style: TextStyle(
@@ -267,19 +316,32 @@ class _MobileDetailScreenState extends State<MobileDetailScreen> {
                           decoration: BoxDecoration(
                             color: const Color(0xFF161618),
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.white.withOpacity(0.04)),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.04),
+                            ),
                           ),
                           child: Column(
                             children: [
-                              _buildSpecRow("Format Type", "H.264 Video Stream"),
+                              _buildSpecRow(
+                                "Format Type",
+                                "H.264 Video Stream",
+                              ),
                               const Divider(color: Colors.white10, height: 20),
-                              _buildSpecRow("Decoder Settings", "Safe Software Decoding"),
+                              _buildSpecRow(
+                                "Decoder Settings",
+                                "Safe Software Decoding",
+                              ),
                               const Divider(color: Colors.white10, height: 20),
-                              _buildSpecRow("VOD Buffer Size", "VOD Cache Profile Ready"),
+                              _buildSpecRow(
+                                "VOD Buffer Size",
+                                "VOD Cache Profile Ready",
+                              ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 120), // Leave room for bottom play bar
+                        const SizedBox(
+                          height: 120,
+                        ), // Leave room for bottom play bar
                       ],
                     ),
                   ),
@@ -297,11 +359,17 @@ class _MobileDetailScreenState extends State<MobileDetailScreen> {
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.black.withOpacity(0.6),
                     border: Border(
-                      top: BorderSide(color: Colors.white.withOpacity(0.08), width: 1),
+                      top: BorderSide(
+                        color: Colors.white.withOpacity(0.08),
+                        width: 1,
+                      ),
                     ),
                   ),
                   child: Row(
@@ -315,9 +383,15 @@ class _MobileDetailScreenState extends State<MobileDetailScreen> {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             color: Colors.white.withOpacity(0.08),
-                            border: Border.all(color: Colors.white.withOpacity(0.12)),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.12),
+                            ),
                           ),
-                          child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 16),
+                          child: const Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            color: Colors.white,
+                            size: 16,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 14),
@@ -337,8 +411,12 @@ class _MobileDetailScreenState extends State<MobileDetailScreen> {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(
-                                    isLiked ? "Removed from Favourites" : "Added to Favourites",
-                                    style: const TextStyle(fontWeight: FontWeight.bold),
+                                    isLiked
+                                        ? "Removed from Favourites"
+                                        : "Added to Favourites",
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                   backgroundColor: Colors.amber.shade900,
                                   behavior: SnackBarBehavior.floating,
@@ -362,7 +440,9 @@ class _MobileDetailScreenState extends State<MobileDetailScreen> {
                                 ),
                               ),
                               child: Icon(
-                                isLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                                isLiked
+                                    ? Icons.favorite_rounded
+                                    : Icons.favorite_border_rounded,
                                 color: isLiked ? Colors.red : Colors.white,
                                 size: 20,
                               ),
@@ -378,11 +458,16 @@ class _MobileDetailScreenState extends State<MobileDetailScreen> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white12,
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 16,
+                              horizontal: 20,
+                            ),
                             elevation: 0,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(26),
-                              side: BorderSide(color: Colors.white.withOpacity(0.12)),
+                              side: BorderSide(
+                                color: Colors.white.withOpacity(0.12),
+                              ),
                             ),
                           ),
                           onPressed: () {
@@ -390,12 +475,17 @@ class _MobileDetailScreenState extends State<MobileDetailScreen> {
                               context: context,
                               builder: (_) => DialogTrailerYoutube(
                                 trailer: _youtubeTrailerId!,
-                                thumb: _movieDetail?.info?.movieImage ?? imageUrl,
+                                thumb:
+                                    _movieDetail?.info?.movieImage ?? imageUrl,
                                 title: title,
                               ),
                             );
                           },
-                          icon: const Icon(Icons.play_circle_outline_rounded, color: Colors.red, size: 20),
+                          icon: const Icon(
+                            Icons.play_circle_outline_rounded,
+                            color: Colors.red,
+                            size: 20,
+                          ),
                           label: const Text(
                             "TRAILER",
                             style: TextStyle(
@@ -421,7 +511,11 @@ class _MobileDetailScreenState extends State<MobileDetailScreen> {
                             ),
                           ),
                           onPressed: widget.onPlayTap,
-                          icon: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 24),
+                          icon: const Icon(
+                            Icons.play_arrow_rounded,
+                            color: Colors.white,
+                            size: 24,
+                          ),
                           label: const Text(
                             "STREAM NOW",
                             style: TextStyle(
@@ -450,7 +544,11 @@ class _MobileDetailScreenState extends State<MobileDetailScreen> {
         const SizedBox(width: 8),
         Text(
           "$label: ",
-          style: const TextStyle(color: Colors.white38, fontSize: 12, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            color: Colors.white38,
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         Expanded(
           child: Text(
@@ -468,8 +566,18 @@ class _MobileDetailScreenState extends State<MobileDetailScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(color: Colors.white38, fontSize: 12)),
-        Text(value, style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white38, fontSize: 12),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ],
     );
   }
@@ -481,19 +589,28 @@ class _MobileDetailScreenState extends State<MobileDetailScreen> {
         Container(
           width: double.infinity,
           height: 12,
-          decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), borderRadius: BorderRadius.circular(4)),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(4),
+          ),
         ),
         const SizedBox(height: 8),
         Container(
           width: double.infinity,
           height: 12,
-          decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), borderRadius: BorderRadius.circular(4)),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(4),
+          ),
         ),
         const SizedBox(height: 8),
         Container(
           width: 200,
           height: 12,
-          decoration: BoxDecoration(color: Colors.white.withOpacity(0.06), borderRadius: BorderRadius.circular(4)),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(4),
+          ),
         ),
       ],
     );

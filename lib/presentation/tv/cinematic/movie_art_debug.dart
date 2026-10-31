@@ -27,7 +27,9 @@ class MovieArtDebug {
             ? null
             : TmdbEnrichmentWorker.instance.lookup(stream.enrichmentKey!);
         final art = CinematicArtwork.fromRecord(stream, extra: extra);
-        final hasProvider = ArtworkUrlResolver.isUsableImageUrl(stream.imageUrl);
+        final hasProvider = ArtworkUrlResolver.isUsableImageUrl(
+          stream.imageUrl,
+        );
         final hasPoster = art.poster != null;
         final hasBackdrop = art.backdrop != null;
         if (hasProvider) provider++;

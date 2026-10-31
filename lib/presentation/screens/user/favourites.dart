@@ -287,14 +287,28 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
                 ),
               ),
               Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(width: 190, child: _buildSidebar()),
-                    Container(width: 1, color: kColorCardLight),
-                    Expanded(child: _buildContent()),
-                  ],
-                ),
+                // Phones: section tabs on top; a 190px sidebar leaves the
+                // portrait content column only a few dozen pixels wide.
+                child: _narrow
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            child: _buildSidebar(horizontal: true),
+                          ),
+                          Container(height: 1, color: kColorCardLight),
+                          Expanded(child: _buildContent()),
+                        ],
+                      )
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(width: 190, child: _buildSidebar()),
+                          Container(width: 1, color: kColorCardLight),
+                          Expanded(child: _buildContent()),
+                        ],
+                      ),
               ),
             ],
           ),
@@ -303,7 +317,9 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
     );
   }
 
-  Widget _buildSidebar() {
+  bool get _narrow => MediaQuery.sizeOf(context).width < 600;
+
+  Widget _buildSidebar({bool horizontal = false}) {
     final fav = context.watch<FavoritesCubit>().state;
     final labels = [
       'Live TV (${fav.lives.length})',
@@ -315,6 +331,96 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
       FontAwesomeIcons.film.data,
       FontAwesomeIcons.clapperboard.data,
     ];
+    final tabs = List.generate(3, (i) {
+      final isSelected = _tabIdx == i;
+      final isFocused = isSelected && _panel == 1;
+      return GestureDetector(
+        onTap: () => setState(() {
+          _tabIdx = i;
+          _panel = 2;
+        }),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 130),
+          height: 52,
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? kColorPrimary.withValues(alpha: .18)
+                : kColorCardLight,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isFocused
+                  ? kColorFocus
+                  : isSelected
+                  ? kColorPrimary.withValues(alpha: .5)
+                  : Colors.transparent,
+              width: 1.5,
+            ),
+            boxShadow: isFocused
+                ? [
+                    BoxShadow(
+                      color: kColorFocus.withValues(alpha: .25),
+                      blurRadius: 8,
+                    ),
+                  ]
+                : [],
+          ),
+          child: Row(
+            children: [
+              if (!horizontal)
+                Icon(
+                  icons[i],
+                  size: 14,
+                  color: isSelected ? kColorPrimary : Colors.white38,
+                ),
+              if (!horizontal) const SizedBox(width: 10),
+              Expanded(
+                // Phone tabs: shrink the label to fit rather than cut the count.
+                child: horizontal
+                    ? FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          labels[i],
+                          textAlign: horizontal ? TextAlign.center : null,
+                          style: Get.textTheme.bodySmall!.copyWith(
+                            color: isSelected ? Colors.white : Colors.white60,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                          ),
+                        ),
+                      )
+                    : Text(
+                        labels[i],
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: horizontal ? TextAlign.center : null,
+                        style: Get.textTheme.bodySmall!.copyWith(
+                          color: isSelected ? Colors.white : Colors.white60,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                        ),
+                      ),
+              ),
+              if (isSelected && !horizontal)
+                Container(
+                  width: 4,
+                  height: 4,
+                  decoration: const BoxDecoration(
+                    color: kColorFocus,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    });
+    if (horizontal) {
+      return Row(children: [for (final t in tabs) Expanded(child: t)]);
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -330,74 +436,7 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
             ),
           ),
         ),
-        ...List.generate(3, (i) {
-          final isSelected = _tabIdx == i;
-          final isFocused = isSelected && _panel == 1;
-          return GestureDetector(
-            onTap: () => setState(() {
-              _tabIdx = i;
-              _panel = 2;
-            }),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 130),
-              height: 52,
-              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? kColorPrimary.withValues(alpha: .18)
-                    : kColorCardLight,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: isFocused
-                      ? kColorFocus
-                      : isSelected
-                      ? kColorPrimary.withValues(alpha: .5)
-                      : Colors.transparent,
-                  width: 1.5,
-                ),
-                boxShadow: isFocused
-                    ? [
-                        BoxShadow(
-                          color: kColorFocus.withValues(alpha: .25),
-                          blurRadius: 8,
-                        ),
-                      ]
-                    : [],
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    icons[i],
-                    size: 14,
-                    color: isSelected ? kColorPrimary : Colors.white38,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      labels[i],
-                      style: Get.textTheme.bodySmall!.copyWith(
-                        color: isSelected ? Colors.white : Colors.white60,
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.normal,
-                      ),
-                    ),
-                  ),
-                  if (isSelected)
-                    Container(
-                      width: 4,
-                      height: 4,
-                      decoration: const BoxDecoration(
-                        color: kColorFocus,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          );
-        }),
+        ...tabs,
       ],
     );
   }
@@ -502,8 +541,8 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
                 controller: _movieScroll,
                 cacheExtent: 350.0,
                 padding: const EdgeInsets.all(10),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 5,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: _narrow ? 3 : 5,
                   crossAxisSpacing: 10,
                   mainAxisSpacing: 10,
                   childAspectRatio: 2 / 3,
@@ -560,8 +599,8 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
               controller: _serieScroll,
               cacheExtent: 350.0,
               padding: const EdgeInsets.all(10),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 5,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: _narrow ? 3 : 5,
                 crossAxisSpacing: 10,
                 mainAxisSpacing: 10,
                 childAspectRatio: 2 / 3,
@@ -698,17 +737,25 @@ class _FavouriteScreenState extends State<FavouriteScreen> {
     );
   }
 
-  void _playMovieMobile(ChannelMovie movie) {
-    final authState = context.read<AuthBloc>().state;
-    if (authState is! AuthSuccess) return;
-    final user = authState.user;
-    final streamUrl =
-        "${user.serverInfo?.serverUrl}/movie/${user.userInfo?.username}/${user.userInfo?.password}/${movie.streamId}.${movie.containerExtension ?? 'mp4'}";
+  Future<void> _playMovieMobile(ChannelMovie movie) async {
+    final direct = movie.directSource?.trim() ?? '';
+    final streamUrl = direct.startsWith('http')
+        ? direct
+        : await PlaybackUrlBuilder.buildMovieUrl(
+            movie.streamId ?? '',
+            containerExtension: movie.containerExtension,
+          );
+    if (streamUrl.isEmpty || !mounted) return;
     StreamLauncher.openStreamWithBrandedLoading(
       context: context,
       streamUrl: streamUrl,
-      playerBuilder: () =>
-          MoviePlayerScreen(link: streamUrl, title: movie.name ?? 'Stream'),
+      playerBuilder: () => MoviePlayerScreen(
+        link: streamUrl,
+        title: movie.name ?? 'Stream',
+        streamId: movie.streamId,
+        image: movie.streamIcon,
+        recordHistory: true,
+      ),
     );
   }
 }
@@ -824,103 +871,104 @@ class _FavPosterItem extends StatelessWidget {
       scale: isFocused ? 1.08 : 1.0,
       duration: const Duration(milliseconds: 180),
       child: AnimatedContainer(
-      duration: const Duration(milliseconds: 130),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        color: kColorCardLight,
-        border: Border.all(
-          color: isFocused
-              ? kColorFocus
-              : isSelected
-              ? kColorPrimary.withValues(alpha: .5)
-              : Colors.transparent,
-          width: isFocused ? 2 : 1.5,
+        duration: const Duration(milliseconds: 130),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          color: kColorCardLight,
+          border: Border.all(
+            color: isFocused
+                ? kColorFocus
+                : isSelected
+                ? kColorPrimary.withValues(alpha: .5)
+                : Colors.transparent,
+            width: isFocused ? 2 : 1.5,
+          ),
+          boxShadow: isFocused
+              ? [
+                  BoxShadow(
+                    color: kColorFocus.withValues(alpha: .4),
+                    blurRadius: 12,
+                    spreadRadius: 2,
+                  ),
+                ]
+              : [],
         ),
-        boxShadow: isFocused
-            ? [
-                BoxShadow(
-                  color: kColorFocus.withValues(alpha: .4),
-                  blurRadius: 12,
-                  spreadRadius: 2,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              CachedNetworkImage(
+                imageUrl: image ?? '',
+                fit: BoxFit.cover,
+                memCacheWidth: 300,
+                placeholder: (_, __) => Container(
+                  color: kColorCardDark,
+                  child: const Center(
+                    child: CircularProgressIndicator(
+                      color: kColorPrimary,
+                      strokeWidth: 2,
+                    ),
+                  ),
                 ),
-              ]
-            : [],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            CachedNetworkImage(
-              imageUrl: image ?? '',
-              fit: BoxFit.cover,
-              memCacheWidth: 300,
-              placeholder: (_, __) => Container(
-                color: kColorCardDark,
-                child: const Center(
-                  child: CircularProgressIndicator(
-                    color: kColorPrimary,
-                    strokeWidth: 2,
+                errorWidget: (_, __, ___) => Container(
+                  color: kColorCardDark,
+                  child: Center(
+                    child: Icon(fallbackIcon, color: kColorHint, size: 28),
                   ),
                 ),
               ),
-              errorWidget: (_, __, ___) => Container(
-                color: kColorCardDark,
-                child: Center(
-                  child: Icon(fallbackIcon, color: kColorHint, size: 28),
-                ),
-              ),
-            ),
-            // gradient overlay
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withValues(alpha: .75),
-                    ],
-                  ),
-                ),
-                padding: const EdgeInsets.all(8),
-                child: Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: isSelected ? Colors.white : Colors.white70,
-                    fontSize: 11,
-                    fontWeight: isSelected
-                        ? FontWeight.bold
-                        : FontWeight.normal,
-                  ),
-                ),
-              ),
-            ),
-            if (isFocused)
+              // gradient overlay
               Positioned(
-                top: 6,
-                right: 6,
+                bottom: 0,
+                left: 0,
+                right: 0,
                 child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
-                    color: kColorFocus,
-                    shape: BoxShape.circle,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: .75),
+                      ],
+                    ),
                   ),
-                  child: Icon(FontAwesomeIcons.play.data,
-                    color: Colors.white,
-                    size: 9,
+                  padding: const EdgeInsets.all(8),
+                  child: Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: isSelected ? Colors.white : Colors.white70,
+                      fontSize: 11,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                    ),
                   ),
                 ),
               ),
-          ],
+              if (isFocused)
+                Positioned(
+                  top: 6,
+                  right: 6,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: kColorFocus,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      FontAwesomeIcons.play.data,
+                      color: Colors.white,
+                      size: 9,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }

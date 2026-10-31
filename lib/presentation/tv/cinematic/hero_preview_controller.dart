@@ -55,10 +55,7 @@ class HeroPreviewController extends ChangeNotifier {
 
     _trailerTimer = Timer(CinematicMotion.trailerDebounce, () {
       if (_disposed || _sessionKey != key) return;
-      _startTrailer(
-        playable,
-        muted: mode != HeroPreviewMode.sound,
-      );
+      _startTrailer(playable, muted: mode != HeroPreviewMode.sound);
     });
   }
 

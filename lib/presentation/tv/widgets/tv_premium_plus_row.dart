@@ -24,9 +24,7 @@ class TvPremiumPlusRow extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const TvRailSectionHeader(
-          title: 'Featured Channels',
-        ),
+        const TvRailSectionHeader(title: 'Featured Channels'),
         const SizedBox(height: 10),
         SizedBox(
           height: TvChannelCard.tileHeight + 20,

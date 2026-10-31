@@ -103,12 +103,15 @@ void main() {
     expect(const String.fromEnvironment('TMDB_API_KEY'), isEmpty);
   });
 
-  test('production TmdbClient stays disabled without a key', () {
+  test('production TmdbClient is enabled via the relay without a key', () {
+    // Public builds ship no TMDB key; lookups go through the tvparser.com
+    // relay, which holds the key server-side.
     final client = TmdbClient();
-    expect(client.isEnabled, isFalse);
+    expect(client.isEnabled, isTrue);
   });
 
-  test('disabled client never hits the injected HTTP layer', () async {
+  test('lookups use the injected HTTP layer and tolerate empty bodies',
+      () async {
     var calls = 0;
     final client = TmdbClient(
       httpGet: (path, query) async {
@@ -116,10 +119,9 @@ void main() {
         return {};
       },
     );
-    expect(client.isEnabled, isFalse);
     expect(await client.findMovieByImdbId('tt27545912'), isNull);
     expect(await client.searchMovie('Deb Is Boss', year: 2026), isNull);
-    expect(calls, 0);
+    expect(calls, greaterThan(0));
   });
 
   group('IMDb id preserve', () {

@@ -246,8 +246,7 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                     ),
-                                    onPressed: () =>
-                                        closeDialog(editCtrl.text),
+                                    onPressed: () => closeDialog(editCtrl.text),
                                     child: const Text(
                                       'Save',
                                       style: TextStyle(
@@ -408,7 +407,8 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
     }
 
     // Full playlist links belong in M3U mode — don't treat them as XC hosts.
-    final looksLikePlaylist = normalizedUrl.toLowerCase().contains('/api/list/') ||
+    final looksLikePlaylist =
+        normalizedUrl.toLowerCase().contains('/api/list/') ||
         normalizedUrl.toLowerCase().endsWith('.m3u') ||
         normalizedUrl.toLowerCase().endsWith('.m3u8') ||
         normalizedUrl.toLowerCase().contains('get.php?');
@@ -463,20 +463,25 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
                     Get.offAndToNamed(screenWelcome);
                   } else if (state is AuthFailed) {
                     final detail = state.message.trim();
-                    final isGenericLogout = detail == 'LogOut' || detail.isEmpty;
+                    final isGenericLogout =
+                        detail == 'LogOut' || detail.isEmpty;
                     final fallback = isGenericLogout
                         ? (_isM3uMode
-                            ? 'Unable to sign in. Check that your M3U playlist URL is correct and reachable.'
-                            : 'Unable to sign in. Please check your server URL, username, and password.')
+                              ? 'Unable to sign in. Check that your M3U playlist URL is correct and reachable.'
+                              : 'Unable to sign in. Please check your server URL, username, and password.')
                         : detail;
                     final m3uUrl = _lastM3uUrl;
                     _lastM3uUrl = null;
                     if (!isGenericLogout && m3uUrl != null) {
-                      PlaylistHostCheck.unreachableServerMessage(m3uUrl)
-                          .then((reason) {
+                      PlaylistHostCheck.unreachableServerMessage(m3uUrl).then((
+                        reason,
+                      ) {
                         if (!context.mounted) return;
                         showWarningToast(
-                            context, 'Login Failed', reason ?? fallback);
+                          context,
+                          'Login Failed',
+                          reason ?? fallback,
+                        );
                       });
                     } else {
                       showWarningToast(context, 'Login Failed', fallback);
@@ -536,23 +541,29 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
                             final panelH = panelConstraints.maxHeight;
                             final compact = panelH < 680;
                             final tight = panelH < 600;
-                            final controlH = tight ? 40.0 : (compact ? 44.0 : 48.0);
+                            final controlH = tight
+                                ? 40.0
+                                : (compact ? 44.0 : 48.0);
                             final gap = tight ? 4.0 : (compact ? 6.0 : 8.0);
                             final labelGap = tight ? 2.0 : 4.0;
-                            final outerV = tight ? 8.0 : (compact ? 12.0 : 20.0);
+                            final outerV = tight
+                                ? 8.0
+                                : (compact ? 12.0 : 20.0);
                             final outerH = compact ? 20.0 : 32.0;
                             final cardPadH = compact ? 16.0 : 24.0;
-                            final cardPadV = tight ? 10.0 : (compact ? 12.0 : 16.0);
+                            final cardPadV = tight
+                                ? 10.0
+                                : (compact ? 12.0 : 16.0);
                             final showHelper = !compact;
 
                             Widget fieldLabel(String text) => Text(
-                                  text,
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: compact ? 11 : 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                );
+                              text,
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: compact ? 11 : 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            );
 
                             return Padding(
                               padding: EdgeInsets.symmetric(
@@ -570,8 +581,10 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
                                   // When keyboard opens, Scaffold shrinks
                                   // panelH so Sign In stays above it.
                                   child: SizedBox(
-                                    height: (panelH - outerV * 2)
-                                        .clamp(180.0, double.infinity),
+                                    height: (panelH - outerV * 2).clamp(
+                                      180.0,
+                                      double.infinity,
+                                    ),
                                     child: Container(
                                       decoration: BoxDecoration(
                                         color: kColorCardLight.withValues(
@@ -635,8 +648,9 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
                                                 _domain.text = '';
                                                 _username.text = '';
                                                 _password.text = '';
-                                                final maxRow =
-                                                    _isM3uMode ? 3 : 5;
+                                                final maxRow = _isM3uMode
+                                                    ? 3
+                                                    : 5;
                                                 if (_row > maxRow) {
                                                   _row = maxRow;
                                                 }
@@ -668,7 +682,8 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
                                                         ? 'https://example.com/playlist.m3u'
                                                         : 'https://example.com',
                                                     icon: FontAwesomeIcons
-                                                        .link.data,
+                                                        .link
+                                                        .data,
                                                     focusNode: _fn2,
                                                     keyboardType:
                                                         TextInputType.url,
@@ -681,8 +696,8 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
                                                     onDone: () => _done(2),
                                                     helperText: showHelper
                                                         ? (_isM3uMode
-                                                            ? 'Enter the direct M3U playlist URL.'
-                                                            : 'Enter the server URL provided by your authorized playlist provider.')
+                                                              ? 'Enter the direct M3U playlist URL.'
+                                                              : 'Enter the server URL provided by your authorized playlist provider.')
                                                         : null,
                                                   ),
                                                   SizedBox(height: gap),
@@ -695,15 +710,15 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
                                                       controller: _username,
                                                       hint: 'Username',
                                                       icon: FontAwesomeIcons
-                                                          .solidUser.data,
+                                                          .solidUser
+                                                          .data,
                                                       focusNode: _fn0,
                                                       keyboardType:
                                                           TextInputType.text,
                                                       height: controlH,
                                                       isSelected: _row == 2,
                                                       isEditing: false,
-                                                      onTap: () =>
-                                                          _activate(2),
+                                                      onTap: () => _activate(2),
                                                       onDone: () => _done(3),
                                                     ),
                                                     SizedBox(height: gap),
@@ -714,7 +729,8 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
                                                       controller: _password,
                                                       hint: 'Password',
                                                       icon: FontAwesomeIcons
-                                                          .lock.data,
+                                                          .lock
+                                                          .data,
                                                       focusNode: _fn1,
                                                       keyboardType:
                                                           TextInputType
@@ -723,8 +739,7 @@ class _RegisterUserTvState extends State<RegisterUserTv> {
                                                       isSelected: _row == 3,
                                                       isEditing: false,
                                                       obscure: true,
-                                                      onTap: () =>
-                                                          _activate(3),
+                                                      onTap: () => _activate(3),
                                                       onDone: () => _done(4),
                                                     ),
                                                   ],

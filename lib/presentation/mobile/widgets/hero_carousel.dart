@@ -46,7 +46,9 @@ class _HeroCarouselState extends State<HeroCarousel> {
     super.didUpdateWidget(oldWidget);
     // If the movies list changes, reset and trigger for the current page
     if (widget.movies.length != oldWidget.movies.length ||
-        (widget.movies.isNotEmpty && oldWidget.movies.isNotEmpty && widget.movies.first.id != oldWidget.movies.first.id)) {
+        (widget.movies.isNotEmpty &&
+            oldWidget.movies.isNotEmpty &&
+            widget.movies.first.id != oldWidget.movies.first.id)) {
       _stopActivePlayer();
       _debouncedPreviewStart(_currentPage);
     }
@@ -64,14 +66,17 @@ class _HeroCarouselState extends State<HeroCarousel> {
     _debounceTimer?.cancel();
     _stopActivePlayer();
 
-    final readyMovies = widget.movies.where((movie) => movie.isHeroReady).toList();
+    final readyMovies = widget.movies
+        .where((movie) => movie.isHeroReady)
+        .toList();
 
     if (index < 0 || index >= readyMovies.length) {
       return;
     }
 
     final item = readyMovies[index];
-    if (item.previewType != HeroPreviewType.trailer || item.trailerYoutubeId == null) {
+    if (item.previewType != HeroPreviewType.trailer ||
+        item.trailerYoutubeId == null) {
       return;
     }
 
@@ -98,28 +103,32 @@ class _HeroCarouselState extends State<HeroCarousel> {
 
     final controller = PodPlayerController(
       playVideoFrom: PlayVideoFrom.youtube('https://youtu.be/$youtubeId'),
-      podPlayerConfig: const PodPlayerConfig(
-        autoPlay: true,
-        isLooping: true,
-      ),
+      podPlayerConfig: const PodPlayerConfig(autoPlay: true, isLooping: true),
     )..mute();
 
     _activeController = controller;
 
-    controller.initialise().then((_) {
-      if (mounted && index == _currentPage && _activeController == controller) {
-        setState(() {
-          _isPlayerInitialized = true;
+    controller
+        .initialise()
+        .then((_) {
+          if (mounted &&
+              index == _currentPage &&
+              _activeController == controller) {
+            setState(() {
+              _isPlayerInitialized = true;
+            });
+          } else {
+            controller.dispose();
+          }
+        })
+        .catchError((err) {
+          debugPrint(
+            "[HERO_CAROUSEL] Muted trailer player initialize error: $err",
+          );
+          if (mounted && _activeController == controller) {
+            _stopActivePlayer();
+          }
         });
-      } else {
-        controller.dispose();
-      }
-    }).catchError((err) {
-      debugPrint("[HERO_CAROUSEL] Muted trailer player initialize error: $err");
-      if (mounted && _activeController == controller) {
-        _stopActivePlayer();
-      }
-    });
   }
 
   @override
@@ -248,8 +257,8 @@ class _HeroCarouselState extends State<HeroCarousel> {
     final ratingValue = double.tryParse(rawRating);
     final String? rating = (ratingValue != null && ratingValue > 0)
         ? (ratingValue % 1 == 0
-            ? ratingValue.toStringAsFixed(0)
-            : ratingValue.toStringAsFixed(1))
+              ? ratingValue.toStringAsFixed(0)
+              : ratingValue.toStringAsFixed(1))
         : null;
 
     String tagText = "FEATURED MOVIE";
@@ -257,10 +266,22 @@ class _HeroCarouselState extends State<HeroCarousel> {
 
     if (movie.isLive) {
       final nameLower = title.toLowerCase();
-      if (nameLower.contains('news') || nameLower.contains('cnn') || nameLower.contains('bbc') || nameLower.contains('cnbc') || nameLower.contains('msnbc')) {
+      if (nameLower.contains('news') ||
+          nameLower.contains('cnn') ||
+          nameLower.contains('bbc') ||
+          nameLower.contains('cnbc') ||
+          nameLower.contains('msnbc')) {
         tagText = "LIVE NEWS";
         tagColor = Colors.redAccent;
-      } else if (nameLower.contains('sport') || nameLower.contains('espn') || nameLower.contains('fox') || nameLower.contains('bein') || nameLower.contains('sky') || nameLower.contains('ufc') || nameLower.contains('boxing') || nameLower.contains('wwe') || nameLower.contains('cup')) {
+      } else if (nameLower.contains('sport') ||
+          nameLower.contains('espn') ||
+          nameLower.contains('fox') ||
+          nameLower.contains('bein') ||
+          nameLower.contains('sky') ||
+          nameLower.contains('ufc') ||
+          nameLower.contains('boxing') ||
+          nameLower.contains('wwe') ||
+          nameLower.contains('cup')) {
         tagText = "LIVE SPORTS";
         tagColor = Colors.orange.shade800;
       } else {
@@ -291,12 +312,15 @@ class _HeroCarouselState extends State<HeroCarousel> {
                   memCacheWidth: 900,
                   fadeInDuration: const Duration(milliseconds: 300),
                   placeholder: (context, url) => _buildImageSkeleton(),
-                  errorWidget: (context, url, error) => _buildFallbackCover(title),
+                  errorWidget: (context, url, error) =>
+                      _buildFallbackCover(title),
                 )
               : _buildFallbackCover(title),
 
           // Autoplay Video Trailer Overlay (Muted full-bleed using FittedBox)
-          if (_currentPage == index && _isPlayerInitialized && _activeController != null)
+          if (_currentPage == index &&
+              _isPlayerInitialized &&
+              _activeController != null)
             Positioned.fill(
               child: IgnorePointer(
                 child: FittedBox(
@@ -319,7 +343,10 @@ class _HeroCarouselState extends State<HeroCarousel> {
 
           // Text & Action Buttons Overlay
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 20.0,
+              vertical: 24.0,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.end,
@@ -329,14 +356,21 @@ class _HeroCarouselState extends State<HeroCarousel> {
                   children: [
                     if (!movie.isLive && rating != null) ...[
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.amber.shade700,
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.star_rounded, color: Colors.white, size: 10),
+                            const Icon(
+                              Icons.star_rounded,
+                              color: Colors.white,
+                              size: 10,
+                            ),
                             const SizedBox(width: 3),
                             Text(
                               rating,
@@ -352,7 +386,10 @@ class _HeroCarouselState extends State<HeroCarousel> {
                       const SizedBox(width: 8),
                     ] else ...[
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.red.shade900,
                           borderRadius: BorderRadius.circular(6),
@@ -383,11 +420,16 @@ class _HeroCarouselState extends State<HeroCarousel> {
                       const SizedBox(width: 8),
                     ],
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: tagColor.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: tagColor.withValues(alpha: 0.4)),
+                        border: Border.all(
+                          color: tagColor.withValues(alpha: 0.4),
+                        ),
                       ),
                       child: Text(
                         tagText,
@@ -434,16 +476,26 @@ class _HeroCarouselState extends State<HeroCarousel> {
                         backgroundColor: Colors.white,
                         foregroundColor: Colors.black,
                         elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(30),
                         ),
                       ),
                       onPressed: () => widget.onPlayTap(movie.rawMovie),
-                      icon: const Icon(Icons.play_arrow_rounded, color: Colors.black, size: 20),
+                      icon: const Icon(
+                        Icons.play_arrow_rounded,
+                        color: Colors.black,
+                        size: 20,
+                      ),
                       label: const Text(
                         "Play Now",
-                        style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -453,17 +505,29 @@ class _HeroCarouselState extends State<HeroCarousel> {
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white,
                         backgroundColor: Colors.white.withValues(alpha: 0.08),
-                        side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.12),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(30),
                         ),
                       ),
                       onPressed: () => widget.onInfoTap(movie.rawMovie),
-                      icon: const Icon(Icons.info_outline_rounded, color: Colors.white, size: 16),
+                      icon: const Icon(
+                        Icons.info_outline_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
                       label: const Text(
                         "Info",
-                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                   ],
@@ -498,10 +562,7 @@ class _HeroCarouselState extends State<HeroCarousel> {
                 gradient: RadialGradient(
                   center: const Alignment(0.0, -0.35),
                   radius: 0.75,
-                  colors: [
-                    accent.withValues(alpha: 0.28),
-                    Colors.transparent,
-                  ],
+                  colors: [accent.withValues(alpha: 0.28), Colors.transparent],
                 ),
               ),
             ),
@@ -536,7 +597,11 @@ class _HeroCarouselState extends State<HeroCarousel> {
                         size: 56,
                       ),
                     )
-                  : const Icon(Icons.live_tv_rounded, color: Colors.white54, size: 56),
+                  : const Icon(
+                      Icons.live_tv_rounded,
+                      color: Colors.white54,
+                      size: 56,
+                    ),
             ),
           ),
         ],
@@ -557,7 +622,10 @@ class _HeroCarouselState extends State<HeroCarousel> {
         child: SizedBox(
           width: 32,
           height: 32,
-          child: CircularProgressIndicator(color: Colors.white10, strokeWidth: 2),
+          child: CircularProgressIndicator(
+            color: Colors.white10,
+            strokeWidth: 2,
+          ),
         ),
       ),
     );
@@ -578,7 +646,11 @@ class _HeroCarouselState extends State<HeroCarousel> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.movie_filter_rounded, size: 48, color: Colors.white.withValues(alpha: 0.15)),
+              Icon(
+                Icons.movie_filter_rounded,
+                size: 48,
+                color: Colors.white.withValues(alpha: 0.15),
+              ),
               const SizedBox(height: 12),
               Text(
                 title,
@@ -618,9 +690,23 @@ class _HeroCarouselState extends State<HeroCarousel> {
                 const SizedBox(height: 18),
                 Row(
                   children: [
-                    Container(width: 120, height: 42, decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(30))),
+                    Container(
+                      width: 120,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: Colors.white10,
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
                     const SizedBox(width: 10),
-                    Container(width: 90, height: 42, decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(30))),
+                    Container(
+                      width: 90,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: Colors.white10,
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
                   ],
                 ),
               ],

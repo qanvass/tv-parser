@@ -85,14 +85,14 @@ class _CinematicPivotRowState extends State<CinematicPivotRow> {
               separatorBuilder: (_, _) => const SizedBox(width: _gap),
               itemBuilder: (context, index) {
                 final stream = widget.streams[index];
-                final key = stream.streamId ??
+                final key =
+                    stream.streamId ??
                     stream.enrichmentKey ??
                     '${widget.title}_$index';
                 return CinematicPosterCard(
                   key: ValueKey(key),
                   stream: stream,
-                  onSelected: () =>
-                      widget.onChannelSelected(stream.streamUrl),
+                  onSelected: () => widget.onChannelSelected(stream.streamUrl),
                   onFocused: (s) {
                     _pivotTo(index);
                     widget.onStreamFocused?.call(s);

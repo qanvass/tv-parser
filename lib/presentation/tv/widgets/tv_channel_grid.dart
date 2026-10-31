@@ -40,10 +40,12 @@ class TvStreamRecord {
   final String subtitle;
   final String streamUrl;
   final String? imageUrl;
+
   /// Live channel number, or S1:E1 when parsed. Never a raw 001 VOD index.
   final String? badge;
   final bool isHd;
   final String? tvgId;
+
   /// Validated IMDb title id when the catalog row had one. Never the title.
   final String? imdbId;
   final String? streamId;
@@ -60,6 +62,7 @@ class TvStreamRecord {
   final double? watchProgress;
   final String? enrichmentKey;
   final List<TvStreamRecord> groupedEpisodes;
+
   /// Provider taxonomy — not a UI heading. Never overwrite the catalog name.
   final String? providerCategoryId;
   final String? providerCategoryName;
@@ -123,12 +126,16 @@ class TvStreamRecord {
       title: title ?? this.title,
       subtitle: subtitle ?? this.subtitle,
       streamUrl: streamUrl ?? this.streamUrl,
-      imageUrl: identical(imageUrl, _keep) ? this.imageUrl : imageUrl as String?,
+      imageUrl: identical(imageUrl, _keep)
+          ? this.imageUrl
+          : imageUrl as String?,
       badge: identical(badge, _keep) ? this.badge : badge as String?,
       isHd: isHd ?? this.isHd,
       tvgId: identical(tvgId, _keep) ? this.tvgId : tvgId as String?,
       imdbId: identical(imdbId, _keep) ? this.imdbId : imdbId as String?,
-      streamId: identical(streamId, _keep) ? this.streamId : streamId as String?,
+      streamId: identical(streamId, _keep)
+          ? this.streamId
+          : streamId as String?,
       backdropUrl: identical(backdropUrl, _keep)
           ? this.backdropUrl
           : backdropUrl as String?,
@@ -143,9 +150,12 @@ class TvStreamRecord {
       qualityLabel: identical(qualityLabel, _keep)
           ? this.qualityLabel
           : qualityLabel as String?,
-      overview: identical(overview, _keep) ? this.overview : overview as String?,
-      trailerUrl:
-          identical(trailerUrl, _keep) ? this.trailerUrl : trailerUrl as String?,
+      overview: identical(overview, _keep)
+          ? this.overview
+          : overview as String?,
+      trailerUrl: identical(trailerUrl, _keep)
+          ? this.trailerUrl
+          : trailerUrl as String?,
       watchProgress: identical(watchProgress, _keep)
           ? this.watchProgress
           : watchProgress as double?,
@@ -189,9 +199,7 @@ class TvRailSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bar = quiet
-        ? _LiveChrome.muted
-        : (accent ?? kColorPrimary);
+    final bar = quiet ? _LiveChrome.muted : (accent ?? kColorPrimary);
     return Row(
       children: [
         if (icon != null) ...[
@@ -282,7 +290,8 @@ class TvLiveFocusHero extends StatelessWidget {
     final overview = extra?.overview ?? rec?.overview;
     final trailer = extra?.trailerUrl ?? rec?.trailerUrl;
     final poster = extra?.posterUrl ?? rec?.imageUrl;
-    final kickerText = kicker ??
+    final kickerText =
+        kicker ??
         (hasProgramme
             ? 'ON NOW'
             : (rec?.isVod == true ? 'SPOTLIGHT' : 'LIVE TV'));
@@ -450,7 +459,9 @@ class TvLiveFocusHero extends StatelessWidget {
                             if (isLive) ...[
                               const SizedBox(width: 10),
                               Text(
-                                kickerText == 'LIVE' ? 'NOW PLAYING' : kickerText,
+                                kickerText == 'LIVE'
+                                    ? 'NOW PLAYING'
+                                    : kickerText,
                                 style: TextStyle(
                                   color: kColorPrimary.withValues(alpha: 0.95),
                                   fontSize: 12,
@@ -500,7 +511,10 @@ class TvLiveFocusHero extends StatelessWidget {
                         ],
                         if (epg != null) ...[
                           const SizedBox(height: 10),
-                          _NowProgressBar(start: epg.now.start, stop: epg.now.stop),
+                          _NowProgressBar(
+                            start: epg.now.start,
+                            stop: epg.now.stop,
+                          ),
                         ],
                         if (rec != null &&
                             !rec.isVod &&
@@ -559,10 +573,7 @@ class TvLiveFocusHero extends StatelessWidget {
                       width: rec.isVod ? 128 : 210,
                       child: rec.isVod
                           ? _VodHeroPoster(url: poster, title: rec.title)
-                          : _ClearLogo(
-                              url: rec.imageUrl,
-                              name: rec.title,
-                            ),
+                          : _ClearLogo(url: rec.imageUrl, name: rec.title),
                     ),
                 ],
               ),
@@ -764,9 +775,7 @@ class _LiveSelectedPanel extends StatelessWidget {
                         opacity: videoUp ? 0.0 : 1.0,
                         duration: const Duration(milliseconds: 360),
                         child: AnimatedSlide(
-                          offset: videoUp
-                              ? const Offset(0.08, 0)
-                              : Offset.zero,
+                          offset: videoUp ? const Offset(0.08, 0) : Offset.zero,
                           duration: const Duration(milliseconds: 360),
                           curve: Curves.easeOutCubic,
                           child: IgnorePointer(
@@ -824,7 +833,8 @@ class _LiveHeroActions extends StatelessWidget {
     return BlocBuilder<FavoritesCubit, FavoritesState>(
       builder: (context, favs) {
         final id = rec.streamId;
-        final inList = id != null &&
+        final inList =
+            id != null &&
             id.isNotEmpty &&
             favs.lives.any((l) => l.streamId == id);
         return Row(
@@ -964,8 +974,10 @@ class _NowProgressBar extends StatelessWidget {
     final total = stop.difference(start).inMilliseconds;
     if (total <= 0) return const SizedBox.shrink();
     final now = DateTime.now().toUtc();
-    final p = (now.difference(start.toUtc()).inMilliseconds / total)
-        .clamp(0.0, 1.0);
+    final p = (now.difference(start.toUtc()).inMilliseconds / total).clamp(
+      0.0,
+      1.0,
+    );
     return ClipRRect(
       borderRadius: BorderRadius.circular(2),
       child: LinearProgressIndicator(
@@ -1432,8 +1444,12 @@ class _TvChannelCardState extends State<TvChannelCard> {
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
                 curve: Curves.easeOutCubic,
-                width: vod ? TvChannelCard.posterWidth : TvChannelCard.tileWidth,
-                height: vod ? TvChannelCard.posterHeight : TvChannelCard.tileHeight,
+                width: vod
+                    ? TvChannelCard.posterWidth
+                    : TvChannelCard.tileWidth,
+                height: vod
+                    ? TvChannelCard.posterHeight
+                    : TvChannelCard.tileHeight,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
                   color: const Color(0xFF121C2C),
@@ -1463,8 +1479,7 @@ class _TvChannelCardState extends State<TvChannelCard> {
                   builder: (context, _) {
                     final extra = enrichmentKey == null
                         ? null
-                        : TmdbEnrichmentWorker.instance
-                            .lookup(enrichmentKey);
+                        : TmdbEnrichmentWorker.instance.lookup(enrichmentKey);
                     final image = extra?.posterUrl ?? widget.stream.imageUrl;
                     final year = extra?.year ?? widget.stream.year;
                     final rating = extra?.rating ?? widget.stream.rating;
@@ -1475,68 +1490,71 @@ class _TvChannelCardState extends State<TvChannelCard> {
                           padding: vod
                               ? const EdgeInsets.fromLTRB(0, 0, 0, 36)
                               : const EdgeInsets.fromLTRB(10, 26, 10, 34),
-                        child: _CardArtwork(
-                          imageUrl: image,
-                          channelName: widget.stream.title,
-                          cover: vod,
-                        ),
-                      ),
-                      if (_visibleBadge() != null)
-                        Positioned(
-                          top: 7,
-                          left: 7,
-                          child: _MiniBadge(text: _visibleBadge()!),
-                        ),
-                      if (_qualityBadge(year, rating) != null)
-                        Positioned(
-                          top: 7,
-                          right: 7,
-                          child: _MiniBadge(
-                            text: _qualityBadge(year, rating)!,
-                            accent: true,
+                          child: _CardArtwork(
+                            imageUrl: image,
+                            channelName: widget.stream.title,
+                            cover: vod,
                           ),
                         ),
-                      if ((widget.stream.watchProgress ?? 0) > 0.02)
+                        if (_visibleBadge() != null)
+                          Positioned(
+                            top: 7,
+                            left: 7,
+                            child: _MiniBadge(text: _visibleBadge()!),
+                          ),
+                        if (_qualityBadge(year, rating) != null)
+                          Positioned(
+                            top: 7,
+                            right: 7,
+                            child: _MiniBadge(
+                              text: _qualityBadge(year, rating)!,
+                              accent: true,
+                            ),
+                          ),
+                        if ((widget.stream.watchProgress ?? 0) > 0.02)
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 34,
+                            child: LinearProgressIndicator(
+                              value: widget.stream.watchProgress!.clamp(
+                                0.0,
+                                1.0,
+                              ),
+                              minHeight: 3,
+                              backgroundColor: Colors.black45,
+                              color: kColorPrimary,
+                            ),
+                          ),
                         Positioned(
                           left: 0,
                           right: 0,
-                          bottom: 34,
-                          child: LinearProgressIndicator(
-                            value: widget.stream.watchProgress!.clamp(0.0, 1.0),
-                            minHeight: 3,
-                            backgroundColor: Colors.black45,
-                            color: kColorPrimary,
-                          ),
-                        ),
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        child: Container(
-                          padding: const EdgeInsets.fromLTRB(10, 14, 10, 8),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.transparent,
-                                kColorBackDark.withValues(alpha: 0.92),
-                                const Color(0xFF050A12),
-                              ],
+                          bottom: 0,
+                          child: Container(
+                            padding: const EdgeInsets.fromLTRB(10, 14, 10, 8),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.transparent,
+                                  kColorBackDark.withValues(alpha: 0.92),
+                                  const Color(0xFF050A12),
+                                ],
+                              ),
                             ),
+                            child: _CardCaption(stream: widget.stream),
                           ),
-                          child: _CardCaption(stream: widget.stream),
                         ),
-                      ),
-                    ],
-                  );
-                },
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
           ),
         ),
       ),
-    ),
     );
   }
 
@@ -1602,13 +1620,13 @@ class _CardCaption extends StatelessWidget {
       builder: (context, _) {
         final now = (!stream.isVod)
             ? XmlTvRepository.instance
-                .nowNext(
-                  tvgId: stream.tvgId,
-                  channelName: stream.title,
-                  streamId: stream.streamId,
-                )
-                ?.now
-                .title
+                  .nowNext(
+                    tvgId: stream.tvgId,
+                    channelName: stream.title,
+                    streamId: stream.streamId,
+                  )
+                  ?.now
+                  .title
             : null;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1685,10 +1703,7 @@ class _LiveLogoArt extends StatelessWidget {
   final String? imageUrl;
   final String channelName;
 
-  const _LiveLogoArt({
-    this.imageUrl,
-    required this.channelName,
-  });
+  const _LiveLogoArt({this.imageUrl, required this.channelName});
 
   @override
   Widget build(BuildContext context) {
@@ -1708,10 +1723,7 @@ class _LiveCardCaption extends StatelessWidget {
   final TvStreamRecord stream;
   final bool focused;
 
-  const _LiveCardCaption({
-    required this.stream,
-    this.focused = false,
-  });
+  const _LiveCardCaption({required this.stream, this.focused = false});
 
   @override
   Widget build(BuildContext context) {

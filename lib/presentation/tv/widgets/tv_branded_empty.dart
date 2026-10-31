@@ -49,10 +49,7 @@ class TvBrandedEmpty extends StatelessWidget {
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              if (extra != null) ...[
-                const SizedBox(height: 22),
-                extra!,
-              ],
+              if (extra != null) ...[const SizedBox(height: 22), extra!],
             ],
           ),
         ),
@@ -77,17 +74,16 @@ class _TvParserMark extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: heart
-              ? [
-                  const Color(0x55FF4D6D),
-                  const Color(0xFF050A18),
-                ]
+              ? [const Color(0x55FF4D6D), const Color(0xFF050A18)]
               : [
                   kColorPrimary.withValues(alpha: 0.28),
                   const Color(0xFF050A18),
                 ],
         ),
         border: Border.all(
-          color: heart ? const Color(0xFFFF4D6D) : kColorPrimary.withValues(alpha: 0.5),
+          color: heart
+              ? const Color(0xFFFF4D6D)
+              : kColorPrimary.withValues(alpha: 0.5),
           width: heart ? 2.2 : 1.2,
         ),
         boxShadow: [

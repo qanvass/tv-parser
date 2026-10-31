@@ -76,8 +76,10 @@ class IptvAppBar extends StatelessWidget {
           isFocused: focusedIndex == 0,
         ),
         const SizedBox(width: 12),
-        // Title pill
+        // Title pill — larger share than the spacer so phone titles fit;
+        // it still shrinks to its content (TV unchanged).
         Flexible(
+          flex: 4,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
             decoration: BoxDecoration(
@@ -115,7 +117,7 @@ class IptvAppBar extends StatelessWidget {
             ),
           ),
         ),
-        const Spacer(),
+        const Spacer(flex: 1),
         // Trailing actions (each passes its own isFocused)
         ...trailing,
         if (trailing.isNotEmpty) SizedBox(width: 4),
@@ -326,7 +328,9 @@ class _AppBarBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final activeFocusColor = isTv(context) ? const Color(0xFFFFC107) : kColorFocus;
+    final activeFocusColor = isTv(context)
+        ? const Color(0xFFFFC107)
+        : kColorFocus;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -378,7 +382,9 @@ class IptvAppBarAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final activeFocusColor = isTv(context) ? const Color(0xFFFFC107) : kColorFocus;
+    final activeFocusColor = isTv(context)
+        ? const Color(0xFFFFC107)
+        : kColorFocus;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(

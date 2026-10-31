@@ -21,7 +21,10 @@ class _LiveHeroPreviewSurfaceState extends State<LiveHeroPreviewSurface> {
   @override
   void initState() {
     super.initState();
-    LivePreviewTrace.log('surface_mounted', 'hasPlayer=${widget.preview.player != null}');
+    LivePreviewTrace.log(
+      'surface_mounted',
+      'hasPlayer=${widget.preview.player != null}',
+    );
   }
 
   @override
@@ -54,14 +57,17 @@ class _LiveHeroPreviewSurfaceState extends State<LiveHeroPreviewSurface> {
               curve: Curves.easeOutCubic,
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final size = Size(constraints.maxWidth, constraints.maxHeight);
+                  final size = Size(
+                    constraints.maxWidth,
+                    constraints.maxHeight,
+                  );
                   if (_lastConstraints != size) {
                     _lastConstraints = size;
                     LivePreviewTrace.log(
                       'surface_constraints',
                       '${size.width.toInt()}x${size.height.toInt()} '
-                      'hasFirstFrame=${widget.preview.hasFirstFrame} '
-                      'opacity=${widget.preview.hasFirstFrame ? 1 : 0}',
+                          'hasFirstFrame=${widget.preview.hasFirstFrame} '
+                          'opacity=${widget.preview.hasFirstFrame ? 1 : 0}',
                     );
                   }
                   if (!_vlcInserted) {

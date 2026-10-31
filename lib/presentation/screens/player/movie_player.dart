@@ -369,10 +369,12 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
     LivePreviewTrace.log(
       'fullscreen_open',
       'title=${widget.title} hash=${LivePreviewTrace.urlHash(raw)} '
-      'hasStreamUrl=${raw.isNotEmpty} looksHttp=${raw.startsWith('http')} '
-      'len=${raw.length}',
+          'hasStreamUrl=${raw.isNotEmpty} looksHttp=${raw.startsWith('http')} '
+          'len=${raw.length}',
     );
-    debugPrint("[TV_PARSER_PERF] LivePlayerScreen: _initPlayer started for ${widget.title}");
+    debugPrint(
+      "[TV_PARSER_PERF] LivePlayerScreen: _initPlayer started for ${widget.title}",
+    );
     _stopwatch.reset();
     _stopwatch.start();
 
@@ -408,7 +410,9 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
     _scheduleHide();
     setState(() {
       _ctrlInitialized = true;
-      _deadStreamMessage = StreamHealthService.messageFor(StreamProbeResult.unknown);
+      _deadStreamMessage = StreamHealthService.messageFor(
+        StreamProbeResult.unknown,
+      );
       // [TV_PARSER_PERF] Keep checking health active until the stream starts playing
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -459,7 +463,9 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
     });
     if (v.isInitialized && _stopwatch.isRunning) {
       _stopwatch.stop();
-      debugPrint("[TV_PARSER_PERF] LivePlayerScreen: player initialized in ${_stopwatch.elapsedMilliseconds}ms");
+      debugPrint(
+        "[TV_PARSER_PERF] LivePlayerScreen: player initialized in ${_stopwatch.elapsedMilliseconds}ms",
+      );
     }
     if (v.isInitialized && _isCheckingHealth && !v.isBuffering) {
       setState(() {
@@ -884,13 +890,13 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
       context.read<FavoritesCubit>().addLive(existing.first, isAdd: false);
     } else {
       context.read<FavoritesCubit>().addLive(
-            ChannelLive(
-              streamId: sid,
-              name: widget.title,
-              streamIcon: widget.streamIcon,
-            ),
-            isAdd: true,
-          );
+        ChannelLive(
+          streamId: sid,
+          name: widget.title,
+          streamIcon: widget.streamIcon,
+        ),
+        isAdd: true,
+      );
     }
     _scheduleHide();
   }
@@ -907,7 +913,10 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: Theme.of(context).primaryColor.withOpacity(0.1),
-                border: Border.all(color: Theme.of(context).primaryColor.withOpacity(0.3), width: 1.5),
+                border: Border.all(
+                  color: Theme.of(context).primaryColor.withOpacity(0.3),
+                  width: 1.5,
+                ),
               ),
               child: Icon(
                 Icons.cast_connected_rounded,
@@ -918,12 +927,19 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
             const SizedBox(height: 24),
             Text(
               "Casting to $_castDevice",
-              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               "Use your phone as a remote controller",
-              style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.5),
+                fontSize: 12,
+              ),
             ),
             const SizedBox(height: 36),
             Row(
@@ -932,7 +948,9 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
                 IconButton(
                   iconSize: 48,
                   icon: Icon(
-                    _isCastPlaying ? Icons.pause_circle_filled_rounded : Icons.play_circle_filled_rounded,
+                    _isCastPlaying
+                        ? Icons.pause_circle_filled_rounded
+                        : Icons.play_circle_filled_rounded,
                     color: Colors.white,
                   ),
                   onPressed: () {
@@ -951,8 +969,13 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red.shade900,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
                   ),
                   onPressed: () async {
                     await CastMediaService().disconnect();
@@ -962,7 +985,10 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
                     _ctrl.play();
                   },
                   icon: const Icon(Icons.link_off_rounded, size: 18),
-                  label: const Text("Disconnect", style: TextStyle(fontWeight: FontWeight.bold)),
+                  label: const Text(
+                    "Disconnect",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
               ],
             ),
@@ -1000,7 +1026,9 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
                     ),
 
                   // 2. Gesture Detector to toggle controls & double tap seek
-                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null)
+                  if (!_isCheckingHealth &&
+                      !_isDeadStream &&
+                      _castDevice == null)
                     GestureDetector(
                       onTap: _toggleControls,
                       onDoubleTapDown: (details) {
@@ -1018,7 +1046,10 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
                     ),
 
                   // 3. Buffering Indicator
-                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null && _isBuffering)
+                  if (!_isCheckingHealth &&
+                      !_isDeadStream &&
+                      _castDevice == null &&
+                      _isBuffering)
                     const Center(
                       child: CircularProgressIndicator(
                         color: Colors.white,
@@ -1027,11 +1058,15 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
                     ),
 
                   // 4. Seek HUD overlay
-                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null)
+                  if (!_isCheckingHealth &&
+                      !_isDeadStream &&
+                      _castDevice == null)
                     _buildSeekHud(),
 
                   // 5. Controls Overlay
-                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null)
+                  if (!_isCheckingHealth &&
+                      !_isDeadStream &&
+                      _castDevice == null)
                     AnimatedOpacity(
                       opacity: _showControls ? 1.0 : 0.0,
                       duration: const Duration(milliseconds: 250),
@@ -1042,7 +1077,10 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
                     ),
 
                   // 6. Track Selector Panel
-                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null && _trackPanel != null)
+                  if (!_isCheckingHealth &&
+                      !_isDeadStream &&
+                      _castDevice == null &&
+                      _trackPanel != null)
                     _VodTrackPanel(
                       isSub: _trackPanel == 'sub',
                       list: _trackList,
@@ -1069,10 +1107,11 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
                     ),
 
                   // 9. Chromecast Overlay
-                  if (!_isCheckingHealth && !_isDeadStream && supportsCasting() && _castDevice != null)
-                    Positioned.fill(
-                      child: _buildCastOverlay(context),
-                    ),
+                  if (!_isCheckingHealth &&
+                      !_isDeadStream &&
+                      supportsCasting() &&
+                      _castDevice != null)
+                    Positioned.fill(child: _buildCastOverlay(context)),
                 ],
               );
             },
@@ -1156,8 +1195,10 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
             if (isTvDevice()) ...[
               BlocBuilder<FavoritesCubit, FavoritesState>(
                 builder: (context, favState) {
-                  final sid = widget.streamId ?? extractStreamIdFromUrl(widget.link);
-                  final isFav = sid != null &&
+                  final sid =
+                      widget.streamId ?? extractStreamIdFromUrl(widget.link);
+                  final isFav =
+                      sid != null &&
                       favState.lives.any((l) => l.streamId == sid);
                   return _FsBtn(
                     icon: isFav
@@ -1239,7 +1280,9 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
             ),
             const SizedBox(width: 8),
             _FsBtn(
-              icon: _isPlaying ? FontAwesomeIcons.pause.data : FontAwesomeIcons.play.data,
+              icon: _isPlaying
+                  ? FontAwesomeIcons.pause.data
+                  : FontAwesomeIcons.play.data,
               label: _isPlaying ? 'Pause' : 'Play',
               isFocused: _isFocused(1, 1),
               isLarge: true,
@@ -1275,10 +1318,25 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
 //   Row 1 (bottom bar): 0=-10s  1=Play  2=Aspect
 
 class MoviePlayerScreen extends StatefulWidget {
-  const MoviePlayerScreen({super.key, required this.link, required this.title});
+  const MoviePlayerScreen({
+    super.key,
+    required this.link,
+    required this.title,
+    this.streamId,
+    this.image,
+    this.recordHistory = false,
+  });
 
   final String link;
   final String title;
+
+  /// Movie id for History; [link] is used when absent.
+  final String? streamId;
+  final String? image;
+
+  /// Save resume position to History on exit. Callers that already save the
+  /// returned [position, duration] themselves leave this off.
+  final bool recordHistory;
 
   @override
   State<MoviePlayerScreen> createState() => _MoviePlayerScreenState();
@@ -1338,7 +1396,9 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
   }
 
   Future<void> _initPlayer() async {
-    debugPrint("[TV_PARSER_PERF] MoviePlayerScreen: _initPlayer started for ${widget.title}");
+    debugPrint(
+      "[TV_PARSER_PERF] MoviePlayerScreen: _initPlayer started for ${widget.title}",
+    );
     _stopwatch.reset();
     _stopwatch.start();
 
@@ -1405,7 +1465,9 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
     });
     if (v.isInitialized && _stopwatch.isRunning) {
       _stopwatch.stop();
-      debugPrint("[TV_PARSER_PERF] MoviePlayerScreen: player initialized in ${_stopwatch.elapsedMilliseconds}ms");
+      debugPrint(
+        "[TV_PARSER_PERF] MoviePlayerScreen: player initialized in ${_stopwatch.elapsedMilliseconds}ms",
+      );
     }
     if (v.isInitialized && _isCheckingHealth && !v.isBuffering) {
       setState(() {
@@ -1617,6 +1679,18 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
       blockedDuplicate: false,
       routeBefore: Get.currentRoute,
     );
+    if (widget.recordHistory && pos > 0 && dur > 0) {
+      context.read<WatchingCubit>().addMovie(
+        WatchingModel(
+          sliderValue: pos,
+          durationStrm: dur,
+          stream: widget.link,
+          title: widget.title,
+          image: widget.image ?? '',
+          streamId: widget.streamId ?? widget.link,
+        ),
+      );
+    }
     Get.back(result: pos > 0 ? [pos, dur] : null);
   }
 
@@ -1842,7 +1916,10 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: Theme.of(context).primaryColor.withOpacity(0.1),
-                border: Border.all(color: Theme.of(context).primaryColor.withOpacity(0.3), width: 1.5),
+                border: Border.all(
+                  color: Theme.of(context).primaryColor.withOpacity(0.3),
+                  width: 1.5,
+                ),
               ),
               child: Icon(
                 Icons.cast_connected_rounded,
@@ -1853,12 +1930,19 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
             const SizedBox(height: 24),
             Text(
               "Casting to $_castDevice",
-              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               "Use your phone as a remote controller",
-              style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.5),
+                fontSize: 12,
+              ),
             ),
             const SizedBox(height: 36),
             Row(
@@ -1867,7 +1951,9 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
                 IconButton(
                   iconSize: 48,
                   icon: Icon(
-                    _isCastPlaying ? Icons.pause_circle_filled_rounded : Icons.play_circle_filled_rounded,
+                    _isCastPlaying
+                        ? Icons.pause_circle_filled_rounded
+                        : Icons.play_circle_filled_rounded,
                     color: Colors.white,
                   ),
                   onPressed: () {
@@ -1886,8 +1972,13 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red.shade900,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
                   ),
                   onPressed: () async {
                     await CastMediaService().disconnect();
@@ -1897,7 +1988,10 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
                     _ctrl.play();
                   },
                   icon: const Icon(Icons.link_off_rounded, size: 18),
-                  label: const Text("Disconnect", style: TextStyle(fontWeight: FontWeight.bold)),
+                  label: const Text(
+                    "Disconnect",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
               ],
             ),
@@ -1935,7 +2029,9 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
                     ),
 
                   // 2. Gesture Detector to toggle controls & double tap seek
-                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null)
+                  if (!_isCheckingHealth &&
+                      !_isDeadStream &&
+                      _castDevice == null)
                     GestureDetector(
                       onTap: _toggleControls,
                       onDoubleTapDown: (details) {
@@ -1953,7 +2049,10 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
                     ),
 
                   // 3. Buffering Indicator
-                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null && _isBuffering)
+                  if (!_isCheckingHealth &&
+                      !_isDeadStream &&
+                      _castDevice == null &&
+                      _isBuffering)
                     const Center(
                       child: CircularProgressIndicator(
                         color: Colors.white,
@@ -1962,11 +2061,15 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
                     ),
 
                   // 4. Seek HUD overlay
-                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null)
+                  if (!_isCheckingHealth &&
+                      !_isDeadStream &&
+                      _castDevice == null)
                     _buildSeekHud(),
 
                   // 5. Controls Overlay
-                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null)
+                  if (!_isCheckingHealth &&
+                      !_isDeadStream &&
+                      _castDevice == null)
                     AnimatedOpacity(
                       opacity: _showControls ? 1.0 : 0.0,
                       duration: const Duration(milliseconds: 250),
@@ -1977,7 +2080,10 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
                     ),
 
                   // 6. Track Selector Panel
-                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null && _trackPanel != null)
+                  if (!_isCheckingHealth &&
+                      !_isDeadStream &&
+                      _castDevice == null &&
+                      _trackPanel != null)
                     _VodTrackPanel(
                       isSub: _trackPanel == 'sub',
                       list: _trackList,
@@ -2003,10 +2109,11 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
                     ),
 
                   // 9. Chromecast Overlay
-                  if (!_isCheckingHealth && !_isDeadStream && supportsCasting() && _castDevice != null)
-                    Positioned.fill(
-                      child: _buildCastOverlay(context),
-                    ),
+                  if (!_isCheckingHealth &&
+                      !_isDeadStream &&
+                      supportsCasting() &&
+                      _castDevice != null)
+                    Positioned.fill(child: _buildCastOverlay(context)),
                 ],
               );
             },
@@ -2118,7 +2225,9 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
             ),
             SizedBox(width: 8),
             _FsBtn(
-              icon: _isPlaying ? FontAwesomeIcons.pause.data : FontAwesomeIcons.play.data,
+              icon: _isPlaying
+                  ? FontAwesomeIcons.pause.data
+                  : FontAwesomeIcons.play.data,
               label: '',
               isFocused: _isFocused(1, 1),
               isLarge: true,

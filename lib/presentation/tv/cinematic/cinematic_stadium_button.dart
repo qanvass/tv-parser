@@ -58,8 +58,9 @@ class _CinematicStadiumButtonState extends State<CinematicStadiumButton> {
               curve: CinematicMotion.standard,
               padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 11),
               decoration: BoxDecoration(
-                borderRadius:
-                    BorderRadius.circular(CinematicTokens.radiusStadium),
+                borderRadius: BorderRadius.circular(
+                  CinematicTokens.radiusStadium,
+                ),
                 color: _focused
                     ? CinematicTokens.accent
                     : CinematicTokens.glassFill,

@@ -16,6 +16,7 @@ import '../../../repository/models/category.dart';
 import '../../../repository/models/channel_live.dart';
 import '../../../repository/models/channel_movie.dart';
 import '../../../repository/models/channel_serie.dart';
+import '../../../repository/provider/series_collapse.dart';
 import '../../../repository/models/user_preference_profile.dart';
 import '../../../repository/provider/title_normalizer.dart';
 import '../../../repository/provider/tmdb_enrichment_worker.dart';
@@ -118,8 +119,9 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
         ...LocaleApi.getM3uCategories(),
         ...LocaleApi.getM3uMovieCategories(),
         ...LocaleApi.getM3uSeriesCategories(),
-        ...IptvProviderSession.instance
-            .categoriesForAction('get_live_categories'),
+        ...IptvProviderSession.instance.categoriesForAction(
+          'get_live_categories',
+        ),
       ];
       final catMap = _buildCategoryMap(cats);
 
@@ -204,8 +206,7 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
         ),
       );
     }
-    if (SearchIndexService.seriesIndexReady == false &&
-        _allSeries.isNotEmpty) {
+    if (SearchIndexService.seriesIndexReady == false && _allSeries.isNotEmpty) {
       jobs.add(
         SearchIndexService.indexSeries(
           series: _allSeries,
@@ -254,29 +255,33 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
     if (_allLiveChannels.isNotEmpty && !SearchIndexService.liveIndexReady) {
       unawaited(
         SearchIndexService.indexLive(
-          liveChannels: _allLiveChannels,
-          categoryIdToName: _categoryIdToName,
-        ).then((_) {
-          if (mounted && _searchController.text.trim() == clean) {
-            _performSearch(clean);
-          }
-        }).catchError((Object e) {
-          debugPrint('TV search live index: $e');
-        }),
+              liveChannels: _allLiveChannels,
+              categoryIdToName: _categoryIdToName,
+            )
+            .then((_) {
+              if (mounted && _searchController.text.trim() == clean) {
+                _performSearch(clean);
+              }
+            })
+            .catchError((Object e) {
+              debugPrint('TV search live index: $e');
+            }),
       );
     }
     if (_allMovies.isNotEmpty && !SearchIndexService.moviesIndexReady) {
       unawaited(
         SearchIndexService.indexMovies(
-          movies: _allMovies,
-          categoryIdToName: _categoryIdToName,
-        ).then((_) {
-          if (mounted && _searchController.text.trim() == clean) {
-            _performSearch(clean);
-          }
-        }).catchError((Object e) {
-          debugPrint('TV search movies index: $e');
-        }),
+              movies: _allMovies,
+              categoryIdToName: _categoryIdToName,
+            )
+            .then((_) {
+              if (mounted && _searchController.text.trim() == clean) {
+                _performSearch(clean);
+              }
+            })
+            .catchError((Object e) {
+              debugPrint('TV search movies index: $e');
+            }),
       );
     }
 
@@ -307,7 +312,7 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
     setState(() {
       _liveResults = lives;
       _movieResults = movies;
-      _seriesResults = series;
+      _seriesResults = SeriesCollapse.collapseByShow(series);
       _hasSearched = true;
       _activeQuery = clean;
       _resultTab = 0;
@@ -374,16 +379,15 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
   void _openSeries(ChannelSerie serie) {
     UserBehaviorService.trackClick(serie.seriesId ?? '', serie.categoryId);
     Get.to(
-      () => SerieContent(
-        channelSerie: serie,
-        videoId: serie.seriesId ?? '',
-      ),
+      () => SerieContent(channelSerie: serie, videoId: serie.seriesId ?? ''),
     );
   }
 
   /// Same enrichment key / poster resolution as Movies rails — Search only.
   TvStreamRecord _movieSearchRecord(ChannelMovie m) {
-    final poster = ArtworkUrlResolver.resolveVodPoster(streamIcon: m.streamIcon);
+    final poster = ArtworkUrlResolver.resolveVodPoster(
+      streamIcon: m.streamIcon,
+    );
     final parsed = TitleNormalizer.parse(m.name ?? '');
     final title = parsed.displayTitle.isEmpty
         ? (m.name ?? 'Movie')
@@ -401,7 +405,9 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
       subtitle: year != null ? '$year · Movie' : 'Movie',
       streamUrl: m.directSource ?? m.streamId ?? '',
       imageUrl: poster,
-      backdropUrl: ArtworkUrlResolver.resolveHeroBackdrop(posterFallback: poster),
+      backdropUrl: ArtworkUrlResolver.resolveHeroBackdrop(
+        posterFallback: poster,
+      ),
       year: year,
       qualityLabel: parsed.qualityLabel,
       posterStyle: TvPosterStyle.vodPortrait,
@@ -433,7 +439,9 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
           : (parsed.episodeBadge ?? 'Series'),
       streamUrl: s.directSource ?? s.seriesId ?? '',
       imageUrl: poster,
-      backdropUrl: ArtworkUrlResolver.resolveHeroBackdrop(posterFallback: poster),
+      backdropUrl: ArtworkUrlResolver.resolveHeroBackdrop(
+        posterFallback: poster,
+      ),
       year: parsed.year,
       qualityLabel: parsed.qualityLabel,
       badge: parsed.episodeBadge,
@@ -500,8 +508,8 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
           child: !_hasSearched
               ? _buildIdleState()
               : total == 0
-                  ? _buildEmptyState()
-                  : _buildResults(total),
+              ? _buildEmptyState()
+              : _buildResults(total),
         ),
       ],
     );
@@ -641,7 +649,7 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
     final catalogHint = _allLiveChannels.isEmpty
         ? 'Load a playlist on Live first, then search here.'
         : 'Searching ${_allLiveChannels.length} live channels'
-            '${_allMovies.isNotEmpty || _allSeries.isNotEmpty ? ', movies & series' : ''}.';
+              '${_allMovies.isNotEmpty || _allSeries.isNotEmpty ? ', movies & series' : ''}.';
 
     return ListView(
       padding: const EdgeInsets.only(bottom: 40),
@@ -723,10 +731,14 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
       );
     }).toList();
 
-    final movieStreams =
-        _movieResults.take(maxPerSection).map(_movieSearchRecord).toList();
-    final seriesStreams =
-        _seriesResults.take(maxPerSection).map(_seriesSearchRecord).toList();
+    final movieStreams = _movieResults
+        .take(maxPerSection)
+        .map(_movieSearchRecord)
+        .toList();
+    final seriesStreams = _seriesResults
+        .take(maxPerSection)
+        .map(_seriesSearchRecord)
+        .toList();
 
     // Only enrich what Search is about to show — never the whole catalog.
     _enqueueVisibleSearchTmdb(movies: movieStreams, series: seriesStreams);
@@ -761,7 +773,8 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
     if (tabs.isEmpty) return _buildEmptyState();
     final tab = _resultTab.clamp(0, tabs.length - 1);
     final row = tabs[tab];
-    final isVod = row.streams.isNotEmpty &&
+    final isVod =
+        row.streams.isNotEmpty &&
         row.streams.first.posterStyle == TvPosterStyle.vodPortrait;
 
     return Column(
@@ -978,10 +991,7 @@ class _SearchVodPosterCard extends StatefulWidget {
   final TvStreamRecord stream;
   final VoidCallback onSelected;
 
-  const _SearchVodPosterCard({
-    required this.stream,
-    required this.onSelected,
-  });
+  const _SearchVodPosterCard({required this.stream, required this.onSelected});
 
   @override
   State<_SearchVodPosterCard> createState() => _SearchVodPosterCardState();
@@ -1023,15 +1033,17 @@ class _SearchVodPosterCardState extends State<_SearchVodPosterCard> {
                 child: InkWell(
                   canRequestFocus: false,
                   onTap: widget.onSelected,
-                  borderRadius:
-                      BorderRadius.circular(CinematicTokens.radiusPoster),
+                  borderRadius: BorderRadius.circular(
+                    CinematicTokens.radiusPoster,
+                  ),
                   child: AnimatedContainer(
                     duration: CinematicMotion.focus,
                     width: _SearchVodPosterCard.posterW,
                     height: _SearchVodPosterCard.posterH,
                     decoration: BoxDecoration(
-                      borderRadius:
-                          BorderRadius.circular(CinematicTokens.radiusPoster),
+                      borderRadius: BorderRadius.circular(
+                        CinematicTokens.radiusPoster,
+                      ),
                       border: Border.all(
                         width: _focused ? 1.4 : 0,
                         color: _focused
@@ -1054,8 +1066,9 @@ class _SearchVodPosterCardState extends State<_SearchVodPosterCard> {
                       builder: (context, _) {
                         final extra = widget.stream.enrichmentKey == null
                             ? null
-                            : TmdbEnrichmentWorker.instance
-                                .lookup(widget.stream.enrichmentKey!);
+                            : TmdbEnrichmentWorker.instance.lookup(
+                                widget.stream.enrichmentKey!,
+                              );
                         final art = CinematicArtwork.fromRecord(
                           widget.stream,
                           extra: extra,

@@ -459,7 +459,8 @@ class _SerieContentState extends State<SerieContent> {
                                     width: 2,
                                   ),
                                 ),
-                                child: Icon(FontAwesomeIcons.chevronLeft.data,
+                                child: Icon(
+                                  FontAwesomeIcons.chevronLeft.data,
                                   color: Colors.white,
                                   size: 18,
                                 ),
@@ -548,7 +549,8 @@ class _SerieContentState extends State<SerieContent> {
                                                   width: 140,
                                                   height: 200,
                                                   color: kColorCardLight,
-                                                  child: Icon(FontAwesomeIcons.tv.data,
+                                                  child: Icon(
+                                                    FontAwesomeIcons.tv.data,
                                                     color: kColorHint,
                                                     size: 40,
                                                   ),
@@ -571,14 +573,18 @@ class _SerieContentState extends State<SerieContent> {
                                               ),
                                               const SizedBox(height: 16),
                                               _buildInfoRow(
-                                                icon: FontAwesomeIcons.clapperboard.data,
+                                                icon: FontAwesomeIcons
+                                                    .clapperboard
+                                                    .data,
                                                 label: 'Director',
                                                 value:
                                                     serie.info!.director ?? "",
                                               ),
                                               const SizedBox(height: 10),
                                               _buildInfoRow(
-                                                icon: FontAwesomeIcons.calendarDay.data,
+                                                icon: FontAwesomeIcons
+                                                    .calendarDay
+                                                    .data,
                                                 label: 'Release',
                                                 value:
                                                     serie.info!.releaseDate ??
@@ -586,7 +592,8 @@ class _SerieContentState extends State<SerieContent> {
                                               ),
                                               SizedBox(height: 10),
                                               _buildInfoRow(
-                                                icon: FontAwesomeIcons.film.data,
+                                                icon:
+                                                    FontAwesomeIcons.film.data,
                                                 label: 'Genre',
                                                 value: serie.info!.genre ?? "",
                                               ),
@@ -608,10 +615,14 @@ class _SerieContentState extends State<SerieContent> {
                                     const SizedBox(height: 8),
                                     Text(
                                       (serie.info!.plot != null &&
-                                       serie.info!.plot!.isNotEmpty &&
-                                       serie.info!.plot != "null" &&
-                                       !serie.info!.plot!.toLowerCase().contains("iptv") &&
-                                       !serie.info!.plot!.toLowerCase().contains("servicer"))
+                                              serie.info!.plot!.isNotEmpty &&
+                                              serie.info!.plot != "null" &&
+                                              !serie.info!.plot!
+                                                  .toLowerCase()
+                                                  .contains("iptv") &&
+                                              !serie.info!.plot!
+                                                  .toLowerCase()
+                                                  .contains("servicer"))
                                           ? serie.info!.plot!
                                           : "No description available for this title.",
                                       style: const TextStyle(
@@ -819,7 +830,8 @@ class _SerieContentState extends State<SerieContent> {
                               width: 150,
                               height: 100,
                               color: kColorCardDark,
-                              child: Icon(FontAwesomeIcons.tv.data,
+                              child: Icon(
+                                FontAwesomeIcons.tv.data,
                                 color: kColorHint,
                               ),
                             ),
@@ -949,7 +961,8 @@ class _DetailsLoadingState extends StatelessWidget {
                           color: Colors.white.withValues(alpha: 0.09),
                         ),
                       ),
-                      child: Icon(FontAwesomeIcons.chevronLeft.data,
+                      child: Icon(
+                        FontAwesomeIcons.chevronLeft.data,
                         color: Colors.white,
                         size: 14,
                       ),
@@ -1026,7 +1039,8 @@ class _DetailsErrorState extends StatelessWidget {
                           color: Colors.white.withValues(alpha: 0.09),
                         ),
                       ),
-                      child: Icon(FontAwesomeIcons.chevronLeft.data,
+                      child: Icon(
+                        FontAwesomeIcons.chevronLeft.data,
                         color: Colors.white,
                         size: 14,
                       ),
@@ -1050,7 +1064,8 @@ class _DetailsErrorState extends StatelessWidget {
                         color: Colors.white.withValues(alpha: 0.08),
                       ),
                     ),
-                    child: Icon(FontAwesomeIcons.circleExclamation.data,
+                    child: Icon(
+                      FontAwesomeIcons.circleExclamation.data,
                       color: Colors.white38,
                       size: 36,
                     ),

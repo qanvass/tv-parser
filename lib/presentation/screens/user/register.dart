@@ -131,7 +131,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     // Full playlist links belong in M3U mode — don't treat them as XC hosts.
-    final looksLikePlaylist = normalizedUrl.toLowerCase().contains('/api/list/') ||
+    final looksLikePlaylist =
+        normalizedUrl.toLowerCase().contains('/api/list/') ||
         normalizedUrl.toLowerCase().endsWith('.m3u') ||
         normalizedUrl.toLowerCase().endsWith('.m3u8') ||
         normalizedUrl.toLowerCase().contains('get.php?');
@@ -182,16 +183,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   final isGenericLogout = detail == 'LogOut' || detail.isEmpty;
                   final fallback = isGenericLogout
                       ? (_isM3uMode
-                          ? 'Unable to sign in. Check that your M3U playlist URL is correct and reachable.'
-                          : 'Unable to sign in. Please check your server URL, username, and password.')
+                            ? 'Unable to sign in. Check that your M3U playlist URL is correct and reachable.'
+                            : 'Unable to sign in. Please check your server URL, username, and password.')
                       : detail;
                   final m3uUrl = _lastM3uUrl;
                   _lastM3uUrl = null;
                   if (!isGenericLogout && m3uUrl != null) {
-                    PlaylistHostCheck.unreachableServerMessage(m3uUrl)
-                        .then((reason) {
+                    PlaylistHostCheck.unreachableServerMessage(m3uUrl).then((
+                      reason,
+                    ) {
                       if (!context.mounted) return;
-                      showWarningToast(context, 'Login Failed', reason ?? fallback);
+                      showWarningToast(
+                        context,
+                        'Login Failed',
+                        reason ?? fallback,
+                      );
                     });
                   } else {
                     showWarningToast(context, 'Login Failed', fallback);

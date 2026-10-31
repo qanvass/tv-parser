@@ -145,10 +145,10 @@ class LiveRowsPrebuild {
   }
 
   static Map<String, String> categoryIdToName(List<CategoryModel> cats) => {
-        for (final cat in cats)
-          if (cat.categoryId != null && cat.categoryName != null)
-            cat.categoryId!: cat.categoryName!,
-      };
+    for (final cat in cats)
+      if (cat.categoryId != null && cat.categoryName != null)
+        cat.categoryId!: cat.categoryName!,
+  };
 
   /// Durable group-title categories derived from the channels themselves.
   static List<CategoryModel> deriveCategories(List<ChannelLive> allLives) {
@@ -173,7 +173,8 @@ class LiveRowsPrebuild {
   }) async {
     // "US Local"-style groups: nearest affiliates first.
     List<ChannelLive> nearestFirst(String? catName, List<ChannelLive> chs) {
-      if (market == null || !LocalProximity.isLocalCategory(catName)) return chs;
+      if (market == null || !LocalProximity.isLocalCategory(catName))
+        return chs;
       return LocalProximity.sortNearest(chs, market, (c) => c.name ?? '');
     }
 
@@ -195,8 +196,9 @@ class LiveRowsPrebuild {
               !ProviderCurationRules.isAdultCategory(c.categoryName!),
         )
         .toList();
-    final sortedCats =
-        ProviderCurationRules.sortCategoriesForNormalDashboard(normalCats);
+    final sortedCats = ProviderCurationRules.sortCategoriesForNormalDashboard(
+      normalCats,
+    );
 
     final byCat = <String, List<ChannelLive>>{};
     for (final ch in allLives) {
@@ -222,15 +224,20 @@ class LiveRowsPrebuild {
         ];
         if (records.isNotEmpty) {
           rows.add(
-            TvChannelRow(title: cat.categoryName ?? 'Live TV', streams: records),
+            TvChannelRow(
+              title: cat.categoryName ?? 'Live TV',
+              streams: records,
+            ),
           );
         }
       } catch (_) {}
       if (yieldSlice != null && !await yieldSlice()) return const [];
     }
 
-    final usedIds =
-        sortedCats.map((c) => c.categoryId).whereType<String>().toSet();
+    final usedIds = sortedCats
+        .map((c) => c.categoryId)
+        .whereType<String>()
+        .toSet();
     for (final entry in byCat.entries) {
       if (usedIds.contains(entry.key)) continue;
       final name = idToName[entry.key] ?? 'More Live';
@@ -247,7 +254,8 @@ class LiveRowsPrebuild {
   }
 
   static TvStreamRecord _record(ChannelLive ch, String subtitle) {
-    final logo = ArtworkUrlResolver.resolveLiveLogo(
+    final logo =
+        ArtworkUrlResolver.resolveLiveLogo(
           primaryUrl: ch.streamIcon,
           epgOrTvgId: ch.epgChannelId?.toString(),
         ) ??

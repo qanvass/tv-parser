@@ -187,22 +187,22 @@ class _SerieSeasonsState extends State<SerieSeasons> {
     final link =
         "${userAuth.user.serverInfo!.serverUrl}/series/${userAuth.user.userInfo!.username}/${userAuth.user.userInfo!.password}/${model.id}.${model.containerExtension}";
 
-    Get.to(() => MoviePlayerScreen(link: link, title: model.title ?? ""))!.then((
-      slider,
-    ) {
-      debugPrint("DATA: $slider");
-      if (slider != null) {
-        var watchModel = WatchingModel(
-          sliderValue: slider[0],
-          durationStrm: slider[1],
-          stream: link,
-          title: model.title ?? "",
-          image: model.info!.movieImage ?? _serieDetails.info!.cover ?? "",
-          streamId: model.id.toString(),
-        );
-        context.read<WatchingCubit>().addSerie(watchModel);
-      }
-    });
+    Get.to(() => MoviePlayerScreen(link: link, title: model.title ?? ""))!.then(
+      (slider) {
+        debugPrint("DATA: $slider");
+        if (slider != null) {
+          var watchModel = WatchingModel(
+            sliderValue: slider[0],
+            durationStrm: slider[1],
+            stream: link,
+            title: model.title ?? "",
+            image: model.info!.movieImage ?? _serieDetails.info!.cover ?? "",
+            streamId: model.id.toString(),
+          );
+          context.read<WatchingCubit>().addSerie(watchModel);
+        }
+      },
+    );
   }
 
   void _scrollTo(ScrollController sc, int idx) {
@@ -297,7 +297,8 @@ class _SerieSeasonsState extends State<SerieSeasons> {
                   width: 2,
                 ),
               ),
-              child: Icon(FontAwesomeIcons.chevronLeft.data,
+              child: Icon(
+                FontAwesomeIcons.chevronLeft.data,
                 color: Colors.white,
                 size: 20,
               ),
@@ -335,7 +336,8 @@ class _SerieSeasonsState extends State<SerieSeasons> {
                 width: 60,
                 height: 80,
                 color: kColorCardLight,
-                child: Icon(FontAwesomeIcons.tv.data,
+                child: Icon(
+                  FontAwesomeIcons.tv.data,
                   color: kColorHint,
                   size: 20,
                 ),
@@ -511,7 +513,8 @@ class _SerieSeasonsState extends State<SerieSeasons> {
                                   width: 150,
                                   height: 100,
                                   color: kColorCardDark,
-                                  child: Icon(FontAwesomeIcons.tv.data,
+                                  child: Icon(
+                                    FontAwesomeIcons.tv.data,
                                     color: kColorHint,
                                   ),
                                 ),
@@ -559,7 +562,8 @@ class _SerieSeasonsState extends State<SerieSeasons> {
                                 color: kColorFocus,
                                 shape: BoxShape.circle,
                               ),
-                              child: Icon(FontAwesomeIcons.play.data,
+                              child: Icon(
+                                FontAwesomeIcons.play.data,
                                 color: Colors.white,
                                 size: 10,
                               ),

@@ -25,7 +25,8 @@ class BrandedConnectingOverlay extends StatefulWidget {
   });
 
   @override
-  State<BrandedConnectingOverlay> createState() => _BrandedConnectingOverlayState();
+  State<BrandedConnectingOverlay> createState() =>
+      _BrandedConnectingOverlayState();
 }
 
 class _BrandedConnectingOverlayState extends State<BrandedConnectingOverlay> {
@@ -64,7 +65,9 @@ class _BrandedConnectingOverlayState extends State<BrandedConnectingOverlay> {
     if (_isChecking) return;
     setState(() => _isChecking = true);
 
-    debugPrint("[TV_PARSER_PERF] Connecting overlay shown. Instantly launching player route.");
+    debugPrint(
+      "[TV_PARSER_PERF] Connecting overlay shown. Instantly launching player route.",
+    );
 
     // TV gate: always play locally on Android TV / Google TV.
     final castService = CastMediaService();
@@ -103,7 +106,11 @@ class _BrandedConnectingOverlayState extends State<BrandedConnectingOverlay> {
     }
   }
 
-  Future<void> _handleCasting(String type, String streamId, String originalExt) async {
+  Future<void> _handleCasting(
+    String type,
+    String streamId,
+    String originalExt,
+  ) async {
     String castUrl = '';
     String title = 'Cast Stream';
     String subtitle = 'TV Parser';
@@ -112,29 +119,48 @@ class _BrandedConnectingOverlayState extends State<BrandedConnectingOverlay> {
     if (type == 'live') {
       streamType = 'LIVE';
       title = 'Live Channel';
-      castUrl = await PlaybackUrlBuilder.buildLiveUrl(streamId, preferCast: true);
+      castUrl = await PlaybackUrlBuilder.buildLiveUrl(
+        streamId,
+        preferCast: true,
+      );
     } else if (type == 'movie') {
       title = 'Movie';
-      castUrl = await PlaybackUrlBuilder.buildMovieUrl(streamId, containerExtension: originalExt);
+      castUrl = await PlaybackUrlBuilder.buildMovieUrl(
+        streamId,
+        containerExtension: originalExt,
+      );
     } else if (type == 'series') {
       title = 'Series Episode';
-      castUrl = await PlaybackUrlBuilder.buildSeriesUrl(streamId, containerExtension: originalExt);
+      castUrl = await PlaybackUrlBuilder.buildSeriesUrl(
+        streamId,
+        containerExtension: originalExt,
+      );
     } else {
       castUrl = widget.streamUrl;
     }
 
-    CastDiagnosticsService.log('Casting stream URL constructed: (sensitive URL details hidden)');
-    
+    CastDiagnosticsService.log(
+      'Casting stream URL constructed: (sensitive URL details hidden)',
+    );
+
     // Check reachability
     bool reachable = await _testStreamReachability(castUrl);
     if (!reachable && type == 'live') {
-      CastDiagnosticsService.log('Preferred Cast URL (.m3u8) failed reachability. Retrying with fallback .ts format...');
-      castUrl = await PlaybackUrlBuilder.buildLiveUrl(streamId, preferCast: true, isFallback: true);
+      CastDiagnosticsService.log(
+        'Preferred Cast URL (.m3u8) failed reachability. Retrying with fallback .ts format...',
+      );
+      castUrl = await PlaybackUrlBuilder.buildLiveUrl(
+        streamId,
+        preferCast: true,
+        isFallback: true,
+      );
       reachable = await _testStreamReachability(castUrl);
     }
 
     if (!reachable) {
-      CastDiagnosticsService.log('Cast stream unreachable on both preferred HLS and fallback formats.');
+      CastDiagnosticsService.log(
+        'Cast stream unreachable on both preferred HLS and fallback formats.',
+      );
       _showCastErrorSnackbar();
       _launchLocalPlayer();
       return;
@@ -163,14 +189,17 @@ class _BrandedConnectingOverlayState extends State<BrandedConnectingOverlay> {
   }
 
   Future<bool> _testStreamReachability(String url) async {
-    final dio = Dio(BaseOptions(
-      connectTimeout: const Duration(seconds: 4),
-      receiveTimeout: const Duration(seconds: 4),
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      },
-    ));
-    
+    final dio = Dio(
+      BaseOptions(
+        connectTimeout: const Duration(seconds: 4),
+        receiveTimeout: const Duration(seconds: 4),
+        headers: {
+          'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+      ),
+    );
+
     try {
       final response = await dio.head(url);
       if (response.statusCode == 200) {

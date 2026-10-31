@@ -84,7 +84,8 @@ class _CastSelectionDialogState extends State<CastSelectionDialog> {
 
   int get _totalButtons {
     int count = _devices.length;
-    if (widget.currentCastDevice != null && widget.currentCastDevice!.isNotEmpty) {
+    if (widget.currentCastDevice != null &&
+        widget.currentCastDevice!.isNotEmpty) {
       count += 1; // Disconnect button
     }
     count += 1; // Close button
@@ -124,7 +125,9 @@ class _CastSelectionDialogState extends State<CastSelectionDialog> {
   }
 
   void _activateFocused() {
-    final hasDisconnect = widget.currentCastDevice != null && widget.currentCastDevice!.isNotEmpty;
+    final hasDisconnect =
+        widget.currentCastDevice != null &&
+        widget.currentCastDevice!.isNotEmpty;
 
     if (_focusedIdx < _devices.length) {
       final device = _devices[_focusedIdx];
@@ -146,12 +149,21 @@ class _CastSelectionDialogState extends State<CastSelectionDialog> {
         context: context,
         builder: (dialogCtx) => AlertDialog(
           backgroundColor: const Color(0xFF131314),
-          title: const Text("Casting Unsupported", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          content: Text(compat.userMessage, style: const TextStyle(color: Colors.white70)),
+          title: const Text(
+            "Casting Unsupported",
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            compat.userMessage,
+            style: const TextStyle(color: Colors.white70),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogCtx).pop(),
-              child: const Text("OK", style: TextStyle(color: Color(0xFFFFC107))),
+              child: const Text(
+                "OK",
+                style: TextStyle(color: Color(0xFFFFC107)),
+              ),
             ),
           ],
         ),
@@ -165,12 +177,21 @@ class _CastSelectionDialogState extends State<CastSelectionDialog> {
         context: context,
         builder: (dialogCtx) => AlertDialog(
           backgroundColor: const Color(0xFF131314),
-          title: const Text("Risky Stream Format", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          content: Text(compat.userMessage, style: const TextStyle(color: Colors.white70)),
+          title: const Text(
+            "Risky Stream Format",
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            compat.userMessage,
+            style: const TextStyle(color: Colors.white70),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogCtx).pop(false),
-              child: const Text("Cancel", style: TextStyle(color: Colors.white60)),
+              child: const Text(
+                "Cancel",
+                style: TextStyle(color: Colors.white60),
+              ),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -212,7 +233,10 @@ class _CastSelectionDialogState extends State<CastSelectionDialog> {
           title: (widget.mediaTitle?.trim().isNotEmpty ?? false)
               ? widget.mediaTitle!.trim()
               : 'TV Parser',
-          streamType: (streamUrl.contains('/movie/') || streamUrl.contains('/series/')) ? 'BUFFERED' : 'LIVE',
+          streamType:
+              (streamUrl.contains('/movie/') || streamUrl.contains('/series/'))
+              ? 'BUFFERED'
+              : 'LIVE',
         );
         if (!playing) {
           widget.controller.play();
@@ -243,12 +267,21 @@ class _CastSelectionDialogState extends State<CastSelectionDialog> {
         context: context,
         builder: (dialogCtx) => AlertDialog(
           backgroundColor: const Color(0xFF131314),
-          title: const Text("Casting Failed", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          content: const Text("Your TV couldn't play this stream. It's still playing on your phone — try another channel or device.", style: TextStyle(color: Colors.white70)),
+          title: const Text(
+            "Casting Failed",
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: const Text(
+            "Your TV couldn't play this stream. It's still playing on your phone — try another channel or device.",
+            style: TextStyle(color: Colors.white70),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogCtx).pop(),
-              child: const Text("OK", style: TextStyle(color: Color(0xFFFFC107))),
+              child: const Text(
+                "OK",
+                style: TextStyle(color: Color(0xFFFFC107)),
+              ),
             ),
           ],
         ),
@@ -281,7 +314,9 @@ class _CastSelectionDialogState extends State<CastSelectionDialog> {
     final streamUrl = widget.controller.dataSource;
     final compat = CastCompatibilityService.checkCompatibility(streamUrl);
 
-    final hasDisconnect = widget.currentCastDevice != null && widget.currentCastDevice!.isNotEmpty;
+    final hasDisconnect =
+        widget.currentCastDevice != null &&
+        widget.currentCastDevice!.isNotEmpty;
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -328,13 +363,18 @@ class _CastSelectionDialogState extends State<CastSelectionDialog> {
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.04),
                       border: Border(
-                        bottom: BorderSide(color: Colors.white.withOpacity(0.07)),
+                        bottom: BorderSide(
+                          color: Colors.white.withOpacity(0.07),
+                        ),
                       ),
                     ),
                     child: Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
@@ -387,7 +427,9 @@ class _CastSelectionDialogState extends State<CastSelectionDialog> {
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.06),
                               borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: Colors.white.withOpacity(0.08)),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.08),
+                              ),
                             ),
                             child: const Icon(
                               Icons.close_rounded,
@@ -413,17 +455,46 @@ class _CastSelectionDialogState extends State<CastSelectionDialog> {
                         children: [
                           Text(
                             "CAST DIAGNOSTICS & TELEMETRY",
-                            style: TextStyle(color: Colors.amber.shade400, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                            style: TextStyle(
+                              color: Colors.amber.shade400,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
                           ),
                           const SizedBox(height: 6),
-                          Text("Classification: ${compat.status.name}", style: const TextStyle(color: Colors.white70, fontSize: 10)),
-                          Text("MIME Content-Type: ${compat.contentType}", style: const TextStyle(color: Colors.white70, fontSize: 10)),
-                          Text("Headers Required: ${compat.requiresHeaders}", style: const TextStyle(color: Colors.white70, fontSize: 10)),
+                          Text(
+                            "Classification: ${compat.status.name}",
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 10,
+                            ),
+                          ),
+                          Text(
+                            "MIME Content-Type: ${compat.contentType}",
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 10,
+                            ),
+                          ),
+                          Text(
+                            "Headers Required: ${compat.requiresHeaders}",
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 10,
+                            ),
+                          ),
                           const Divider(color: Colors.white12),
-                          ...CastDiagnosticsService.history.map((log) => Text(
-                                log,
-                                style: const TextStyle(color: Colors.white54, fontSize: 9, fontFamily: 'monospace'),
-                              )),
+                          ...CastDiagnosticsService.history.map(
+                            (log) => Text(
+                              log,
+                              style: const TextStyle(
+                                color: Colors.white54,
+                                fontSize: 9,
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -435,7 +506,10 @@ class _CastSelectionDialogState extends State<CastSelectionDialog> {
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   child: _isScanning
                       ? Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 36,
+                            horizontal: 16,
+                          ),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -444,7 +518,9 @@ class _CastSelectionDialogState extends State<CastSelectionDialog> {
                                 height: 24,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(kColorPrimary),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    kColorPrimary,
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 16),
@@ -469,94 +545,117 @@ class _CastSelectionDialogState extends State<CastSelectionDialog> {
                           ),
                         )
                       : _devices.isEmpty
-                          ? Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.cast_rounded, size: 28, color: Colors.white.withOpacity(0.2)),
-                                  const SizedBox(height: 12),
-                                  const Text(
-                                    'No devices found',
-                                    style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  const Text(
-                                    'Tap header for diagnostics / connection logs',
-                                    style: TextStyle(color: Colors.white38, fontSize: 10),
-                                  ),
-                                ],
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 36,
+                            horizontal: 16,
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.cast_rounded,
+                                size: 28,
+                                color: Colors.white.withOpacity(0.2),
                               ),
-                            )
-                          : ListView.builder(
-                              shrinkWrap: true,
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                              itemCount: _devices.length,
-                              itemBuilder: (_, i) {
-                                final device = _devices[i];
-                                final isFocused = _focusedIdx == i;
-                                final isCurrent = widget.currentCastDevice == device.name;
+                              const SizedBox(height: 12),
+                              const Text(
+                                'No devices found',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Tap header for diagnostics / connection logs',
+                                style: TextStyle(
+                                  color: Colors.white38,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 4,
+                          ),
+                          itemCount: _devices.length,
+                          itemBuilder: (_, i) {
+                            final device = _devices[i];
+                            final isFocused = _focusedIdx == i;
+                            final isCurrent =
+                                widget.currentCastDevice == device.name;
 
-                                return GestureDetector(
-                                  onTap: () => _selectDevice(device),
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 150),
-                                    margin: const EdgeInsets.symmetric(vertical: 4),
-                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                    decoration: BoxDecoration(
+                            return GestureDetector(
+                              onTap: () => _selectDevice(device),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 150),
+                                margin: const EdgeInsets.symmetric(vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isFocused
+                                      ? kColorPrimary.withOpacity(0.25)
+                                      : isCurrent
+                                      ? Colors.white.withOpacity(0.05)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: isFocused
+                                        ? kColorFocus
+                                        : isCurrent
+                                        ? kColorPrimary.withOpacity(0.4)
+                                        : Colors.white.withOpacity(0.05),
+                                    width: isFocused ? 1.5 : 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.tv_rounded,
+                                      size: 14,
                                       color: isFocused
-                                          ? kColorPrimary.withOpacity(0.25)
+                                          ? Colors.white
                                           : isCurrent
-                                              ? Colors.white.withOpacity(0.05)
-                                              : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: isFocused
-                                            ? kColorFocus
-                                            : isCurrent
-                                                ? kColorPrimary.withOpacity(0.4)
-                                                : Colors.white.withOpacity(0.05),
-                                        width: isFocused ? 1.5 : 1,
-                                      ),
+                                          ? kColorPrimary
+                                          : Colors.white54,
                                     ),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.tv_rounded,
-                                          size: 14,
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        device.name,
+                                        style: TextStyle(
                                           color: isFocused
                                               ? Colors.white
-                                              : isCurrent
-                                                  ? kColorPrimary
-                                                  : Colors.white54,
+                                              : Colors.white70,
+                                          fontSize: 13,
+                                          fontWeight: isFocused || isCurrent
+                                              ? FontWeight.w600
+                                              : FontWeight.normal,
                                         ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Text(
-                                            device.name,
-                                            style: TextStyle(
-                                              color: isFocused ? Colors.white : Colors.white70,
-                                              fontSize: 13,
-                                              fontWeight: isFocused || isCurrent
-                                                  ? FontWeight.w600
-                                                  : FontWeight.normal,
-                                            ),
-                                          ),
-                                        ),
-                                        if (isCurrent) ...[
-                                          const SizedBox(width: 8),
-                                          const Icon(
-                                            Icons.check_circle_outline_rounded,
-                                            size: 14,
-                                            color: kColorPrimary,
-                                          ),
-                                        ],
-                                      ],
+                                      ),
                                     ),
-                                  ),
-                                );
-                              },
-                            ),
+                                    if (isCurrent) ...[
+                                      const SizedBox(width: 8),
+                                      const Icon(
+                                        Icons.check_circle_outline_rounded,
+                                        size: 14,
+                                        color: kColorPrimary,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                 ),
 
                 // ── Footer buttons ───────────────────────────────────
@@ -584,7 +683,11 @@ class _CastSelectionDialogState extends State<CastSelectionDialog> {
                       _CastDialogActionBtn(
                         icon: Icons.close_rounded,
                         label: 'Close',
-                        isFocused: _focusedIdx == (hasDisconnect ? _devices.length + 1 : _devices.length),
+                        isFocused:
+                            _focusedIdx ==
+                            (hasDisconnect
+                                ? _devices.length + 1
+                                : _devices.length),
                         isPrimary: true,
                         onTap: Get.back,
                       ),
@@ -641,11 +744,7 @@ class _CastDialogActionBtn extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 11,
-              color: isFocused ? Colors.white : color,
-            ),
+            Icon(icon, size: 11, color: isFocused ? Colors.white : color),
             const SizedBox(width: 6),
             Text(
               label,

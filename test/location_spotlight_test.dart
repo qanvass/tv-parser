@@ -34,9 +34,11 @@ void main() {
   });
 
   tearDownAll(() async {
-    if (storageDirectory.existsSync()) {
-      storageDirectory.deleteSync(recursive: true);
-    }
+    // GetStorage can still hold its file open on Windows; temp
+    // cleanup is best-effort and must not fail the suite.
+    try {
+      if (storageDirectory.existsSync()) storageDirectory.deleteSync(recursive: true);
+    } on FileSystemException catch (_) {}
   });
 
   tearDown(() async {

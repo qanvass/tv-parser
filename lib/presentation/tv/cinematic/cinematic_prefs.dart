@@ -1,10 +1,6 @@
 import 'package:get_storage/get_storage.dart';
 
-enum HeroPreviewMode {
-  off,
-  muted,
-  sound,
-}
+enum HeroPreviewMode { off, muted, sound }
 
 /// Browse-hero preview. Default is muted. Never requires sound.
 class CinematicPrefs {

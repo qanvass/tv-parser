@@ -77,15 +77,18 @@ class _CastDeviceSheetState extends State<_CastDeviceSheet> {
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Connected to ${device.name}. '
-              'Pick a channel or movie to play it on the TV.'),
+          content: Text(
+            'Connected to ${device.name}. '
+            'Pick a channel or movie to play it on the TV.',
+          ),
           duration: const Duration(seconds: 4),
         ),
       );
     } else {
       setState(() {
         _connecting = null;
-        _error = 'Couldn\'t connect to ${device.name}. Make sure the TV is '
+        _error =
+            'Couldn\'t connect to ${device.name}. Make sure the TV is '
             'on and on the same Wi-Fi, then try again.';
       });
     }
@@ -123,7 +126,10 @@ class _CastDeviceSheetState extends State<_CastDeviceSheet> {
                 IconButton(
                   tooltip: 'Scan again',
                   onPressed: _scanning || _connecting != null ? null : _scan,
-                  icon: const Icon(Icons.refresh_rounded, color: Colors.white70),
+                  icon: const Icon(
+                    Icons.refresh_rounded,
+                    color: Colors.white70,
+                  ),
                 ),
               ],
             ),
@@ -131,9 +137,14 @@ class _CastDeviceSheetState extends State<_CastDeviceSheet> {
               const SizedBox(height: 6),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.cast_connected_rounded, color: Colors.amber),
-                title: Text('Casting to $current',
-                    style: const TextStyle(color: Colors.white)),
+                leading: const Icon(
+                  Icons.cast_connected_rounded,
+                  color: Colors.amber,
+                ),
+                title: Text(
+                  'Casting to $current',
+                  style: const TextStyle(color: Colors.white),
+                ),
                 trailing: TextButton(
                   onPressed: _stop,
                   child: const Text('Stop casting'),
@@ -153,8 +164,10 @@ class _CastDeviceSheetState extends State<_CastDeviceSheet> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                     SizedBox(width: 12),
-                    Text('Looking for TVs on your Wi-Fi…',
-                        style: TextStyle(color: Colors.white70)),
+                    Text(
+                      'Looking for TVs on your Wi-Fi…',
+                      style: TextStyle(color: Colors.white70),
+                    ),
                   ],
                 ),
               )
@@ -172,7 +185,10 @@ class _CastDeviceSheetState extends State<_CastDeviceSheet> {
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.tv_rounded, color: Colors.white),
-                  title: Text(d.name, style: const TextStyle(color: Colors.white)),
+                  title: Text(
+                    d.name,
+                    style: const TextStyle(color: Colors.white),
+                  ),
                   trailing: _connecting == d.name
                       ? const SizedBox(
                           width: 18,
@@ -180,8 +196,11 @@ class _CastDeviceSheetState extends State<_CastDeviceSheet> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : (current == d.name
-                          ? const Icon(Icons.check_rounded, color: Colors.amber)
-                          : null),
+                            ? const Icon(
+                                Icons.check_rounded,
+                                color: Colors.amber,
+                              )
+                            : null),
                   onTap: _connecting != null || current == d.name
                       ? null
                       : () => _connect(d),

@@ -85,8 +85,9 @@ class _CinematicPosterCardState extends State<CinematicPosterCard> {
                     child: InkWell(
                       canRequestFocus: false,
                       onTap: widget.onSelected,
-                      borderRadius:
-                          BorderRadius.circular(CinematicTokens.radiusPoster),
+                      borderRadius: BorderRadius.circular(
+                        CinematicTokens.radiusPoster,
+                      ),
                       child: AnimatedContainer(
                         duration: CinematicMotion.focus,
                         curve: CinematicMotion.standard,
@@ -123,8 +124,9 @@ class _CinematicPosterCardState extends State<CinematicPosterCard> {
                           builder: (context, _) {
                             final extra = enrichmentKey == null
                                 ? null
-                                : TmdbEnrichmentWorker.instance
-                                    .lookup(enrichmentKey);
+                                : TmdbEnrichmentWorker.instance.lookup(
+                                    enrichmentKey,
+                                  );
                             final art = CinematicArtwork.fromRecord(
                               widget.stream,
                               extra: extra,
@@ -138,8 +140,10 @@ class _CinematicPosterCardState extends State<CinematicPosterCard> {
                                 _PosterArt(
                                   url: art.poster,
                                   title: widget.stream.title,
-                                  hasProvider: ArtworkUrlResolver
-                                      .isUsableImageUrl(widget.stream.imageUrl),
+                                  hasProvider:
+                                      ArtworkUrlResolver.isUsableImageUrl(
+                                        widget.stream.imageUrl,
+                                      ),
                                   hasResolved: art.hasPoster,
                                   hasBackdrop: art.hasBackdrop,
                                 ),
@@ -155,8 +159,10 @@ class _CinematicPosterCardState extends State<CinematicPosterCard> {
                                     right: 0,
                                     bottom: 0,
                                     child: LinearProgressIndicator(
-                                      value: widget.stream.watchProgress!
-                                          .clamp(0.0, 1.0),
+                                      value: widget.stream.watchProgress!.clamp(
+                                        0.0,
+                                        1.0,
+                                      ),
                                       minHeight: 3,
                                       backgroundColor: Colors.black45,
                                       color: CinematicTokens.accent,

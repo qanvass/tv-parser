@@ -32,11 +32,7 @@ abstract final class LiveHeroPreviewPolicy {
 
 /// Test seam so debounce / same-URL / cancel can run without a native player.
 class LiveHeroPreviewHooks {
-  const LiveHeroPreviewHooks({
-    this.open,
-    this.replace,
-    this.release,
-  });
+  const LiveHeroPreviewHooks({this.open, this.replace, this.release});
 
   final Future<void> Function(String url, String title)? open;
   final Future<void> Function(String url, String title)? replace;
@@ -45,9 +41,8 @@ class LiveHeroPreviewHooks {
 
 /// Exactly one muted Live hero preview. Never used by Movies / TMDB.
 class LiveHeroPreviewController extends ChangeNotifier {
-  LiveHeroPreviewController({
-    @visibleForTesting LiveHeroPreviewHooks? hooks,
-  }) : _hooks = hooks;
+  LiveHeroPreviewController({@visibleForTesting LiveHeroPreviewHooks? hooks})
+    : _hooks = hooks;
 
   final LiveHeroPreviewHooks? _hooks;
 
@@ -102,8 +97,8 @@ class LiveHeroPreviewController extends ChangeNotifier {
     LivePreviewTrace.log(
       'focused_record_selected',
       'channel=$title hasStreamUrl=true hash=${LivePreviewTrace.urlHash(url)} '
-      'sameUrl=$sameUrl skip=$skip immediate=$immediate gen=$_gen '
-      'phase=${_phase.name} looksHttp=${url.startsWith('http')} len=${url.length}',
+          'sameUrl=$sameUrl skip=$skip immediate=$immediate gen=$_gen '
+          'phase=${_phase.name} looksHttp=${url.startsWith('http')} len=${url.length}',
     );
 
     if (skip) {
@@ -131,7 +126,7 @@ class LiveHeroPreviewController extends ChangeNotifier {
       LivePreviewTrace.log(
         'debounce_fires',
         'gen=${_gen + 1} sameUrl=${url == _activeUrl} '
-        'hash=${LivePreviewTrace.urlHash(url)}',
+            'hash=${LivePreviewTrace.urlHash(url)}',
       );
       unawaited(_commitPending());
     });
@@ -150,7 +145,7 @@ class LiveHeroPreviewController extends ChangeNotifier {
     LivePreviewTrace.log(
       'stopAndRelease',
       'reason=$reason channel=${_activeTitle ?? ''} '
-      'hash=${LivePreviewTrace.urlHash(_activeUrl)} gen=$_gen phase=${_phase.name}',
+          'hash=${LivePreviewTrace.urlHash(_activeUrl)} gen=$_gen phase=${_phase.name}',
     );
     _debounce?.cancel();
     _firstFrameTimer?.cancel();
@@ -164,11 +159,7 @@ class LiveHeroPreviewController extends ChangeNotifier {
     _activeTitle = null;
     _hasFirstFrame = false;
     _phase = LiveHeroPreviewPhase.idle;
-    _log(
-      channel: reason,
-      sameUrl: false,
-      state: LiveHeroPreviewPhase.idle,
-    );
+    _log(channel: reason, sameUrl: false, state: LiveHeroPreviewPhase.idle);
     _notify();
   }
 
@@ -302,7 +293,7 @@ class LiveHeroPreviewController extends ChangeNotifier {
     LivePreviewTrace.log(
       'controller_created',
       'gen=$gen hash=${LivePreviewTrace.urlHash(url)} '
-      'autoPlay=false initialized=${created.value.isInitialized}',
+          'autoPlay=false initialized=${created.value.isInitialized}',
     );
     LivePreviewTrace.log(
       'initialize_open_begins',
@@ -315,10 +306,10 @@ class LiveHeroPreviewController extends ChangeNotifier {
       LivePreviewTrace.log(
         'initialize_open_check',
         'gen=$gen initialized=${p?.value.isInitialized == true} '
-        'hasError=${p?.value.hasError == true} '
-        'state=${p?.value.playingState.name ?? 'none'} '
-        'size=${p?.value.size.width.toInt() ?? 0}x${p?.value.size.height.toInt() ?? 0} '
-        'mutedPlayScheduled=$_mutedPlayScheduled',
+            'hasError=${p?.value.hasError == true} '
+            'state=${p?.value.playingState.name ?? 'none'} '
+            'size=${p?.value.size.width.toInt() ?? 0}x${p?.value.size.height.toInt() ?? 0} '
+            'mutedPlayScheduled=$_mutedPlayScheduled',
       );
       // Safety: if onInit was missed, still mute-then-play (never autoPlay).
       if (p?.value.isInitialized == true && !_mutedPlayScheduled) {
@@ -332,7 +323,7 @@ class LiveHeroPreviewController extends ChangeNotifier {
     LivePreviewTrace.log(
       'initialize_open_completes',
       'mode=fresh gen=$_gen initialized=${_player?.value.isInitialized == true} '
-      'size=${_player?.value.size.width.toInt() ?? 0}x${_player?.value.size.height.toInt() ?? 0}',
+          'size=${_player?.value.size.width.toInt() ?? 0}x${_player?.value.size.height.toInt() ?? 0}',
     );
     unawaited(_startMutedPlay(reason: 'onInit'));
   }
@@ -365,7 +356,7 @@ class LiveHeroPreviewController extends ChangeNotifier {
       LivePreviewTrace.log(
         'volume_forced_to_0',
         'initialized=true gen=$gen hash=${LivePreviewTrace.urlHash(_activeUrl)} '
-        'before_play=true',
+            'before_play=true',
       );
     } catch (e) {
       LivePreviewTrace.log(
@@ -387,14 +378,20 @@ class LiveHeroPreviewController extends ChangeNotifier {
       // Do not await play() on Chromecast — a blocked native play() wedges
       // the UI isolate and freezes the Welcome "Hold please" card.
       unawaited(
-        p.play().then((_) {
-          LivePreviewTrace.log(
-            'play_future_done',
-            'gen=$gen reason=$reason',
-          );
-        }).catchError((Object e) {
-          LivePreviewTrace.log('play_error', 'mode=fresh type=${e.runtimeType}');
-        }),
+        p
+            .play()
+            .then((_) {
+              LivePreviewTrace.log(
+                'play_future_done',
+                'gen=$gen reason=$reason',
+              );
+            })
+            .catchError((Object e) {
+              LivePreviewTrace.log(
+                'play_error',
+                'mode=fresh type=${e.runtimeType}',
+              );
+            }),
       );
     } catch (e) {
       LivePreviewTrace.log('play_error', 'mode=fresh type=${e.runtimeType}');
@@ -429,8 +426,8 @@ class LiveHeroPreviewController extends ChangeNotifier {
       LivePreviewTrace.log(
         'vlc_state',
         'state=${v.playingState.name} initialized=${v.isInitialized} '
-        'playing=${v.isPlaying} buffering=${v.isBuffering} '
-        'hasError=${v.hasError} size=${v.size.width.toInt()}x${v.size.height.toInt()}',
+            'playing=${v.isPlaying} buffering=${v.isBuffering} '
+            'hasError=${v.hasError} size=${v.size.width.toInt()}x${v.size.height.toInt()}',
       );
     }
     if (v.size != _lastSize && (v.size.width > 0 || v.size.height > 0)) {
@@ -452,21 +449,16 @@ class LiveHeroPreviewController extends ChangeNotifier {
       LivePreviewTrace.log(
         'stopAndRelease',
         'reason=error channel=${_activeTitle ?? ''} '
-        'hash=${LivePreviewTrace.urlHash(_activeUrl)} gen=$_gen',
+            'hash=${LivePreviewTrace.urlHash(_activeUrl)} gen=$_gen',
       );
-      _log(
-        channel: _activeTitle ?? '',
-        sameUrl: true,
-        state: _phase,
-      );
+      _log(channel: _activeTitle ?? '', sameUrl: true, state: _phase);
       unawaited(_safeStop(p));
       _notify();
       return;
     }
 
-    final gotFrame = v.isInitialized &&
-        (v.isPlaying || v.size.width > 0) &&
-        !v.hasError;
+    final gotFrame =
+        v.isInitialized && (v.isPlaying || v.size.width > 0) && !v.hasError;
     // Never re-enter setVolume from the VLC listener — it can StackOverflow
     // when setVolume synchronously notifies value listeners on Chromecast.
 
@@ -477,16 +469,12 @@ class LiveHeroPreviewController extends ChangeNotifier {
       LivePreviewTrace.log(
         'first_video_frame',
         'size=${v.size.width.toInt()}x${v.size.height.toInt()} '
-        'playing=${v.isPlaying}',
+            'playing=${v.isPlaying}',
       );
       if (!_muteAsserted) {
         unawaited(_forceMuted());
       }
-      _log(
-        channel: _activeTitle ?? '',
-        sameUrl: true,
-        state: _phase,
-      );
+      _log(channel: _activeTitle ?? '', sameUrl: true, state: _phase);
       _notify();
     }
   }
@@ -499,14 +487,10 @@ class LiveHeroPreviewController extends ChangeNotifier {
       LivePreviewTrace.log(
         'first_frame_timeout',
         'gen=$gen hash=${LivePreviewTrace.urlHash(_activeUrl)} '
-        'initialized=${_player?.value.isInitialized == true} '
-        'size=${_player?.value.size.width.toInt() ?? 0}x${_player?.value.size.height.toInt() ?? 0}',
+            'initialized=${_player?.value.isInitialized == true} '
+            'size=${_player?.value.size.width.toInt() ?? 0}x${_player?.value.size.height.toInt() ?? 0}',
       );
-      _log(
-        channel: _activeTitle ?? '',
-        sameUrl: true,
-        state: _phase,
-      );
+      _log(channel: _activeTitle ?? '', sameUrl: true, state: _phase);
       unawaited(_safeStop(_player));
       _notify();
     });
@@ -541,11 +525,7 @@ class LiveHeroPreviewController extends ChangeNotifier {
     }
     _muted = true;
     if (log) {
-      _log(
-        channel: _activeTitle ?? '',
-        sameUrl: true,
-        state: _phase,
-      );
+      _log(channel: _activeTitle ?? '', sameUrl: true, state: _phase);
     }
   }
 
@@ -623,13 +603,9 @@ class LiveHeroPreviewController extends ChangeNotifier {
     LivePreviewTrace.log(
       'stopAndRelease',
       'reason=dispose channel=${_activeTitle ?? ''} '
-      'hash=${LivePreviewTrace.urlHash(_activeUrl)}',
+          'hash=${LivePreviewTrace.urlHash(_activeUrl)}',
     );
-    _log(
-      channel: _activeTitle ?? '',
-      sameUrl: false,
-      state: _phase,
-    );
+    _log(channel: _activeTitle ?? '', sameUrl: false, state: _phase);
     unawaited(_tearDownPlayer());
     super.dispose();
   }

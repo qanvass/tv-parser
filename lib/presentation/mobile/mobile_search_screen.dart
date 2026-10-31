@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get/get.dart';
 
-import '../../logic/blocs/auth/auth_bloc.dart';
 import '../../logic/cubits/favorites/favorites_cubit.dart';
 import '../../repository/api/api.dart';
 import '../../repository/api/search_index_service.dart';
@@ -12,6 +11,7 @@ import '../../repository/api/user_behavior_service.dart';
 import '../../repository/models/channel_live.dart';
 import '../../repository/models/channel_movie.dart';
 import '../../repository/models/channel_serie.dart';
+import '../../repository/provider/series_collapse.dart';
 import '../../repository/models/ranked_item.dart';
 import '../screens/screens.dart';
 import 'widgets/horizontal_poster_rows.dart';
@@ -181,7 +181,7 @@ class _MobileSearchScreenState extends State<MobileSearchScreen> {
       _topResults = topMatches;
       _filteredLiveResults = liveResults;
       _filteredMovieResults = movieResults;
-      _filteredSeriesResults = seriesResults;
+      _filteredSeriesResults = SeriesCollapse.collapseByShow(seriesResults);
       _hasSearched = true;
       _activeQuery = query;
     });
@@ -358,8 +358,6 @@ class _MobileSearchScreenState extends State<MobileSearchScreen> {
                                         aspect: PosterAspect.landscape,
                                         isLive: isLive,
                                         isFavorite: isFav,
-                                        ratingBadge:
-                                            "Score: ${rItem.score.toInt()}",
                                         onLongPress: () {
                                           if (isLive) {
                                             context
@@ -731,19 +729,26 @@ class _MobileSearchScreenState extends State<MobileSearchScreen> {
     );
   }
 
-  void _onMoviePlayTap(ChannelMovie movie) {
-    final authState = context.read<AuthBloc>().state;
-    if (authState is AuthSuccess) {
-      final user = authState.user;
-      final streamUrl =
-          "${user.serverInfo?.serverUrl}/movie/${user.userInfo?.username}/${user.userInfo?.password}/${movie.streamId}.${movie.containerExtension ?? 'mp4'}";
-      StreamLauncher.openStreamWithBrandedLoading(
-        context: context,
-        streamUrl: streamUrl,
-        playerBuilder: () =>
-            MoviePlayerScreen(link: streamUrl, title: movie.name ?? 'Stream'),
-      );
-    }
+  Future<void> _onMoviePlayTap(ChannelMovie movie) async {
+    final direct = movie.directSource?.trim() ?? '';
+    final streamUrl = direct.startsWith('http')
+        ? direct
+        : await PlaybackUrlBuilder.buildMovieUrl(
+            movie.streamId ?? '',
+            containerExtension: movie.containerExtension,
+          );
+    if (streamUrl.isEmpty || !mounted) return;
+    StreamLauncher.openStreamWithBrandedLoading(
+      context: context,
+      streamUrl: streamUrl,
+      playerBuilder: () => MoviePlayerScreen(
+        link: streamUrl,
+        title: movie.name ?? 'Stream',
+        streamId: movie.streamId,
+        image: movie.streamIcon,
+        recordHistory: true,
+      ),
+    );
   }
 
   void _showMovieDetailSheet(ChannelMovie movie) {

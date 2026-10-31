@@ -117,7 +117,11 @@ class TvStatsStrip extends StatelessWidget {
       if (movies > 0) (Icons.local_movies_rounded, _fmt(movies), 'Movies'),
       if (series > 0) (Icons.tv_rounded, _fmt(series), 'Series'),
       if (playlistEntries > 0)
-        (Icons.playlist_play_rounded, _fmt(playlistEntries), 'Playlist entries'),
+        (
+          Icons.playlist_play_rounded,
+          _fmt(playlistEntries),
+          'Playlist entries',
+        ),
     ];
     if (items.isEmpty) return const SizedBox.shrink();
     return SizedBox(

@@ -50,40 +50,46 @@ class TvHomeRows extends StatelessWidget {
         BlocBuilder<FavoritesCubit, FavoritesState>(
           builder: (context, favState) {
             final favs = <TvStreamRecord>[
-              ...favState.lives.take(10).map(
-                (ch) => TvStreamRecord(
-                  title: ch.name ?? 'Live',
-                  subtitle: 'Live',
-                  streamUrl: ch.directSource?.isNotEmpty == true
-                      ? ch.directSource!
-                      : (ch.streamId ?? ''),
-                  imageUrl: ch.streamIcon,
-                  isHd: (ch.name ?? '').toUpperCase().contains('HD'),
-                  streamId: ch.streamId,
-                  tvgId: ch.epgChannelId?.toString(),
-                ),
-              ),
-              ...favState.movies.take(8).map(
-                (m) => TvStreamRecord(
-                  title: m.name ?? 'Movie',
-                  subtitle: 'Movie',
-                  streamUrl: m.directSource?.isNotEmpty == true
-                      ? m.directSource!
-                      : (m.streamId ?? ''),
-                  imageUrl: m.streamIcon,
-                  streamId: m.streamId,
-                  imdbId: m.imdbId,
-                  tvgId: m.imdbId,
-                ),
-              ),
-              ...favState.series.take(8).map(
-                (s) => TvStreamRecord(
-                  title: s.name ?? 'Series',
-                  subtitle: 'Series',
-                  streamUrl: s.seriesId ?? '',
-                  imageUrl: s.cover,
-                ),
-              ),
+              ...favState.lives
+                  .take(10)
+                  .map(
+                    (ch) => TvStreamRecord(
+                      title: ch.name ?? 'Live',
+                      subtitle: 'Live',
+                      streamUrl: ch.directSource?.isNotEmpty == true
+                          ? ch.directSource!
+                          : (ch.streamId ?? ''),
+                      imageUrl: ch.streamIcon,
+                      isHd: (ch.name ?? '').toUpperCase().contains('HD'),
+                      streamId: ch.streamId,
+                      tvgId: ch.epgChannelId?.toString(),
+                    ),
+                  ),
+              ...favState.movies
+                  .take(8)
+                  .map(
+                    (m) => TvStreamRecord(
+                      title: m.name ?? 'Movie',
+                      subtitle: 'Movie',
+                      streamUrl: m.directSource?.isNotEmpty == true
+                          ? m.directSource!
+                          : (m.streamId ?? ''),
+                      imageUrl: m.streamIcon,
+                      streamId: m.streamId,
+                      imdbId: m.imdbId,
+                      tvgId: m.imdbId,
+                    ),
+                  ),
+              ...favState.series
+                  .take(8)
+                  .map(
+                    (s) => TvStreamRecord(
+                      title: s.name ?? 'Series',
+                      subtitle: 'Series',
+                      streamUrl: s.seriesId ?? '',
+                      imageUrl: s.cover,
+                    ),
+                  ),
             ];
             if (favs.isEmpty) {
               return const SizedBox.shrink();
@@ -101,8 +107,10 @@ class TvHomeRows extends StatelessWidget {
         ),
         BlocBuilder<WatchingCubit, WatchingState>(
           builder: (context, watchState) {
-            final recentLive =
-                watchState.live.take(12).map(_watchingToRecord).toList();
+            final recentLive = watchState.live
+                .take(12)
+                .map(_watchingToRecord)
+                .toList();
             if (recentLive.isEmpty) {
               return const SizedBox.shrink();
             }
@@ -151,9 +159,7 @@ class _HomeRail extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TvRailSectionHeader(
-            title: title,
-          ),
+          TvRailSectionHeader(title: title),
           const SizedBox(height: 10),
           Expanded(
             child: ListView.builder(

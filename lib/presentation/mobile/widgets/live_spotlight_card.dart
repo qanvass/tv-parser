@@ -46,13 +46,12 @@ class LiveSpotlightCard extends StatelessWidget {
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF231A3A),
-              Color(0xFF13101E),
-              Color(0xFF0C0A12),
-            ],
+            colors: [Color(0xFF231A3A), Color(0xFF13101E), Color(0xFF0C0A12)],
           ),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 1.5),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 1.5,
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.4),
@@ -75,7 +74,10 @@ class LiveSpotlightCard extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 12.0,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -84,7 +86,10 @@ class LiveSpotlightCard extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.amber.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(8),
@@ -103,7 +108,10 @@ class LiveSpotlightCard extends StatelessWidget {
                         children: event.networks.map((net) {
                           return Container(
                             margin: const EdgeInsets.only(left: 6),
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 3,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.06),
                               borderRadius: BorderRadius.circular(4),
@@ -122,7 +130,7 @@ class LiveSpotlightCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 8),
-  
+
                   // Event Title
                   Text(
                     event.title,
@@ -136,26 +144,35 @@ class LiveSpotlightCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-  
+
                   // Start Time indicator
                   Row(
                     children: [
-                      const Icon(Icons.access_time_rounded, size: 12, color: Colors.white38),
+                      const Icon(
+                        Icons.access_time_rounded,
+                        size: 12,
+                        color: Colors.white38,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         formattedTime,
-                        style: const TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          color: Colors.white38,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ],
                   ),
                   const Divider(color: Colors.white12, height: 12),
-  
+
                   // Matching playlist result indicator
                   if (bestCh != null) ...[
                     Row(
                       children: [
                         // Approximate channel logo
-                        if (bestCh.streamIcon != null && bestCh.streamIcon!.isNotEmpty)
+                        if (bestCh.streamIcon != null &&
+                            bestCh.streamIcon!.isNotEmpty)
                           ClipRRect(
                             borderRadius: BorderRadius.circular(6),
                             child: CachedNetworkImage(
@@ -163,12 +180,24 @@ class LiveSpotlightCard extends StatelessWidget {
                               width: 24,
                               height: 24,
                               fit: BoxFit.cover,
-                              placeholder: (_, __) => const Icon(Icons.live_tv_rounded, size: 14, color: Colors.white24),
-                              errorWidget: (_, __, ___) => const Icon(Icons.live_tv_rounded, size: 14, color: Colors.white24),
+                              placeholder: (_, __) => const Icon(
+                                Icons.live_tv_rounded,
+                                size: 14,
+                                color: Colors.white24,
+                              ),
+                              errorWidget: (_, __, ___) => const Icon(
+                                Icons.live_tv_rounded,
+                                size: 14,
+                                color: Colors.white24,
+                              ),
                             ),
                           )
                         else
-                          const Icon(Icons.live_tv_rounded, size: 20, color: Colors.white70),
+                          const Icon(
+                            Icons.live_tv_rounded,
+                            size: 20,
+                            color: Colors.white70,
+                          ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Column(
@@ -178,11 +207,19 @@ class LiveSpotlightCard extends StatelessWidget {
                                 bestCh.name ?? 'Live Channel',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                               Text(
                                 "Playlist Match • $confidencePct% Confidence",
-                                style: TextStyle(color: Colors.white.withValues(alpha: 0.35), fontSize: 9, fontWeight: FontWeight.bold),
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.35),
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ],
                           ),
@@ -190,7 +227,7 @@ class LiveSpotlightCard extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 8),
-  
+
                     // Actions row
                     Row(
                       children: [
@@ -202,30 +239,47 @@ class LiveSpotlightCard extends StatelessWidget {
                               foregroundColor: Colors.black,
                               elevation: 0,
                               padding: const EdgeInsets.symmetric(vertical: 10),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
                             ),
                             onPressed: () => onPlayChannel(bestCh),
-                            icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                            icon: const Icon(
+                              Icons.play_arrow_rounded,
+                              size: 18,
+                            ),
                             label: const Text(
                               "Watch Now",
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w900,
+                              ),
                             ),
                           ),
                         ),
-  
+
                         // Alternatives dropdown selector if available
                         if (altChs.isNotEmpty) ...[
                           const SizedBox(width: 8),
                           IconButton(
                             style: IconButton.styleFrom(
-                              backgroundColor: Colors.white.withValues(alpha: 0.06),
+                              backgroundColor: Colors.white.withValues(
+                                alpha: 0.06,
+                              ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
-                                side: BorderSide(color: Colors.white.withValues(alpha: 0.04)),
+                                side: BorderSide(
+                                  color: Colors.white.withValues(alpha: 0.04),
+                                ),
                               ),
                             ),
-                            icon: const Icon(Icons.format_list_bulleted_rounded, color: Colors.white70, size: 18),
-                            onPressed: () => _showAlternativeChannelsSheet(context),
+                            icon: const Icon(
+                              Icons.format_list_bulleted_rounded,
+                              color: Colors.white70,
+                              size: 18,
+                            ),
+                            onPressed: () =>
+                                _showAlternativeChannelsSheet(context),
                           ),
                         ],
                       ],
@@ -234,12 +288,20 @@ class LiveSpotlightCard extends StatelessWidget {
                     // Not matching message
                     Row(
                       children: [
-                        const Icon(Icons.info_outline_rounded, size: 16, color: Colors.white38),
+                        const Icon(
+                          Icons.info_outline_rounded,
+                          size: 16,
+                          color: Colors.white38,
+                        ),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
                             "Channel currently not in playlist",
-                            style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 11, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.3),
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ],
@@ -273,7 +335,11 @@ class LiveSpotlightCard extends StatelessWidget {
               children: [
                 const Text(
                   "Alternative Broadcasters",
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 14),
                 ConstrainedBox(
@@ -284,7 +350,11 @@ class LiveSpotlightCard extends StatelessWidget {
                     itemBuilder: (context, index) {
                       final netName = event.networks[index];
                       final matchedList = allLiveChannels
-                          .where((ch) => (ch.name ?? '').toLowerCase().contains(netName.toLowerCase()))
+                          .where(
+                            (ch) => (ch.name ?? '').toLowerCase().contains(
+                              netName.toLowerCase(),
+                            ),
+                          )
                           .toList();
 
                       if (matchedList.isEmpty) return const SizedBox();
@@ -296,7 +366,11 @@ class LiveSpotlightCard extends StatelessWidget {
                             padding: const EdgeInsets.only(top: 8, bottom: 4),
                             child: Text(
                               "Matches for $netName",
-                              style: const TextStyle(color: Colors.amber, fontSize: 11, fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                color: Colors.amber,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                           ...matchedList.take(3).map((ch) {
@@ -304,22 +378,40 @@ class LiveSpotlightCard extends StatelessWidget {
                               contentPadding: EdgeInsets.zero,
                               leading: ClipRRect(
                                 borderRadius: BorderRadius.circular(6),
-                                child: ch.streamIcon != null && ch.streamIcon!.isNotEmpty
+                                child:
+                                    ch.streamIcon != null &&
+                                        ch.streamIcon!.isNotEmpty
                                     ? CachedNetworkImage(
                                         imageUrl: ch.streamIcon!,
                                         width: 32,
                                         height: 32,
                                         fit: BoxFit.cover,
-                                        placeholder: (_, __) => const Icon(Icons.live_tv_rounded, color: Colors.white24),
-                                        errorWidget: (_, __, ___) => const Icon(Icons.live_tv_rounded, color: Colors.white24),
+                                        placeholder: (_, __) => const Icon(
+                                          Icons.live_tv_rounded,
+                                          color: Colors.white24,
+                                        ),
+                                        errorWidget: (_, __, ___) => const Icon(
+                                          Icons.live_tv_rounded,
+                                          color: Colors.white24,
+                                        ),
                                       )
-                                    : const Icon(Icons.live_tv_rounded, color: Colors.white30),
+                                    : const Icon(
+                                        Icons.live_tv_rounded,
+                                        color: Colors.white30,
+                                      ),
                               ),
                               title: Text(
                                 ch.name ?? 'Broadcaster Feed',
-                                style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                              trailing: const Icon(Icons.play_circle_outline_rounded, color: Colors.white30),
+                              trailing: const Icon(
+                                Icons.play_circle_outline_rounded,
+                                color: Colors.white30,
+                              ),
                               onTap: () {
                                 Navigator.pop(context);
                                 onPlayChannel(ch);

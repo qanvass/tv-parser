@@ -3,7 +3,7 @@ description: A new Flutter project.
 
 publish_to: "none" # Remove this line if you wish to publish to pub.dev
 
-version: 2.0.3+3023
+version: 2.0.3+3029
 
 environment:
   sdk: ">=3.10.3 <4.0.0"
@@ -45,9 +45,9 @@ dependencies:
   pod_player: ^0.2.2
   video_player: ^2.10.1
 
-  # Native TV text input â€” fixes Flutter engine bug on Chromecast where
+  # Native TV text input ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â fixes Flutter engine bug on Chromecast where
   # arrow keys are intercepted before reaching the IME.
-  # Vendored locally so the compileSdk fix (33â†’35) is permanent.
+  # Vendored locally so the compileSdk fix (33ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢35) is permanent.
   android_tv_text_field:
     path: packages/android_tv_text_field
 

@@ -154,7 +154,10 @@ class PosterCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: const Color(0xFF161618),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withOpacity(0.04), width: 1),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.04),
+                  width: 1,
+                ),
               ),
               clipBehavior: Clip.antiAlias,
               child: Stack(
@@ -184,7 +187,10 @@ class PosterCard extends StatelessWidget {
                       top: 6,
                       left: 6,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.black.withOpacity(0.75),
                           borderRadius: BorderRadius.circular(4),
@@ -206,7 +212,10 @@ class PosterCard extends StatelessWidget {
                       top: 6,
                       left: 6,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.red.shade900,
                           borderRadius: BorderRadius.circular(4),
@@ -290,13 +299,13 @@ class PosterCard extends StatelessWidget {
   }
 
   Widget _networkArt(String url, bool isVertical) => CachedNetworkImage(
-        imageUrl: url,
-        fit: BoxFit.cover,
-        memCacheWidth: isVertical ? 220 : 340,
-        fadeInDuration: const Duration(milliseconds: 250),
-        placeholder: (context, url) => const PosterSkeletonCard(),
-        errorWidget: (context, url, error) => _buildFallbackArtwork(isVertical),
-      );
+    imageUrl: url,
+    fit: BoxFit.cover,
+    memCacheWidth: isVertical ? 220 : 340,
+    fadeInDuration: const Duration(milliseconds: 250),
+    placeholder: (context, url) => const PosterSkeletonCard(),
+    errorWidget: (context, url, error) => _buildFallbackArtwork(isVertical),
+  );
 
   static const List<List<Color>> _fallbackPalettes = [
     [Color(0xFF3A1C71), Color(0xFF16102A)],
@@ -365,7 +374,10 @@ class PosterSkeletonCard extends StatelessWidget {
         child: SizedBox(
           width: 14,
           height: 14,
-          child: CircularProgressIndicator(color: Colors.white10, strokeWidth: 1.5),
+          child: CircularProgressIndicator(
+            color: Colors.white10,
+            strokeWidth: 1.5,
+          ),
         ),
       ),
     );

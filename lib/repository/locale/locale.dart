@@ -123,6 +123,41 @@ class LocaleApi {
     }
   }
 
+  static Future<void>? _liveWarmInFlight;
+
+  /// Live cache warm for readers that may run before [MyApp] warms it
+  /// (e.g. splash category fetch). No-op once Live is in memory.
+  static Future<void> ensureM3uLiveCache() {
+    if (_m3uCategoriesMem != null && _m3uChannelsMem != null) {
+      return Future.value();
+    }
+    return _liveWarmInFlight ??= warmM3uCache().whenComplete(
+      () => _liveWarmInFlight = null,
+    );
+  }
+
+  /// Category files only (KBs). Category requests must not pull in the
+  /// multi-MB movie/series lists, which would hold up startup.
+  static Future<void> ensureM3uMovieCategories() async {
+    if (_m3uMovieCategoriesMem != null) return;
+    final dir = await _ensureM3uDir();
+    await _warmTypedList<CategoryModel>(
+      '${dir.path}/m3u_movie_categories.json',
+      _parseCategoriesIsolate,
+      (list) => _m3uMovieCategoriesMem ??= list,
+    );
+  }
+
+  static Future<void> ensureM3uSeriesCategories() async {
+    if (_m3uSeriesCategoriesMem != null) return;
+    final dir = await _ensureM3uDir();
+    await _warmTypedList<CategoryModel>(
+      '${dir.path}/m3u_series_categories.json',
+      _parseCategoriesIsolate,
+      (list) => _m3uSeriesCategoriesMem ??= list,
+    );
+  }
+
   /// Warm Live M3U cache only (fast path before [runApp]).
   /// Movies/Series JSON can be tens of MB — use [warmM3uVodCache] after first frame.
   static Future<void> warmM3uCache() async {
@@ -208,10 +243,7 @@ class LocaleApi {
         'movieCategoryCount',
         _m3uMovieCategoriesMem?.length ?? 0,
       );
-      CatalogPerf.count(
-        'movieCatCount',
-        _m3uMovieCategoriesMem?.length ?? 0,
-      );
+      CatalogPerf.count('movieCatCount', _m3uMovieCategoriesMem?.length ?? 0);
       CatalogPerf.flush('after_warm_movies');
       debugPrint(
         "[M3U] warm movie cache movies=${_m3uMoviesMem?.length ?? 0} "
@@ -257,17 +289,17 @@ class LocaleApi {
       );
       _m3uSeriesMem ??= <ChannelSerie>[];
       _m3uSeriesCategoriesMem ??= <CategoryModel>[];
-      CatalogPerf.span('series_json_decode_ms', seriesWatch.elapsedMilliseconds);
+      CatalogPerf.span(
+        'series_json_decode_ms',
+        seriesWatch.elapsedMilliseconds,
+      );
       CatalogPerf.span('series_cache_read_ms', seriesWatch.elapsedMilliseconds);
       CatalogPerf.count('seriesCount', _m3uSeriesMem?.length ?? 0);
       CatalogPerf.count(
         'seriesCategoryCount',
         _m3uSeriesCategoriesMem?.length ?? 0,
       );
-      CatalogPerf.count(
-        'seriesCatCount',
-        _m3uSeriesCategoriesMem?.length ?? 0,
-      );
+      CatalogPerf.count('seriesCatCount', _m3uSeriesCategoriesMem?.length ?? 0);
       CatalogPerf.flush('after_warm_series');
       debugPrint(
         "[M3U] warm series cache series=${_m3uSeriesMem?.length ?? 0} "
@@ -476,12 +508,12 @@ class LocaleApi {
   }
 
   static List<ChannelMovie> getM3uMovies() => _getM3uList<ChannelMovie>(
-        mem: _m3uMoviesMem,
-        fileName: 'm3u_movies.json',
-        map: (e) => ChannelMovie.fromJson(Map<String, dynamic>.from(e)),
-        assign: (list) => _m3uMoviesMem = list,
-        decodeMsKey: 'movie_json_decode_ms',
-      );
+    mem: _m3uMoviesMem,
+    fileName: 'm3u_movies.json',
+    map: (e) => ChannelMovie.fromJson(Map<String, dynamic>.from(e)),
+    assign: (list) => _m3uMoviesMem = list,
+    decodeMsKey: 'movie_json_decode_ms',
+  );
 
   /// UI-only length. O(1) — never triggers synchronous multi-MB file decode in build().
   static int getM3uMovieCount() {
@@ -535,12 +567,12 @@ class LocaleApi {
   }
 
   static List<ChannelSerie> getM3uSeries() => _getM3uList<ChannelSerie>(
-        mem: _m3uSeriesMem,
-        fileName: 'm3u_series.json',
-        map: (e) => ChannelSerie.fromJson(Map<String, dynamic>.from(e)),
-        assign: (list) => _m3uSeriesMem = list,
-        decodeMsKey: 'series_json_decode_ms',
-      );
+    mem: _m3uSeriesMem,
+    fileName: 'm3u_series.json',
+    map: (e) => ChannelSerie.fromJson(Map<String, dynamic>.from(e)),
+    assign: (list) => _m3uSeriesMem = list,
+    decodeMsKey: 'series_json_decode_ms',
+  );
 
   /// UI-only length. O(1) — never triggers synchronous multi-MB file decode in build().
   static int getM3uSeriesCount() {

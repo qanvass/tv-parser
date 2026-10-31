@@ -630,7 +630,8 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
     if (!SeriesShelfPlanner.looksPerShow(cats)) return all;
     final showName = <String, String>{
       for (final c in cats)
-        if (c.categoryId != null) c.categoryId!: SeriesShelfPlanner.showTitle(c),
+        if (c.categoryId != null)
+          c.categoryId!: SeriesShelfPlanner.showTitle(c),
     };
     final seen = <String>{};
     return [
@@ -1156,7 +1157,6 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                   aspect: PosterAspect.landscape,
                   isLive: isLive,
                   isFavorite: isFav,
-                  ratingBadge: "Score: ${rItem.score.toInt()}",
                   onLongPress: () {
                     if (isLive) {
                       context.read<FavoritesCubit>().addLive(
@@ -1617,7 +1617,8 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
     final seenNames = <String>{};
     final localChannels = [
       for (final ch in localMatches)
-        if (seenNames.add((ch.name ?? ch.streamId ?? '').trim().toLowerCase())) ch,
+        if (seenNames.add((ch.name ?? ch.streamId ?? '').trim().toLowerCase()))
+          ch,
     ];
     if (localChannels.isEmpty) return const SizedBox();
 
@@ -1962,6 +1963,9 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
             playerBuilder: () => MoviePlayerScreen(
               link: streamUrl,
               title: movie.name ?? 'Stream',
+              streamId: movie.streamId,
+              image: movie.streamIcon,
+              recordHistory: true,
             ),
           );
         }
@@ -2005,8 +2009,13 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
         StreamLauncher.openStreamWithBrandedLoading(
           context: context,
           streamUrl: streamUrl,
-          playerBuilder: () =>
-              MoviePlayerScreen(link: streamUrl, title: movie.name ?? 'Stream'),
+          playerBuilder: () => MoviePlayerScreen(
+            link: streamUrl,
+            title: movie.name ?? 'Stream',
+            streamId: movie.streamId,
+            image: movie.streamIcon,
+            recordHistory: true,
+          ),
         );
       }
     }

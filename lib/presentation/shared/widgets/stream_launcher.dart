@@ -88,7 +88,9 @@ class StreamLauncher {
     messenger?.hideCurrentSnackBar();
     messenger?.showSnackBar(
       SnackBar(
-        content: Text('$device couldn\'t play this stream — playing on your phone.'),
+        content: Text(
+          '$device couldn\'t play this stream — playing on your phone.',
+        ),
         duration: const Duration(seconds: 4),
       ),
     );

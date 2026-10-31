@@ -46,10 +46,7 @@ class _DialogTrailerYoutubeState extends State<DialogTrailerYoutube> {
       playVideoFrom: PlayVideoFrom.youtube(
         'https://youtu.be/${widget.trailer}',
       ),
-      podPlayerConfig: const PodPlayerConfig(
-        autoPlay: false,
-        isLooping: false,
-      ),
+      podPlayerConfig: const PodPlayerConfig(autoPlay: false, isLooping: false),
     )..initialise();
   }
 
@@ -135,14 +132,19 @@ class _DialogTrailerYoutubeState extends State<DialogTrailerYoutube> {
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.04),
                     border: Border(
-                      bottom: BorderSide(color: Colors.white.withValues(alpha: 0.07)),
+                      bottom: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.07),
+                      ),
                     ),
                   ),
                   child: Row(
                     children: [
                       // Trailer pill
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             colors: [
@@ -200,7 +202,9 @@ class _DialogTrailerYoutubeState extends State<DialogTrailerYoutube> {
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.07),
                             borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.09),
+                            ),
                           ),
                           child: Icon(
                             FontAwesomeIcons.xmark.data,
@@ -245,7 +249,9 @@ class _DialogTrailerYoutubeState extends State<DialogTrailerYoutube> {
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.04),
                     border: Border(
-                      top: BorderSide(color: Colors.white.withValues(alpha: 0.07)),
+                      top: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.07),
+                      ),
                     ),
                   ),
                   child: Row(
@@ -311,25 +317,30 @@ class _DialogBtn extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
         decoration: BoxDecoration(
           color: isFocused
-              ? (isPrimary ? kColorPrimary : Colors.white.withValues(alpha: 0.1))
+              ? (isPrimary
+                    ? kColorPrimary
+                    : Colors.white.withValues(alpha: 0.1))
               : Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isFocused ? focusColor : Colors.white.withValues(alpha: 0.08),
+            color: isFocused
+                ? focusColor
+                : Colors.white.withValues(alpha: 0.08),
             width: isFocused ? 1.5 : 1,
           ),
           boxShadow: isFocused
-              ? [BoxShadow(color: focusColor.withValues(alpha: 0.3), blurRadius: 8)]
+              ? [
+                  BoxShadow(
+                    color: focusColor.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                  ),
+                ]
               : [],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 12,
-              color: isFocused ? Colors.white : color,
-            ),
+            Icon(icon, size: 12, color: isFocused ? Colors.white : color),
             const SizedBox(width: 7),
             Text(
               label,

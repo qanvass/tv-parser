@@ -299,7 +299,8 @@ class _MovieContentState extends State<MovieContent> {
                                     width: 2,
                                   ),
                                 ),
-                                child: Icon(FontAwesomeIcons.chevronLeft.data,
+                                child: Icon(
+                                  FontAwesomeIcons.chevronLeft.data,
                                   color: Colors.white,
                                   size: 18,
                                 ),
@@ -380,7 +381,8 @@ class _MovieContentState extends State<MovieContent> {
                                                   width: 140,
                                                   height: 200,
                                                   color: kColorCardLight,
-                                                  child: Icon(FontAwesomeIcons.film.data,
+                                                  child: Icon(
+                                                    FontAwesomeIcons.film.data,
                                                     color: kColorHint,
                                                     size: 40,
                                                   ),
@@ -403,14 +405,18 @@ class _MovieContentState extends State<MovieContent> {
                                               ),
                                               const SizedBox(height: 16),
                                               _buildInfoRow(
-                                                icon: FontAwesomeIcons.clapperboard.data,
+                                                icon: FontAwesomeIcons
+                                                    .clapperboard
+                                                    .data,
                                                 label: 'Director',
                                                 value:
                                                     movie.info!.director ?? "",
                                               ),
                                               const SizedBox(height: 10),
                                               _buildInfoRow(
-                                                icon: FontAwesomeIcons.calendarDay.data,
+                                                icon: FontAwesomeIcons
+                                                    .calendarDay
+                                                    .data,
                                                 label: 'Release',
                                                 value: expirationDate(
                                                   movie.info!.releasedate,
@@ -418,14 +424,16 @@ class _MovieContentState extends State<MovieContent> {
                                               ),
                                               SizedBox(height: 10),
                                               _buildInfoRow(
-                                                icon: FontAwesomeIcons.clock.data,
+                                                icon:
+                                                    FontAwesomeIcons.clock.data,
                                                 label: 'Duration',
                                                 value:
                                                     movie.info!.duration ?? "",
                                               ),
                                               SizedBox(height: 10),
                                               _buildInfoRow(
-                                                icon: FontAwesomeIcons.film.data,
+                                                icon:
+                                                    FontAwesomeIcons.film.data,
                                                 label: 'Genre',
                                                 value: movie.info!.genre ?? "",
                                               ),
@@ -434,7 +442,9 @@ class _MovieContentState extends State<MovieContent> {
                                                 width: 130,
                                                 child: _FocusableButton(
                                                   label: "PLAY",
-                                                  icon: FontAwesomeIcons.play.data,
+                                                  icon: FontAwesomeIcons
+                                                      .play
+                                                      .data,
                                                   isSelected:
                                                       _selectedButton == 0,
                                                   onTap: () {
@@ -463,10 +473,14 @@ class _MovieContentState extends State<MovieContent> {
                                     const SizedBox(height: 8),
                                     Text(
                                       (movie.info!.plot != null &&
-                                       movie.info!.plot!.isNotEmpty &&
-                                       movie.info!.plot != "null" &&
-                                       !movie.info!.plot!.toLowerCase().contains("iptv") &&
-                                       !movie.info!.plot!.toLowerCase().contains("servicer"))
+                                              movie.info!.plot!.isNotEmpty &&
+                                              movie.info!.plot != "null" &&
+                                              !movie.info!.plot!
+                                                  .toLowerCase()
+                                                  .contains("iptv") &&
+                                              !movie.info!.plot!
+                                                  .toLowerCase()
+                                                  .contains("servicer"))
                                           ? movie.info!.plot!
                                           : "No description available for this title.",
                                       style: const TextStyle(

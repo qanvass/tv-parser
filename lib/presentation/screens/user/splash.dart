@@ -66,17 +66,20 @@ class _SplashScreenState extends State<SplashScreen> {
     // CRITICAL: DO NOT TOUCH THIS SPLASH SCREEN VIDEO PATH EVER. HARDCODED REQUIREMENT.
     _controller = VideoPlayerController.asset('assets/images/splash_video.mp4');
     _controller!.setLooping(false);
-    _controller!.initialize().then((_) {
-        if (mounted) {
-          setState(() {
-            _videoInitialized = true;
-          });
-          _controller?.play();
-        }
-      }).catchError((e) {
-        debugPrint("Splash video player load error: $e");
-        _markVideoDone();
-      });
+    _controller!
+        .initialize()
+        .then((_) {
+          if (mounted) {
+            setState(() {
+              _videoInitialized = true;
+            });
+            _controller?.play();
+          }
+        })
+        .catchError((e) {
+          debugPrint("Splash video player load error: $e");
+          _markVideoDone();
+        });
 
     _controller?.addListener(() {
       if (_isVideoFinished()) {
@@ -190,4 +193,3 @@ class _SplashVideoFrame extends StatelessWidget {
     );
   }
 }
-

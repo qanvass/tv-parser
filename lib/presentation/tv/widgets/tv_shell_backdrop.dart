@@ -29,7 +29,8 @@ class TvShellBackdrop extends StatelessWidget {
                   fit: BoxFit.cover,
                   memCacheWidth: 1280,
                   fadeInDuration: const Duration(milliseconds: 280),
-                  placeholder: (_, __) => const ColoredBox(color: kColorBackDark),
+                  placeholder: (_, __) =>
+                      const ColoredBox(color: kColorBackDark),
                   errorWidget: (_, __, ___) =>
                       const ColoredBox(color: kColorBackDark),
                 ),
@@ -54,11 +55,7 @@ class TvShellBackdrop extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [
-                Color(0x66050A12),
-                Color(0x00050A12),
-                Color(0xE6050A12),
-              ],
+              colors: [Color(0x66050A12), Color(0x00050A12), Color(0xE6050A12)],
               stops: [0.0, 0.45, 1.0],
             ),
           ),

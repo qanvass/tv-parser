@@ -274,8 +274,7 @@ class _CinematicMoviesPageState extends State<CinematicMoviesPage> {
                 selected: selected,
                 preview: _preview,
                 kenBurns: !cinematicLowPower(context),
-                onWatch: selected == null ||
-                        selected.stream.streamUrl.isEmpty
+                onWatch: selected == null || selected.stream.streamUrl.isEmpty
                     ? null
                     : () => widget.onChannelSelected(selected.stream.streamUrl),
                 onMyList: selected == null
@@ -377,8 +376,9 @@ class _MovieChips extends StatelessWidget {
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      borderRadius:
-                          BorderRadius.circular(CinematicTokens.radiusChip),
+                      borderRadius: BorderRadius.circular(
+                        CinematicTokens.radiusChip,
+                      ),
                       color: focused || on
                           ? CinematicTokens.glassFillStrong
                           : Colors.transparent,

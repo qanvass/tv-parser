@@ -165,10 +165,14 @@ class _SeriesCategoriesScreenState extends State<SeriesCategoriesScreen> {
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.arrowUp) {
-      final atTop = (_panel == 0 && _catIdx == 0) ||
+      final atTop =
+          (_panel == 0 && _catIdx == 0) ||
           (_panel == 1 && _serieIdx < _gridColumns);
       if (atTop) {
-        setState(() { _appbarActive = true; _appbarIdx = 0; });
+        setState(() {
+          _appbarActive = true;
+          _appbarIdx = 0;
+        });
       } else {
         _dpadUp();
       }
@@ -192,13 +196,21 @@ class _SeriesCategoriesScreenState extends State<SeriesCategoriesScreen> {
   }
 
   void _onAppbarSelect() {
-    if (_appbarIdx == 0) { _popCategories(source: 'chrome'); return; }
+    if (_appbarIdx == 0) {
+      _popCategories(source: 'chrome');
+      return;
+    }
     if (_showSearch) {
       if (_appbarIdx == 1) {
         _activateSearchInput();
       } else {
         _searchCtrl.clear();
-        setState(() { _serieSearch = ''; _showSearch = false; _isSearchEditing = false; _appbarActive = false; });
+        setState(() {
+          _serieSearch = '';
+          _showSearch = false;
+          _isSearchEditing = false;
+          _appbarActive = false;
+        });
         _navFocus.requestFocus();
       }
     } else {
@@ -401,7 +413,11 @@ class _SeriesCategoriesScreenState extends State<SeriesCategoriesScreen> {
       onSearchSubmitted: _onSearchSubmitted,
       onSearchClose: () {
         _searchCtrl.clear();
-        setState(() { _serieSearch = ''; _showSearch = false; _isSearchEditing = false; });
+        setState(() {
+          _serieSearch = '';
+          _showSearch = false;
+          _isSearchEditing = false;
+        });
         _navFocus.requestFocus();
       },
     );
@@ -728,8 +744,9 @@ class _SerieGridItem extends StatelessWidget {
                     style: TextStyle(
                       color: isSelected ? Colors.white : Colors.white70,
                       fontSize: 11,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                     ),
                   ),
                 ),
@@ -744,7 +761,8 @@ class _SerieGridItem extends StatelessWidget {
                       color: kColorFocus,
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(FontAwesomeIcons.play.data,
+                    child: Icon(
+                      FontAwesomeIcons.play.data,
                       color: Colors.white,
                       size: 10,
                     ),

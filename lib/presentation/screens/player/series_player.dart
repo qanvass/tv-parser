@@ -77,13 +77,20 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
 
   Episode get _currentEp => widget.episodes[_epIdx];
 
-  String get _currentUrl => PlaybackUrlBuilder.buildSeriesUrlSync(
-        serverUrl: widget.serverUrl,
-        username: widget.username,
-        password: widget.password,
-        episodeId: _currentEp.id ?? '',
-        containerExtension: _currentEp.containerExtension,
-      );
+  String get _currentUrl {
+    // Playlist episodes carry their own media URL; Xtream ones are built.
+    final direct = _currentEp.directSource?.trim() ?? '';
+    if (direct.startsWith('http')) return direct;
+    return _xtreamUrl;
+  }
+
+  String get _xtreamUrl => PlaybackUrlBuilder.buildSeriesUrlSync(
+    serverUrl: widget.serverUrl,
+    username: widget.username,
+    password: widget.password,
+    episodeId: _currentEp.id ?? '',
+    containerExtension: _currentEp.containerExtension,
+  );
 
   List<MapEntry<int, String>> get _trackList =>
       (_trackPanel == 'sub' ? _subtitleTracks : _audioTracks).entries.toList();
@@ -362,13 +369,16 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
     if (newIdx < 0 || newIdx >= widget.episodes.length) return;
     _saveProgress();
     final newEp = widget.episodes[newIdx];
-    final newUrl = PlaybackUrlBuilder.buildSeriesUrlSync(
-      serverUrl: widget.serverUrl,
-      username: widget.username,
-      password: widget.password,
-      episodeId: newEp.id ?? '',
-      containerExtension: newEp.containerExtension,
-    );
+    final newDirect = newEp.directSource?.trim() ?? '';
+    final newUrl = newDirect.startsWith('http')
+        ? newDirect
+        : PlaybackUrlBuilder.buildSeriesUrlSync(
+            serverUrl: widget.serverUrl,
+            username: widget.username,
+            password: widget.password,
+            episodeId: newEp.id ?? '',
+            containerExtension: newEp.containerExtension,
+          );
 
     setState(() {
       _epIdx = newIdx;
@@ -625,7 +635,10 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: Theme.of(context).primaryColor.withOpacity(0.1),
-                border: Border.all(color: Theme.of(context).primaryColor.withOpacity(0.3), width: 1.5),
+                border: Border.all(
+                  color: Theme.of(context).primaryColor.withOpacity(0.3),
+                  width: 1.5,
+                ),
               ),
               child: Icon(
                 Icons.cast_connected_rounded,
@@ -636,12 +649,19 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
             const SizedBox(height: 24),
             Text(
               "Casting to $_castDevice",
-              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               "Use your phone as a remote controller",
-              style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.5),
+                fontSize: 12,
+              ),
             ),
             const SizedBox(height: 36),
             Row(
@@ -650,7 +670,9 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
                 IconButton(
                   iconSize: 48,
                   icon: Icon(
-                    _isCastPlaying ? Icons.pause_circle_filled_rounded : Icons.play_circle_filled_rounded,
+                    _isCastPlaying
+                        ? Icons.pause_circle_filled_rounded
+                        : Icons.play_circle_filled_rounded,
                     color: Colors.white,
                   ),
                   onPressed: () {
@@ -669,8 +691,13 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red.shade900,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
                   ),
                   onPressed: () async {
                     await CastMediaService().disconnect();
@@ -680,7 +707,10 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
                     _ctrl.play();
                   },
                   icon: const Icon(Icons.link_off_rounded, size: 18),
-                  label: const Text("Disconnect", style: TextStyle(fontWeight: FontWeight.bold)),
+                  label: const Text(
+                    "Disconnect",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
               ],
             ),
@@ -718,7 +748,9 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
                     ),
 
                   // 2. Gesture Detector to toggle controls & double tap seek
-                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null)
+                  if (!_isCheckingHealth &&
+                      !_isDeadStream &&
+                      _castDevice == null)
                     GestureDetector(
                       onTap: _toggleControls,
                       onDoubleTapDown: (details) {
@@ -736,7 +768,10 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
                     ),
 
                   // 3. Buffering Indicator
-                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null && _isBuffering)
+                  if (!_isCheckingHealth &&
+                      !_isDeadStream &&
+                      _castDevice == null &&
+                      _isBuffering)
                     const Center(
                       child: CircularProgressIndicator(
                         color: Colors.white,
@@ -745,11 +780,15 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
                     ),
 
                   // 4. Seek HUD overlay
-                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null)
+                  if (!_isCheckingHealth &&
+                      !_isDeadStream &&
+                      _castDevice == null)
                     _buildSeekHud(),
 
                   // 5. Controls Overlay
-                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null)
+                  if (!_isCheckingHealth &&
+                      !_isDeadStream &&
+                      _castDevice == null)
                     AnimatedOpacity(
                       opacity: _showControls ? 1.0 : 0.0,
                       duration: const Duration(milliseconds: 250),
@@ -760,7 +799,10 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
                     ),
 
                   // 6. Track Selector Panel
-                  if (!_isCheckingHealth && !_isDeadStream && _castDevice == null && _trackPanel != null)
+                  if (!_isCheckingHealth &&
+                      !_isDeadStream &&
+                      _castDevice == null &&
+                      _trackPanel != null)
                     _VodTrackPanel(
                       isSub: _trackPanel == 'sub',
                       list: _trackList,
@@ -784,7 +826,11 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.error_outline_rounded, color: Color(0xFFC62828), size: 54),
+                                const Icon(
+                                  Icons.error_outline_rounded,
+                                  color: Color(0xFFC62828),
+                                  size: 54,
+                                ),
                                 const SizedBox(height: 16),
                                 const Padding(
                                   padding: EdgeInsets.symmetric(horizontal: 24),
@@ -804,7 +850,9 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
                                     backgroundColor: Colors.white,
                                     foregroundColor: Colors.black,
                                     minimumSize: const Size(180, 40),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
                                   ),
                                   onPressed: () {
                                     setState(() {
@@ -814,27 +862,56 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
                                     });
                                     _initPlayer();
                                   },
-                                  icon: const Icon(Icons.refresh_rounded, size: 16),
-                                  label: const Text("Try Again", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                  icon: const Icon(
+                                    Icons.refresh_rounded,
+                                    size: 16,
+                                  ),
+                                  label: const Text(
+                                    "Try Again",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
                                 ),
                                 const SizedBox(height: 10),
                                 OutlinedButton.icon(
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: Colors.white,
                                     minimumSize: const Size(180, 40),
-                                    side: const BorderSide(color: Colors.white24),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                    side: const BorderSide(
+                                      color: Colors.white24,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
                                   ),
                                   onPressed: () {
                                     Get.to(() => const ConnectionTestScreen());
                                   },
-                                  icon: const Icon(Icons.network_check_rounded, size: 16),
-                                  label: const Text("Connection Test", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                  icon: const Icon(
+                                    Icons.network_check_rounded,
+                                    size: 16,
+                                  ),
+                                  label: const Text(
+                                    "Connection Test",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
                                 ),
                                 const SizedBox(height: 10),
                                 TextButton(
                                   onPressed: _goBack,
-                                  child: const Text("Go Back", style: TextStyle(color: Colors.white38, fontSize: 12, fontWeight: FontWeight.bold)),
+                                  child: const Text(
+                                    "Go Back",
+                                    style: TextStyle(
+                                      color: Colors.white38,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
@@ -844,10 +921,11 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
                     ),
 
                   // 9. Chromecast Overlay
-                  if (!_isCheckingHealth && !_isDeadStream && supportsCasting() && _castDevice != null)
-                    Positioned.fill(
-                      child: _buildCastOverlay(context),
-                    ),
+                  if (!_isCheckingHealth &&
+                      !_isDeadStream &&
+                      supportsCasting() &&
+                      _castDevice != null)
+                    Positioned.fill(child: _buildCastOverlay(context)),
                 ],
               );
             },
@@ -1008,7 +1086,9 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
             ),
             SizedBox(width: 8),
             _FsBtn(
-              icon: _isPlaying ? FontAwesomeIcons.pause.data : FontAwesomeIcons.play.data,
+              icon: _isPlaying
+                  ? FontAwesomeIcons.pause.data
+                  : FontAwesomeIcons.play.data,
               label: '',
               isFocused: _isFocused(2, 1),
               isLarge: true,

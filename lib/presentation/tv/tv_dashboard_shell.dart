@@ -103,6 +103,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
   void _markMoviesHeadDone() {
     if (!_moviesHeadGate.isCompleted) _moviesHeadGate.complete();
   }
+
   Completer<void>? _seriesFullPassGate;
 
   /// Cooperative time-slicing for big catalog builds: after ~12ms of work,
@@ -114,8 +115,9 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     if (_sliceWatch.elapsedMilliseconds < 12) return mounted;
     try {
       if (SchedulerBinding.instance.hasScheduledFrame) {
-        await SchedulerBinding.instance.endOfFrame
-            .timeout(const Duration(milliseconds: 48));
+        await SchedulerBinding.instance.endOfFrame.timeout(
+          const Duration(milliseconds: 48),
+        );
       } else {
         await Future<void>.delayed(Duration.zero);
       }
@@ -132,6 +134,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     final gate = _seriesFullPassGate;
     if (gate != null && !gate.isCompleted) gate.complete();
   }
+
   bool _railCollapsed = false;
 
   static const int _primaryCount = 6;
@@ -156,6 +159,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
   List<SpotlightEvent> _tvSpotlightEvents = [];
   List<ChannelLive> _tvAllLiveChannels = [];
   List<PremiumPlusItem> _tvPremiumPlusItems = [];
+
   /// Focused Live card. Only the hero/backdrop listen — moving focus never
   /// rebuilds the shell, rows or header.
   final ValueNotifier<TvStreamRecord?> _focusedLive =
@@ -227,10 +231,10 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     LivePreviewTrace.log(
       'focused_record_selected',
       'channel=${stream.title} hasStreamUrl=${raw.isNotEmpty} '
-      'hash=${LivePreviewTrace.urlHash(raw)} '
-      'isVod=${stream.isVod} eligible=$eligible '
-      'liveVisible=$_liveSurfaceVisible '
-      'looksHttp=${raw.startsWith('http')} len=${raw.length}',
+          'hash=${LivePreviewTrace.urlHash(raw)} '
+          'isVod=${stream.isVod} eligible=$eligible '
+          'liveVisible=$_liveSurfaceVisible '
+          'looksHttp=${raw.startsWith('http')} len=${raw.length}',
     );
     if (!eligible) return;
     _focusedLive.value = stream;
@@ -261,8 +265,8 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     LivePreviewTrace.log(
       'focused_record_selected',
       'channel=${stream.title} hasStreamUrl=${stream.streamUrl.trim().isNotEmpty} '
-      'hash=${LivePreviewTrace.urlHash(stream.streamUrl)} '
-      'immediate=$immediate source=sync',
+          'hash=${LivePreviewTrace.urlHash(stream.streamUrl)} '
+          'immediate=$immediate source=sync',
     );
     LiveBrowseGate.whenBrowseReady(() {
       if (!mounted || !_liveSurfaceVisible) return;
@@ -281,7 +285,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     LivePreviewTrace.log(
       'watch_live_handoff',
       'channel=${active.title} heroHash=$heroHash watchHash=$watchHash '
-      'match=${heroHash == watchHash} hasStreamUrl=${url.trim().isNotEmpty}',
+          'match=${heroHash == watchHash} hasStreamUrl=${url.trim().isNotEmpty}',
     );
     await _livePreview.stopAndRelease(reason: 'fullscreen_handoff');
     if (!mounted) return;
@@ -296,7 +300,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     LivePreviewTrace.log(
       'watch_live_handoff',
       'source=url_only heroHash=$heroHash watchHash=$watchHash '
-      'match=${heroHash == watchHash}',
+          'match=${heroHash == watchHash}',
     );
     await _livePreview.stopAndRelease(reason: 'fullscreen_handoff');
     if (!mounted) return;
@@ -383,7 +387,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     LivePreviewTrace.log(
       'app_lifecycle',
       'state=${state.name} liveVisible=$_liveSurfaceVisible '
-      'hash=${_livePreview.activeUrlHash}',
+          'hash=${_livePreview.activeUrlHash}',
     );
     switch (state) {
       case AppLifecycleState.inactive:
@@ -601,8 +605,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     _profile = UserPreferenceProfile.load();
     final market = LocalMarketService.getActiveMarket();
     _hasActiveMarket = market != null;
-    final marketKey =
-        _profile.locationFeatureEnabled ? market?.id : null;
+    final marketKey = _profile.locationFeatureEnabled ? market?.id : null;
     if (marketKey != _localMarketKey) {
       final first = _localMarketKey == '';
       _localMarketKey = marketKey;
@@ -708,11 +711,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
       movieCats: movieCats,
     );
     // ignore: unawaited_futures
-    _loadSeriesRails(
-      api: api,
-      profile: profile,
-      seriesCats: seriesCats,
-    );
+    _loadSeriesRails(api: api, profile: profile, seriesCats: seriesCats);
   }
 
   Future<void> _loadMovieRails({
@@ -781,8 +780,9 @@ class _TvDashboardShellState extends State<TvDashboardShell>
                 !ProviderCurationRules.isAdultCategory(c.categoryName!),
           )
           .toList();
-      final sortedCats =
-          ProviderCurationRules.sortCategoriesForNormalDashboard(normalCats);
+      final sortedCats = ProviderCurationRules.sortCategoriesForNormalDashboard(
+        normalCats,
+      );
       final byCat = <String, List<ChannelMovie>>{};
       var moviesUnassigned = 0;
       for (final ch in allMovies) {
@@ -826,7 +826,10 @@ class _TvDashboardShellState extends State<TvDashboardShell>
             ];
             if (head.isNotEmpty) {
               heads.add(
-                TvChannelRow(title: cat.categoryName ?? 'Movies', streams: head),
+                TvChannelRow(
+                  title: cat.categoryName ?? 'Movies',
+                  streams: head,
+                ),
               );
             }
           } catch (_) {}
@@ -862,13 +865,10 @@ class _TvDashboardShellState extends State<TvDashboardShell>
       // FIX 2: category metadata missing or produced zero rails.
       if (rows.isEmpty && allMovies.isNotEmpty) {
         final nameById = <String, String>{
-          for (final c in [
-            ...categories,
-            ...LocaleApi.getM3uMovieCategories(),
-          ])
+          for (final c in [...categories, ...LocaleApi.getM3uMovieCategories()])
             if (c.categoryId != null && c.categoryId!.isNotEmpty)
-              c.categoryId!: (c.categoryName != null &&
-                      c.categoryName!.trim().isNotEmpty)
+              c.categoryId!:
+                  (c.categoryName != null && c.categoryName!.trim().isNotEmpty)
                   ? c.categoryName!
                   : 'Movies',
         };
@@ -890,8 +890,9 @@ class _TvDashboardShellState extends State<TvDashboardShell>
               _movieStreamRecord(
                 ch,
                 label,
-                providerCategoryId:
-                    entry.key == '_none' ? ch.categoryId : entry.key,
+                providerCategoryId: entry.key == '_none'
+                    ? ch.categoryId
+                    : entry.key,
                 providerCategoryName: label,
               ),
           ];
@@ -940,9 +941,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
           if (_moviesRailStartedAt != null) {
             CatalogPerf.span(
               'movie_first_row_ms',
-              DateTime.now()
-                  .difference(_moviesRailStartedAt!)
-                  .inMilliseconds,
+              DateTime.now().difference(_moviesRailStartedAt!).inMilliseconds,
             );
           }
           CatalogPerf.spanFromAnchor(
@@ -971,8 +970,10 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     required List<CategoryModel> seriesCats,
   }) async {
     CatalogPerf.timeline('SERIES_START');
-    await _moviesHeadGate.future
-        .timeout(const Duration(seconds: 10), onTimeout: () {});
+    await _moviesHeadGate.future.timeout(
+      const Duration(seconds: 10),
+      onTimeout: () {},
+    );
     if (!mounted) return;
     await LocaleApi.warmM3uSeriesCache();
     CatalogPerf.timeline('SERIES_CACHE_READY');
@@ -1027,8 +1028,9 @@ class _TvDashboardShellState extends State<TvDashboardShell>
                 !ProviderCurationRules.isAdultCategory(c.categoryName!),
           )
           .toList();
-      final sortedCats =
-          ProviderCurationRules.sortCategoriesForNormalDashboard(normalCats);
+      final sortedCats = ProviderCurationRules.sortCategoriesForNormalDashboard(
+        normalCats,
+      );
       final byCat = <String, List<ChannelSerie>>{};
       var seriesUnassigned = 0;
       for (final ch in allSeries) {
@@ -1146,8 +1148,8 @@ class _TvDashboardShellState extends State<TvDashboardShell>
             ...LocaleApi.getM3uSeriesCategories(),
           ])
             if (c.categoryId != null && c.categoryId!.isNotEmpty)
-              c.categoryId!: (c.categoryName != null &&
-                      c.categoryName!.trim().isNotEmpty)
+              c.categoryId!:
+                  (c.categoryName != null && c.categoryName!.trim().isNotEmpty)
                   ? c.categoryName!
                   : 'All Series',
         };
@@ -1169,8 +1171,9 @@ class _TvDashboardShellState extends State<TvDashboardShell>
               _seriesStreamRecord(
                 ch,
                 label,
-                providerCategoryId:
-                    entry.key == '_none' ? ch.categoryId : entry.key,
+                providerCategoryId: entry.key == '_none'
+                    ? ch.categoryId
+                    : entry.key,
                 providerCategoryName: label,
                 watchProgress: watchById[ch.seriesId ?? ''],
               ),
@@ -1392,7 +1395,8 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     final parsed = TitleNormalizer.parse(ch.name ?? '');
     final rating = _parseRating(ch.rating ?? ch.rating5based);
     final providerName = providerCategoryName ?? subtitle;
-    final year = parsed.year ??
+    final year =
+        parsed.year ??
         CategoryPresentationMapper.yearFromCategoryName(providerName);
     final title = parsed.displayTitle.isEmpty
         ? (ch.name ?? 'Movie')
@@ -1440,9 +1444,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     } else if (ch.seriesId != null) {
       streamUrl = ch.seriesId!;
     }
-    final poster = ArtworkUrlResolver.resolveVodPoster(
-      cover: ch.cover,
-    );
+    final poster = ArtworkUrlResolver.resolveVodPoster(cover: ch.cover);
     final parsed = TitleNormalizer.parse(ch.name ?? '');
     final rating = _parseRating(ch.rating ?? ch.rating5based);
     final seriesTitle = parsed.displayTitle.isEmpty
@@ -1577,8 +1579,10 @@ class _TvDashboardShellState extends State<TvDashboardShell>
       return;
     }
 
-    final leavingLive = _selectedNavIndex == _TvNav.live && index != _TvNav.live;
-    final enteringLive = _selectedNavIndex != _TvNav.live && index == _TvNav.live;
+    final leavingLive =
+        _selectedNavIndex == _TvNav.live && index != _TvNav.live;
+    final enteringLive =
+        _selectedNavIndex != _TvNav.live && index == _TvNav.live;
     if (index == _TvNav.movies) {
       CatalogPerf.anchor('movies_tab');
     }
@@ -1719,11 +1723,15 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     _retryFocus.dispose();
     XmlTvRepository.instance.removeListener(_onXmlTvReady);
     if (identical(
-        IptvProviderSession.instance.onMoviesCatalogReady, _onMoviesCatalogReady)) {
+      IptvProviderSession.instance.onMoviesCatalogReady,
+      _onMoviesCatalogReady,
+    )) {
       IptvProviderSession.instance.onMoviesCatalogReady = null;
     }
     if (identical(
-        IptvProviderSession.instance.onSeriesCatalogReady, _onSeriesCatalogReady)) {
+      IptvProviderSession.instance.onSeriesCatalogReady,
+      _onSeriesCatalogReady,
+    )) {
       IptvProviderSession.instance.onSeriesCatalogReady = null;
     }
     super.dispose();
@@ -1731,7 +1739,8 @@ class _TvDashboardShellState extends State<TvDashboardShell>
 
   @override
   Widget build(BuildContext context) {
-    final isCinematicTab = _selectedNavIndex == _TvNav.movies ||
+    final isCinematicTab =
+        _selectedNavIndex == _TvNav.movies ||
         _selectedNavIndex == _TvNav.series;
     final backdropKey = _focusedVodStream?.enrichmentKey;
     final backdropListenable = backdropKey == null
@@ -1755,8 +1764,10 @@ class _TvDashboardShellState extends State<TvDashboardShell>
               fit: StackFit.expand,
               children: [
                 ListenableBuilder(
-                  listenable:
-                      Listenable.merge([backdropListenable, _focusedLive]),
+                  listenable: Listenable.merge([
+                    backdropListenable,
+                    _focusedLive,
+                  ]),
                   builder: (context, _) =>
                       TvShellBackdrop(imageUrl: _focusedBackdropUrl()),
                 ),
@@ -1766,9 +1777,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
                   right: 0,
                   height: 1,
                   child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Color(0x14FFFFFF),
-                    ),
+                    decoration: BoxDecoration(color: Color(0x14FFFFFF)),
                   ),
                 ),
                 SafeArea(
@@ -1801,8 +1810,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
                                   selectedLabel:
                                       _navItems[_selectedNavIndex].label,
                                   subtitle: _headerSubtitle(),
-                                  liveTone:
-                                      _selectedNavIndex == _TvNav.live,
+                                  liveTone: _selectedNavIndex == _TvNav.live,
                                 ),
                                 const SizedBox(height: 22),
                               ],
@@ -1861,8 +1869,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     final rows = _visibleRowsForTab(_selectedNavIndex);
     final isLive = _selectedNavIndex == _TvNav.live;
     final isMoviesTab = _selectedNavIndex == _TvNav.movies;
-    final rawMovieCount =
-        isMoviesTab ? LocaleApi.getM3uMovieCount() : 0;
+    final rawMovieCount = isMoviesTab ? LocaleApi.getM3uMovieCount() : 0;
 
     // FIX 4: Movies empty pane only when load is done AND raw count is 0.
     if (isMoviesTab &&
@@ -1896,8 +1903,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     }
 
     final isSeriesTab = _selectedNavIndex == _TvNav.series;
-    final rawSeriesCount =
-        isSeriesTab ? LocaleApi.getM3uSeriesCount() : 0;
+    final rawSeriesCount = isSeriesTab ? LocaleApi.getM3uSeriesCount() : 0;
     if (isSeriesTab &&
         rows.isEmpty &&
         (_loading || _isSeriesRefreshing || rawSeriesCount > 0)) {
@@ -1932,25 +1938,30 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     if (!isLive && rows.isEmpty) {
       final vodM3u = StarliteVodM3uSession.instance;
       final native = ApolloNativeCatalogSession.instance;
-      final caps = ProviderCapabilityInspector.instance.lastCapabilities ??
+      final caps =
+          ProviderCapabilityInspector.instance.lastCapabilities ??
           ProviderCapabilityStore.instance.cached;
       final isStarlite =
           IptvProviderSession.instance.kind == IptvProviderKind.m3uStarlite;
       final isMovies = _selectedNavIndex == _TvNav.movies;
-      final vodM3uTried = isStarlite &&
+      final vodM3uTried =
+          isStarlite &&
           (isMovies
               ? vodM3u.lastMoviesSyncAttempted
               : vodM3u.lastSeriesSyncAttempted);
-      final vodM3uFailed = vodM3uTried &&
+      final vodM3uFailed =
+          vodM3uTried &&
           (isMovies ? !vodM3u.lastMoviesSyncOk : !vodM3u.lastSeriesSyncOk);
-      final needsNativeSession = isStarlite &&
+      final needsNativeSession =
+          isStarlite &&
           !vodM3uTried &&
           (native.needsStartupShowSession ||
               native.lastFailure == ApolloNativeAuthFailure.unauthorized ||
               native.lastFailure == ApolloNativeAuthFailure.badCredentials ||
               native.lastFailure == ApolloNativeAuthFailure.capturePending ||
               !native.lastSyncAttempted);
-      final noVodApi = caps != null &&
+      final noVodApi =
+          caps != null &&
           !caps.supportsVod &&
           !caps.supportsSeries &&
           caps.providerType != ProviderType.xtream &&
@@ -1978,24 +1989,24 @@ class _TvDashboardShellState extends State<TvDashboardShell>
             : 'Provider has no Series API detected';
         subtitle = isMovies
             ? 'This connection looks like a Live playlist only. '
-                'Movies appear when the provider exposes a VOD catalog '
-                '(or items are present in the playlist).'
+                  'Movies appear when the provider exposes a VOD catalog '
+                  '(or items are present in the playlist).'
             : 'This connection looks like a Live playlist only. '
-                'Series appear when the provider exposes a series catalog '
-                '(or items are present in the playlist).';
+                  'Series appear when the provider exposes a series catalog '
+                  '(or items are present in the playlist).';
       } else {
         title = isMovies ? 'Playlist has no movies' : 'Playlist has no series';
         subtitle = isMovies
             ? (isStarlite
-                ? (vodM3uTried
-                    ? vodM3u.moviesEmptySubtitle
-                    : native.moviesEmptySubtitle)
-                : 'No movie entries were found in the connected playlist.')
+                  ? (vodM3uTried
+                        ? vodM3u.moviesEmptySubtitle
+                        : native.moviesEmptySubtitle)
+                  : 'No movie entries were found in the connected playlist.')
             : (isStarlite
-                ? (vodM3uTried
-                    ? vodM3u.seriesEmptySubtitle
-                    : native.seriesEmptySubtitle)
-                : 'No series entries were found in the connected playlist.');
+                  ? (vodM3uTried
+                        ? vodM3u.seriesEmptySubtitle
+                        : native.seriesEmptySubtitle)
+                  : 'No series entries were found in the connected playlist.');
       }
 
       return _TvRetryEmptyPane(
@@ -2035,7 +2046,8 @@ class _TvDashboardShellState extends State<TvDashboardShell>
       );
     }
 
-    final isVod = _selectedNavIndex == _TvNav.movies ||
+    final isVod =
+        _selectedNavIndex == _TvNav.movies ||
         _selectedNavIndex == _TvNav.series;
 
     if (isMoviesTab) {
@@ -2094,34 +2106,32 @@ class _TvDashboardShellState extends State<TvDashboardShell>
       onStreamFocused: isLive
           ? _onLiveChannelFocused
           : isVod
-              ? (stream) {
-                  if (!mounted) return;
-                  setState(() => _focusedVodStream = stream);
-                  TmdbEnrichmentWorker.instance.prioritize(
-                    _tmdbRequest(
-                      stream,
-                      ContentType.series,
-                    ),
-                  );
-                }
-              : null,
+          ? (stream) {
+              if (!mounted) return;
+              setState(() => _focusedVodStream = stream);
+              TmdbEnrichmentWorker.instance.prioritize(
+                _tmdbRequest(stream, ContentType.series),
+              );
+            }
+          : null,
       header: isLive
           ? _buildLiveTvHeader()
           : isVod
-              ? _buildVodFocusHeader()
-              : null,
+          ? _buildVodFocusHeader()
+          : null,
     );
   }
 
   Widget? _buildVodFocusHeader() {
-    final focused = _focusedVodStream ??
+    final focused =
+        _focusedVodStream ??
         (_selectedNavIndex == _TvNav.movies
             ? (_movieRows.isNotEmpty && _movieRows.first.streams.isNotEmpty
-                ? _movieRows.first.streams.first
-                : null)
+                  ? _movieRows.first.streams.first
+                  : null)
             : (_seriesRows.isNotEmpty && _seriesRows.first.streams.isNotEmpty
-                ? _seriesRows.first.streams.first
-                : null));
+                  ? _seriesRows.first.streams.first
+                  : null));
     if (focused == null) return null;
     final isMovies = _selectedNavIndex == _TvNav.movies;
     final chipCats = isMovies
@@ -2303,8 +2313,11 @@ class _TvLocalChannelsPrompt extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.location_on_rounded,
-                  size: 52, color: Colors.amber),
+              const Icon(
+                Icons.location_on_rounded,
+                size: 52,
+                color: Colors.amber,
+              ),
               const SizedBox(height: 16),
               const Text(
                 'Show local channels first?',
@@ -2342,8 +2355,10 @@ class _TvLocalChannelsPrompt extends StatelessWidget {
                     onPressed: () => Navigator.of(context).pop(true),
                     child: const Text(
                       'Use my location',
-                      style:
-                          TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -2357,8 +2372,10 @@ class _TvLocalChannelsPrompt extends StatelessWidget {
                     onPressed: () => Navigator.of(context).pop(false),
                     child: const Text(
                       'Not now',
-                      style:
-                          TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ],
@@ -2399,9 +2416,7 @@ class _AppBuildBadgeState extends State<_AppBuildBadge> {
     return Text(
       _label,
       style: TextStyle(
-        color: widget.quiet
-            ? const Color(0xFFF2F2F5)
-            : const Color(0xFF00D2FF),
+        color: widget.quiet ? const Color(0xFFF2F2F5) : const Color(0xFF00D2FF),
         fontSize: 13,
         fontWeight: FontWeight.w900,
         letterSpacing: 0.8,
@@ -2537,9 +2552,7 @@ class _TvRetryEmptyPaneState extends State<_TvRetryEmptyPane> {
                 kColorBackDark.withValues(alpha: 0.95),
               ],
             ),
-            border: Border.all(
-              color: kColorPrimary.withValues(alpha: 0.28),
-            ),
+            border: Border.all(color: kColorPrimary.withValues(alpha: 0.28)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -2630,9 +2643,7 @@ class _TvRetryEmptyPaneState extends State<_TvRetryEmptyPane> {
                           boxShadow: _focused
                               ? [
                                   BoxShadow(
-                                    color: kColorPrimary.withValues(
-                                      alpha: 0.4,
-                                    ),
+                                    color: kColorPrimary.withValues(alpha: 0.4),
                                     blurRadius: 18,
                                   ),
                                 ]
@@ -2686,9 +2697,7 @@ class TvUserGreeting extends StatelessWidget {
                 Colors.transparent,
               ],
             ),
-            border: Border.all(
-              color: kColorPrimary.withValues(alpha: 0.18),
-            ),
+            border: Border.all(color: kColorPrimary.withValues(alpha: 0.18)),
           ),
           child: Row(
             children: [

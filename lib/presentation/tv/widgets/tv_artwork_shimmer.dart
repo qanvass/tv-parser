@@ -71,11 +71,7 @@ class TvPosterFallbackGradient extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF121C2C),
-            Color(0xFF070D16),
-            Color(0xFF0A1420),
-          ],
+          colors: [Color(0xFF121C2C), Color(0xFF070D16), Color(0xFF0A1420)],
         ),
       ),
     );

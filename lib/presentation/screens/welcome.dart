@@ -23,7 +23,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     WidgetsBinding.instance.addObserver(this);
     context.read<FavoritesCubit>().initialData();
     context.read<WatchingCubit>().initialData();
-    final liveAlreadyWarm = LocaleApi.getM3uCategories().isNotEmpty ||
+    final liveAlreadyWarm =
+        LocaleApi.getM3uCategories().isNotEmpty ||
         context.read<LiveCatyBloc>().state is LiveCatySuccess;
     // Warm cache: rows are already there, so only a brief hand-off card.
     final holdDurationMs = liveAlreadyWarm ? 350 : 2200;
@@ -128,8 +129,12 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       builder: (dialogCtx) => AlertDialog(
         backgroundColor: const Color(0xFF13101E),
         title: const Text(
-          "Adult Content Locked", 
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 24)
+          "Adult Content Locked",
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 24,
+          ),
         ),
         content: SizedBox(
           width: 400,
@@ -137,7 +142,10 @@ class _WelcomeScreenState extends State<WelcomeScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text("Enter PIN to unlock 18+ channels.", style: TextStyle(color: Colors.white70, fontSize: 16)),
+              const Text(
+                "Enter PIN to unlock 18+ channels.",
+                style: TextStyle(color: Colors.white70, fontSize: 16),
+              ),
               const SizedBox(height: 20),
               TextField(
                 controller: pinController,
@@ -165,7 +173,10 @@ class _WelcomeScreenState extends State<WelcomeScreen>
               pinController.dispose();
               Navigator.of(dialogCtx).pop();
             },
-            child: const Text("Cancel", style: TextStyle(color: Colors.white60, fontSize: 16)),
+            child: const Text(
+              "Cancel",
+              style: TextStyle(color: Colors.white60, fontSize: 16),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -191,7 +202,10 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                 );
               }
             },
-            child: const Text("Unlock", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            child: const Text(
+              "Unlock",
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -253,7 +267,9 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                             sigmaY: 12.0 * opacity,
                           ),
                           child: Container(
-                            color: Colors.black.withValues(alpha: 0.65 * opacity),
+                            color: Colors.black.withValues(
+                              alpha: 0.65 * opacity,
+                            ),
                           ),
                         ),
                         // Cinematic Center Popup Card
@@ -282,7 +298,9 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                                 ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: kColorPrimary.withValues(alpha: 0.18),
+                                    color: kColorPrimary.withValues(
+                                      alpha: 0.18,
+                                    ),
                                     blurRadius: 36,
                                     spreadRadius: 4,
                                   ),
@@ -302,10 +320,14 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                                     child: Container(
                                       padding: const EdgeInsets.all(16),
                                       decoration: BoxDecoration(
-                                        color: kColorPrimary.withValues(alpha: 0.1),
+                                        color: kColorPrimary.withValues(
+                                          alpha: 0.1,
+                                        ),
                                         shape: BoxShape.circle,
                                         border: Border.all(
-                                          color: kColorPrimary.withValues(alpha: 0.25),
+                                          color: kColorPrimary.withValues(
+                                            alpha: 0.25,
+                                          ),
                                           width: 1.5,
                                         ),
                                       ),
@@ -344,18 +366,21 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                                   AnimatedBuilder(
                                     animation: _progressController,
                                     builder: (context, _) {
-                                      final progress = _progressController.value;
+                                      final progress =
+                                          _progressController.value;
                                       return Column(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           ClipRRect(
-                                            borderRadius:
-                                                BorderRadius.circular(999),
+                                            borderRadius: BorderRadius.circular(
+                                              999,
+                                            ),
                                             child: Container(
                                               height: 6,
                                               width: double.infinity,
-                                              color: Colors.white
-                                                  .withValues(alpha: 0.08),
+                                              color: Colors.white.withValues(
+                                                alpha: 0.08,
+                                              ),
                                               child: Align(
                                                 alignment: Alignment.centerLeft,
                                                 child: FractionallySizedBox(
@@ -363,13 +388,13 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                                                   child: Container(
                                                     decoration:
                                                         const BoxDecoration(
-                                                      gradient: LinearGradient(
-                                                        colors: [
-                                                          kColorPrimaryDark,
-                                                          kColorPrimary,
-                                                        ],
-                                                      ),
-                                                    ),
+                                                          gradient: LinearGradient(
+                                                            colors: [
+                                                              kColorPrimaryDark,
+                                                              kColorPrimary,
+                                                            ],
+                                                          ),
+                                                        ),
                                                   ),
                                                 ),
                                               ),

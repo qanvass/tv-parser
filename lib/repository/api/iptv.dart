@@ -6,6 +6,19 @@ class IpTvApi {
     final user = await LocaleApi.getUser();
     if (user != null &&
         IptvProviderSession.isM3uServerUrl(user.serverInfo?.serverUrl)) {
+      // Splash can ask before the on-disk cache is warm; reading early
+      // returned [] and left the phone browse screens empty for the session.
+      switch (type) {
+        case 'get_live_categories':
+          await LocaleApi.ensureM3uLiveCache();
+          break;
+        case 'get_vod_categories':
+          await LocaleApi.ensureM3uMovieCategories();
+          break;
+        case 'get_series_categories':
+          await LocaleApi.ensureM3uSeriesCategories();
+          break;
+      }
       final cats = IptvProviderSession.instance.categoriesForAction(type);
       debugPrint(
         "[IPTV_WIRING] getCategories action=$type count=${cats.length} "
@@ -57,8 +70,10 @@ class IpTvApi {
     final user = await LocaleApi.getUser();
     if (user != null &&
         IptvProviderSession.isM3uServerUrl(user.serverInfo?.serverUrl)) {
-      final list =
-          IptvProviderSession.instance.liveChannels(categoryId: catyId);
+      await LocaleApi.ensureM3uLiveCache();
+      final list = IptvProviderSession.instance.liveChannels(
+        categoryId: catyId,
+      );
       debugPrint(
         "[IPTV_WIRING] getLiveChannels caty=${catyId.isEmpty ? 'all' : catyId} "
         "count=${list.length}",
@@ -107,8 +122,10 @@ class IpTvApi {
     final user = await LocaleApi.getUser();
     if (user != null &&
         IptvProviderSession.isM3uServerUrl(user.serverInfo?.serverUrl)) {
-      final list =
-          IptvProviderSession.instance.movieChannels(categoryId: catyId);
+      await LocaleApi.warmM3uMovieCache();
+      final list = IptvProviderSession.instance.movieChannels(
+        categoryId: catyId,
+      );
       debugPrint(
         "[IPTV_WIRING] getMovieChannels caty=${catyId.isEmpty ? 'all' : catyId} "
         "count=${list.length}",
@@ -157,8 +174,10 @@ class IpTvApi {
     final user = await LocaleApi.getUser();
     if (user != null &&
         IptvProviderSession.isM3uServerUrl(user.serverInfo?.serverUrl)) {
-      final list =
-          IptvProviderSession.instance.seriesChannels(categoryId: catyId);
+      await LocaleApi.warmM3uSeriesCache();
+      final list = IptvProviderSession.instance.seriesChannels(
+        categoryId: catyId,
+      );
       debugPrint(
         "[IPTV_WIRING] getSeriesChannels caty=${catyId.isEmpty ? 'all' : catyId} "
         "count=${list.length}",
@@ -249,7 +268,8 @@ class IpTvApi {
       final user = await LocaleApi.getUser();
       if (user != null &&
           IptvProviderSession.isM3uServerUrl(user.serverInfo?.serverUrl)) {
-        return null;
+        await LocaleApi.warmM3uSeriesCache();
+        return m3uSerieDetails(serieId);
       }
 
       if (user == null) {
@@ -357,6 +377,115 @@ class IpTvApi {
       if (tvg != null && tvg == needle) return ch;
     }
     return null;
+  }
+
+  /// Playlist (M3U) accounts have no `get_series_info`: every playlist series
+  /// entry is one playable episode. Group the anchor's show into seasons.
+  @visibleForTesting
+  static SerieDetails? m3uSerieDetails(
+    String seriesId, {
+    List<ChannelSerie>? source,
+    List<CategoryModel>? categories,
+  }) {
+    final all = source ?? LocaleApi.getM3uSeries();
+    final anchor = all.firstWhere(
+      (s) => s.seriesId == seriesId,
+      orElse: () => ChannelSerie(),
+    );
+    final anchorName = anchor.name ?? '';
+    if (anchorName.isEmpty) return null;
+
+    final cats = categories ?? LocaleApi.getM3uSeriesCategories();
+    final perShow =
+        anchor.categoryId != null && SeriesShelfPlanner.looksPerShow(cats);
+    final anchorTitle = TitleNormalizer.parse(anchorName);
+    final key = anchorTitle.matchTitle.toLowerCase();
+    final probe = anchorTitle.displayTitle.toLowerCase();
+
+    final members = <ChannelSerie>[];
+    for (final s in all) {
+      if ((s.directSource ?? '').isEmpty) continue;
+      if (perShow) {
+        if (s.categoryId == anchor.categoryId) members.add(s);
+        continue;
+      }
+      final name = s.name ?? '';
+      // Cheap substring gate before the regex parse (catalogs can be 100k).
+      if (!name.toLowerCase().contains(probe)) continue;
+      if (TitleNormalizer.parse(name).matchTitle.toLowerCase() == key) {
+        members.add(s);
+      }
+    }
+    if (members.isEmpty) return null;
+
+    // Keep one copy per season/episode: providers often list the same episode
+    // in several qualities. The best copy (4K > HD > untagged) wins.
+    final bestCopy = <String, ChannelSerie>{};
+    final keptMembers = <ChannelSerie>[];
+    for (final s in members) {
+      final t = TitleNormalizer.parse(s.name ?? '');
+      if (t.episode == null) {
+        keptMembers.add(s);
+        continue;
+      }
+      final k = '${t.season ?? 1}:${t.episode}';
+      final current = bestCopy[k];
+      if (current == null) {
+        bestCopy[k] = s;
+        keptMembers.add(s);
+      } else if (SeriesCollapse.isBetter(s, current)) {
+        keptMembers[keptMembers.indexOf(current)] = s;
+        bestCopy[k] = s;
+      }
+    }
+
+    final bySeason = <int, List<(int, Episode)>>{};
+    for (final s in keptMembers) {
+      final t = TitleNormalizer.parse(s.name ?? '');
+      final season = t.season ?? 1;
+      final list = bySeason.putIfAbsent(season, () => []);
+      final epNum = t.episode ?? list.length + 1;
+      final src = s.directSource!;
+      final dot = Uri.tryParse(src)?.path.lastIndexOf('.') ?? -1;
+      final ext = dot > 0 ? Uri.parse(src).path.substring(dot + 1) : 'mp4';
+      list.add((
+        epNum,
+        Episode(
+          id: s.seriesId,
+          episodeNum: '$epNum',
+          title: s.name,
+          containerExtension: ext,
+          season: '$season',
+          directSource: src,
+        ),
+      ));
+    }
+
+    final seasons = bySeason.keys.toList()..sort();
+    final category = cats.firstWhere(
+      (c) => c.categoryId == anchor.categoryId,
+      orElse: () => CategoryModel(),
+    );
+    return SerieDetails(
+      seasons: const [],
+      info: InfoSerie(
+        name: perShow && category.categoryName != null
+            ? SeriesShelfPlanner.showTitle(category)
+            : anchorTitle.displayTitle,
+        cover: anchor.cover,
+        plot: anchor.plot,
+        rating: anchor.rating,
+        categoryId: anchor.categoryId,
+      ),
+      episodes: {
+        for (final n in seasons)
+          '$n': [
+            for (final e
+                in (bySeason[n]!..sort((a, b) => a.$1.compareTo(b.$1))))
+              e.$2,
+          ],
+      },
+    );
   }
 }
 

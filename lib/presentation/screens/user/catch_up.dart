@@ -37,8 +37,10 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
 
   void _setCurrentIdx(int v) {
     setState(() {
-      if (_tabIdx == 0) _movieIdx = v;
-      else _serieIdx = v;
+      if (_tabIdx == 0)
+        _movieIdx = v;
+      else
+        _serieIdx = v;
     });
   }
 
@@ -47,7 +49,8 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
     return _tabIdx == 0 ? s.movies.length : s.series.length;
   }
 
-  ScrollController get _activeScroll => _tabIdx == 0 ? _movieScroll : _serieScroll;
+  ScrollController get _activeScroll =>
+      _tabIdx == 0 ? _movieScroll : _serieScroll;
 
   void _scrollContentTo(int idx) {
     final sc = _activeScroll;
@@ -55,7 +58,11 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
     final row = idx ~/ _gridCols;
     const itemH = 180.0;
     final target = (row * itemH).clamp(0.0, sc.position.maxScrollExtent);
-    sc.animateTo(target, duration: const Duration(milliseconds: 150), curve: Curves.easeOut);
+    sc.animateTo(
+      target,
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOut,
+    );
   }
 
   /// Android TV remotes send [LogicalKeyboardKey.goBack]; emulators/desktop often
@@ -110,7 +117,10 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
         if (_tabIdx > 0) {
           setState(() => _tabIdx--);
         } else {
-          setState(() { _appbarActive = true; _appbarIdx = 0; });
+          setState(() {
+            _appbarActive = true;
+            _appbarIdx = 0;
+          });
         }
       } else if (k == LogicalKeyboardKey.arrowDown) {
         if (_tabIdx < 1) setState(() => _tabIdx++);
@@ -193,34 +203,40 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
       final items = state.movies;
       if (_movieIdx >= items.length) return;
       final model = items[_movieIdx];
-      Get.to(() => MoviePlayerScreen(link: model.stream, title: model.title))
-          ?.then((result) {
+      Get.to(
+        () => MoviePlayerScreen(link: model.stream, title: model.title),
+      )?.then((result) {
         if (result != null) {
-          watchingCubit.addMovie(WatchingModel(
-            streamId: model.streamId,
-            image: model.image,
-            title: model.title,
-            stream: model.stream,
-            sliderValue: result[0],
-            durationStrm: result[1],
-          ));
+          watchingCubit.addMovie(
+            WatchingModel(
+              streamId: model.streamId,
+              image: model.image,
+              title: model.title,
+              stream: model.stream,
+              sliderValue: result[0],
+              durationStrm: result[1],
+            ),
+          );
         }
       });
     } else {
       final items = state.series;
       if (_serieIdx >= items.length) return;
       final model = items[_serieIdx];
-      Get.to(() => MoviePlayerScreen(link: model.stream, title: model.title))
-          ?.then((result) {
+      Get.to(
+        () => MoviePlayerScreen(link: model.stream, title: model.title),
+      )?.then((result) {
         if (result != null) {
-          watchingCubit.addSerie(WatchingModel(
-            streamId: model.streamId,
-            image: model.image,
-            title: model.title,
-            stream: model.stream,
-            sliderValue: result[0],
-            durationStrm: result[1],
-          ));
+          watchingCubit.addSerie(
+            WatchingModel(
+              streamId: model.streamId,
+              image: model.image,
+              title: model.title,
+              stream: model.stream,
+              sliderValue: result[0],
+              durationStrm: result[1],
+            ),
+          );
         }
       });
     }
@@ -260,14 +276,28 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
                 ),
               ),
               Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(width: 190, child: _buildSidebar()),
-                    Container(width: 1, color: kColorCardLight),
-                    Expanded(child: _buildContent()),
-                  ],
-                ),
+                // Phones: section tabs on top; a 190px sidebar leaves the
+                // portrait content column only a few dozen pixels wide.
+                child: _narrow
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            child: _buildSidebar(horizontal: true),
+                          ),
+                          Container(height: 1, color: kColorCardLight),
+                          Expanded(child: _buildContent()),
+                        ],
+                      )
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(width: 190, child: _buildSidebar()),
+                          Container(width: 1, color: kColorCardLight),
+                          Expanded(child: _buildContent()),
+                        ],
+                      ),
               ),
             ],
           ),
@@ -276,9 +306,104 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
     );
   }
 
-  Widget _buildSidebar() {
+  bool get _narrow => MediaQuery.sizeOf(context).width < 600;
+
+  Widget _buildSidebar({bool horizontal = false}) {
     final labels = ['Movies', 'Series'];
-    final icons = [FontAwesomeIcons.film.data, FontAwesomeIcons.clapperboard.data];
+    final icons = [
+      FontAwesomeIcons.film.data,
+      FontAwesomeIcons.clapperboard.data,
+    ];
+    final tabs = List.generate(2, (i) {
+      final isSelected = _tabIdx == i;
+      final isFocused = isSelected && _panel == 1;
+      return GestureDetector(
+        onTap: () => setState(() {
+          _tabIdx = i;
+          _panel = 2;
+        }),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 130),
+          height: 52,
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? kColorPrimary.withValues(alpha: .18)
+                : kColorCardLight,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isFocused
+                  ? kColorFocus
+                  : isSelected
+                  ? kColorPrimary.withValues(alpha: .5)
+                  : Colors.transparent,
+              width: 1.5,
+            ),
+            boxShadow: isFocused
+                ? [
+                    BoxShadow(
+                      color: kColorFocus.withValues(alpha: .25),
+                      blurRadius: 8,
+                    ),
+                  ]
+                : [],
+          ),
+          child: Row(
+            children: [
+              if (!horizontal)
+                Icon(
+                  icons[i],
+                  size: 14,
+                  color: isSelected ? kColorPrimary : Colors.white38,
+                ),
+              if (!horizontal) const SizedBox(width: 10),
+              Expanded(
+                // Phone tabs: shrink the label to fit rather than cut the count.
+                child: horizontal
+                    ? FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          labels[i],
+                          textAlign: horizontal ? TextAlign.center : null,
+                          style: Get.textTheme.bodySmall!.copyWith(
+                            color: isSelected ? Colors.white : Colors.white60,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                          ),
+                        ),
+                      )
+                    : Text(
+                        labels[i],
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: horizontal ? TextAlign.center : null,
+                        style: Get.textTheme.bodySmall!.copyWith(
+                          color: isSelected ? Colors.white : Colors.white60,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                        ),
+                      ),
+              ),
+              if (isSelected && !horizontal)
+                Container(
+                  width: 4,
+                  height: 4,
+                  decoration: const BoxDecoration(
+                    color: kColorFocus,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    });
+    if (horizontal) {
+      return Row(children: [for (final t in tabs) Expanded(child: t)]);
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -294,64 +419,7 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
             ),
           ),
         ),
-        ...List.generate(2, (i) {
-          final isSelected = _tabIdx == i;
-          final isFocused = isSelected && _panel == 1;
-          return GestureDetector(
-            onTap: () => setState(() { _tabIdx = i; _panel = 2; }),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 130),
-              height: 52,
-              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? kColorPrimary.withValues(alpha: .18)
-                    : kColorCardLight,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: isFocused
-                      ? kColorFocus
-                      : isSelected
-                      ? kColorPrimary.withValues(alpha: .5)
-                      : Colors.transparent,
-                  width: 1.5,
-                ),
-                boxShadow: isFocused
-                    ? [BoxShadow(color: kColorFocus.withValues(alpha: .25), blurRadius: 8)]
-                    : [],
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    icons[i],
-                    size: 14,
-                    color: isSelected ? kColorPrimary : Colors.white38,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      labels[i],
-                      style: Get.textTheme.bodySmall!.copyWith(
-                        color: isSelected ? Colors.white : Colors.white60,
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                      ),
-                    ),
-                  ),
-                  if (isSelected)
-                    Container(
-                      width: 4,
-                      height: 4,
-                      decoration: const BoxDecoration(
-                        color: kColorFocus,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          );
-        }),
+        ...tabs,
       ],
     );
   }
@@ -366,7 +434,10 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 480),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 24,
+                ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -439,8 +510,10 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
             return GestureDetector(
               onTap: () {
                 setState(() {
-                  if (_tabIdx == 0) _movieIdx = i;
-                  else _serieIdx = i;
+                  if (_tabIdx == 0)
+                    _movieIdx = i;
+                  else
+                    _serieIdx = i;
                   _panel = 2;
                 });
                 _handleSelect();
@@ -490,7 +563,13 @@ class _CatchUpItem extends StatelessWidget {
           width: 1.5,
         ),
         boxShadow: isFocused
-            ? [BoxShadow(color: kColorFocus.withValues(alpha: .4), blurRadius: 12, spreadRadius: 2)]
+            ? [
+                BoxShadow(
+                  color: kColorFocus.withValues(alpha: .4),
+                  blurRadius: 12,
+                  spreadRadius: 2,
+                ),
+              ]
             : [],
       ),
       child: ClipRRect(
@@ -506,7 +585,10 @@ class _CatchUpItem extends StatelessWidget {
               placeholder: (_, __) => Container(
                 color: kColorCardDark,
                 child: const Center(
-                  child: CircularProgressIndicator(color: kColorPrimary, strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    color: kColorPrimary,
+                    strokeWidth: 2,
+                  ),
                 ),
               ),
               errorWidget: (_, __, ___) => Container(
@@ -538,9 +620,18 @@ class _CatchUpItem extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: kColorFocus,
                     shape: BoxShape.circle,
-                    boxShadow: [BoxShadow(color: kColorFocus.withValues(alpha: .5), blurRadius: 12)],
+                    boxShadow: [
+                      BoxShadow(
+                        color: kColorFocus.withValues(alpha: .5),
+                        blurRadius: 12,
+                      ),
+                    ],
                   ),
-                  child: Icon(FontAwesomeIcons.play.data, color: Colors.white, size: 16),
+                  child: Icon(
+                    FontAwesomeIcons.play.data,
+                    color: Colors.white,
+                    size: 16,
+                  ),
                 ),
               ),
             // Title + progress bar at bottom
@@ -590,7 +681,9 @@ class _CatchUpItem extends StatelessWidget {
                         ),
                         Expanded(
                           flex: (model.durationStrm * 10).round().clamp(0, 100),
-                          child: Container(color: Colors.white.withValues(alpha: 0.15)),
+                          child: Container(
+                            color: Colors.white.withValues(alpha: 0.15),
+                          ),
                         ),
                       ],
                     ),

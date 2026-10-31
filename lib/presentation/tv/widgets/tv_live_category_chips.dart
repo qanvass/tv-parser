@@ -94,8 +94,8 @@ class _ChipState extends State<_Chip> {
                   color: _focused
                       ? const Color(0xFFF2F2F5)
                       : widget.selected
-                          ? Colors.white.withValues(alpha: 0.28)
-                          : Colors.white.withValues(alpha: 0.12),
+                      ? Colors.white.withValues(alpha: 0.28)
+                      : Colors.white.withValues(alpha: 0.12),
                 ),
               ),
               child: Text(
