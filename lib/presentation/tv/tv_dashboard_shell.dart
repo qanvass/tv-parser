@@ -1461,6 +1461,74 @@ class _TvDashboardShellState extends State<TvDashboardShell>
   /// - Content focus → move focus back to the selected rail item
   /// - Already on rail (non-Live) → return to Live rail + expand rail
   /// - Already on rail (Live) → ignore so the system can leave the app
+  void _returnFromSearchToLive() {
+    _backDownConsumed = true;
+    setState(() {
+      _selectedNavIndex = _TvNav.live;
+      _railCollapsed = false;
+    });
+    _syncLivePreview(immediate: true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _navFocusNodes[_TvNav.live].requestFocus();
+    });
+    logTvBack(
+      screen: 'TvShell',
+      source: 'searchCallback',
+      action: 'returnFromSearchToLive',
+      blockedDuplicate: false,
+      routeBefore: Get.currentRoute,
+    );
+  }
+
+  void _handlePopBack() {
+    if (TvBackGate.shouldSuppressShellExit() || _backDownConsumed) {
+      _backDownConsumed = false;
+      return;
+    }
+
+    if (_selectedNavIndex == _TvNav.search) {
+      _returnFromSearchToLive();
+      return;
+    }
+
+    if (!_railHasFocus) {
+      _backDownConsumed = true;
+      final idx = _selectedNavIndex.clamp(0, _navFocusNodes.length - 1);
+      _navFocusNodes[idx].requestFocus();
+      logTvBack(
+        screen: 'TvShell',
+        source: 'popScope',
+        action: 'returnToRail',
+        blockedDuplicate: false,
+        routeBefore: Get.currentRoute,
+      );
+      return;
+    }
+
+    if (_selectedNavIndex != _TvNav.live) {
+      _backDownConsumed = true;
+      setState(() {
+        _selectedNavIndex = _TvNav.live;
+        _railCollapsed = false;
+      });
+      _syncLivePreview(immediate: true);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _navFocusNodes[_TvNav.live].requestFocus();
+      });
+      logTvBack(
+        screen: 'TvShell',
+        source: 'popScope',
+        action: 'returnToLiveRail',
+        blockedDuplicate: false,
+        routeBefore: Get.currentRoute,
+      );
+      return;
+    }
+
+    // On Live rail: exit app cleanly
+    SystemNavigator.pop();
+  }
+
   KeyEventResult _onShellKey(FocusNode _, KeyEvent event) {
     if (!_isBackKey(event.logicalKey)) return KeyEventResult.ignored;
     // Android fires system Back on key *up*. When a child route already
@@ -1583,18 +1651,23 @@ class _TvDashboardShellState extends State<TvDashboardShell>
         ? const _NoopShellListenable()
         : TmdbEnrichmentWorker.instance.notifierFor(backdropKey);
 
-    return Shortcuts(
-      shortcuts: const <ShortcutActivator, Intent>{
-        SingleActivator(LogicalKeyboardKey.select): ActivateIntent(),
-        SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _handlePopBack();
       },
-      child: Focus(
-        canRequestFocus: false,
-        skipTraversal: true,
-        onKeyEvent: _onShellKey,
-        child: FocusTraversalGroup(
-          policy: OrderedTraversalPolicy(),
-          child: Scaffold(
+      child: Shortcuts(
+        shortcuts: const <ShortcutActivator, Intent>{
+          SingleActivator(LogicalKeyboardKey.select): ActivateIntent(),
+          SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+        },
+        child: Focus(
+          canRequestFocus: false,
+          skipTraversal: true,
+          onKeyEvent: _onShellKey,
+          child: FocusTraversalGroup(
+            policy: OrderedTraversalPolicy(),
+            child: Scaffold(
             backgroundColor: const Color(0xFF050A18),
             body: Stack(
               fit: StackFit.expand,
@@ -1674,6 +1747,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
           ),
         ),
       ),
+      ),
     );
   }
 
@@ -1682,6 +1756,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
       return TvSearchScreen(
         embedded: true,
         onChannelSelected: widget.onChannelSelected,
+        onBackPressed: _returnFromSearchToLive,
       );
     }
 

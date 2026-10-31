@@ -32,11 +32,13 @@ import 'widgets/tv_channel_grid.dart';
 class TvSearchScreen extends StatefulWidget {
   final ValueChanged<String>? onChannelSelected;
   final bool embedded;
+  final VoidCallback? onBackPressed;
 
   const TvSearchScreen({
     super.key,
     this.onChannelSelected,
     this.embedded = false,
+    this.onBackPressed,
   });
 
   @override
@@ -544,67 +546,100 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
       ],
     );
 
-    if (widget.embedded) return body;
+    void triggerBack() {
+      if (widget.onBackPressed != null) {
+        widget.onBackPressed!();
+      } else if (!widget.embedded) {
+        Get.back();
+      }
+    }
 
-    return Shortcuts(
-      shortcuts: const <ShortcutActivator, Intent>{
-        SingleActivator(LogicalKeyboardKey.select): ActivateIntent(),
-        SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+    final searchWidget = PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) triggerBack();
       },
-      child: Scaffold(
-        backgroundColor: const Color(0xFF050508),
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(48, 32, 48, 32),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Focus(
-                      child: Builder(
-                        builder: (context) {
-                          final focused = Focus.of(context).hasFocus;
-                          return InkWell(
-                            onTap: () => Get.back(),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 150),
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: focused
-                                    ? Colors.white.withValues(alpha: 0.13)
-                                    : Colors.white.withValues(alpha: 0.06),
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
+      child: Focus(
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent &&
+              (event.logicalKey == LogicalKeyboardKey.escape ||
+                  event.logicalKey == LogicalKeyboardKey.goBack)) {
+            triggerBack();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: body,
+      ),
+    );
+
+    if (widget.embedded) return searchWidget;
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) triggerBack();
+      },
+      child: Shortcuts(
+        shortcuts: const <ShortcutActivator, Intent>{
+          SingleActivator(LogicalKeyboardKey.select): ActivateIntent(),
+          SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+        },
+        child: Scaffold(
+          backgroundColor: const Color(0xFF050508),
+          body: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(48, 32, 48, 32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Focus(
+                        child: Builder(
+                          builder: (context) {
+                            final focused = Focus.of(context).hasFocus;
+                            return InkWell(
+                              onTap: triggerBack,
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 150),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
                                   color: focused
-                                      ? Colors.white
-                                      : Colors.white24,
-                                  width: focused ? 2 : 1,
+                                      ? Colors.white.withValues(alpha: 0.13)
+                                      : Colors.white.withValues(alpha: 0.06),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: focused
+                                        ? Colors.white
+                                        : Colors.white24,
+                                    width: focused ? 2 : 1,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.arrow_back_rounded,
+                                  color: Colors.white,
                                 ),
                               ),
-                              child: const Icon(
-                                Icons.arrow_back_rounded,
-                                color: Colors.white,
-                              ),
-                            ),
-                          );
-                        },
+                            );
+                          },
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    const Text(
-                      'Search',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 32,
-                        fontWeight: FontWeight.w900,
+                      const SizedBox(width: 16),
+                      const Text(
+                        'Search',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 32,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                Expanded(child: body),
-              ],
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  Expanded(child: searchWidget),
+                ],
+              ),
             ),
           ),
         ),
