@@ -86,6 +86,7 @@ class LocaleApi {
       await locale.remove("m3u_movies_count");
       await locale.remove("m3u_series_categories_count");
       await locale.remove("m3u_series_count");
+      await locale.remove("m3u_series_last_sync_ms");
       _m3uCategoriesMem = null;
       _m3uChannelsMem = null;
       _m3uMovieCategoriesMem = null;
@@ -554,6 +555,7 @@ class LocaleApi {
 
   static Future<bool> saveM3uSeries(List<ChannelSerie> series) async {
     _m3uSeriesMem = List<ChannelSerie>.from(series);
+    await locale.write("m3u_series_last_sync_ms", DateTime.now().millisecondsSinceEpoch);
     final ok = await _writeM3uJson(
       'm3u_series.json',
       series.map((e) => e.toJson()).toList(),
@@ -573,6 +575,15 @@ class LocaleApi {
     assign: (list) => _m3uSeriesMem = list,
     decodeMsKey: 'series_json_decode_ms',
   );
+
+  static int? getM3uSeriesLastSyncMs() {
+    try {
+      final dynamic stored = locale.read('m3u_series_last_sync_ms');
+      if (stored is int) return stored;
+      if (stored is num) return stored.toInt();
+    } catch (_) {}
+    return null;
+  }
 
   /// UI-only length. O(1) — never triggers synchronous multi-MB file decode in build().
   static int getM3uSeriesCount() {

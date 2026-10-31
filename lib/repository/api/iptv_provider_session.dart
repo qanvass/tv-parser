@@ -465,7 +465,11 @@ class IptvProviderSession {
       // ignore: unawaited_futures
       LocaleApi.warmM3uSeriesCache().then((_) {
         if (kind != IptvProviderKind.m3uStarlite) return;
-        if (LocaleApi.getM3uSeries().isEmpty) {
+        final lastSync = LocaleApi.getM3uSeriesLastSyncMs();
+        final isStale = lastSync == null ||
+            DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(lastSync)).inHours >= 12;
+        if (LocaleApi.getM3uSeries().isEmpty || isStale) {
+          debugPrint('[IPTV_WIRING] series empty or stale (lastSync=$lastSync, isStale=$isStale) -> syncing');
           // ignore: unawaited_futures
           syncStarliteSeriesIfNeeded();
         } else {

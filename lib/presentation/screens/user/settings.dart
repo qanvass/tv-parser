@@ -305,13 +305,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return KeyEventResult.ignored;
   }
 
+  void _triggerFullPlaylistRefresh() {
+    final session = IptvProviderSession.instance;
+    if (session.kind == IptvProviderKind.m3uStarlite && session.playlistUrl != null) {
+      _snack('Refreshing channels, movies & series in background...');
+      unawaited(session.syncStarliteVodM3uIfNeeded());
+    }
+    context.read<LiveCatyBloc>().add(GetLiveCategories());
+    context.read<MovieCatyBloc>().add(GetMovieCategories());
+    context.read<SeriesCatyBloc>().add(GetSeriesCategories());
+  }
   void _handleTvDetailAction(_TvSettingsSection section, int idx) {
     switch (section) {
       case _TvSettingsSection.sources:
         if (idx == 0) {
-          context.read<LiveCatyBloc>().add(GetLiveCategories());
-          context.read<MovieCatyBloc>().add(GetMovieCategories());
-          context.read<SeriesCatyBloc>().add(GetSeriesCategories());
+          _triggerFullPlaylistRefresh();
           Get.back();
         } else if (idx == 1) {
           context.read<AuthBloc>().add(AuthLogOut());
@@ -399,9 +407,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     switch (effectiveIdx) {
       case 0:
-        context.read<LiveCatyBloc>().add(GetLiveCategories());
-        context.read<MovieCatyBloc>().add(GetMovieCategories());
-        context.read<SeriesCatyBloc>().add(GetSeriesCategories());
+        _triggerFullPlaylistRefresh();
         Get.back();
         break;
       case 1:
