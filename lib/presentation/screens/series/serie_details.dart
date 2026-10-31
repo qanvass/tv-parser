@@ -313,6 +313,24 @@ class _SerieContentState extends State<SerieContent> {
     return KeyEventResult.ignored;
   }
 
+  bool _isLiked(FavoritesState favState) {
+    final currentId = widget.channelSerie.seriesId ?? widget.videoId;
+    if (currentId.isNotEmpty) {
+      return favState.series.any((s) => s.seriesId == currentId);
+    }
+    final currentName =
+        (widget.channelSerie.name ?? _serieDetails?.info?.name ?? '')
+            .trim()
+            .toLowerCase();
+    if (currentName.isNotEmpty) {
+      return favState.series.any((s) =>
+          (s.seriesId == null || s.seriesId!.isEmpty) &&
+          s.name != null &&
+          s.name!.trim().toLowerCase() == currentName);
+    }
+    return false;
+  }
+
   void _handleButtonPress() {
     if (_selectedButton == 1 && _hasTrailer && _serieDetails != null) {
       showDialog(
@@ -329,12 +347,53 @@ class _SerieContentState extends State<SerieContent> {
       );
     } else {
       final favState = context.read<FavoritesCubit>().state;
-      final isLiked = favState.series.any(
-        (s) => s.seriesId == widget.channelSerie.seriesId,
+      final currentlyLiked = _isLiked(favState);
+
+      final currentId = widget.channelSerie.seriesId ?? widget.videoId;
+      final currentName =
+          widget.channelSerie.name ?? _serieDetails?.info?.name;
+      final currentCover =
+          (widget.channelSerie.cover != null &&
+                  widget.channelSerie.cover!.isNotEmpty)
+              ? widget.channelSerie.cover
+              : _serieDetails?.info?.cover;
+      final currentPlot =
+          widget.channelSerie.plot ?? _serieDetails?.info?.plot;
+      final currentRating =
+          widget.channelSerie.rating ?? _serieDetails?.info?.rating;
+
+      final serieToSave = ChannelSerie(
+        seriesId: currentId,
+        name: currentName,
+        cover: currentCover,
+        plot: currentPlot,
+        rating: currentRating,
+        rating5based:
+            widget.channelSerie.rating5based ??
+            _serieDetails?.info?.rating5based,
+        categoryId: widget.channelSerie.categoryId,
+        directSource: widget.channelSerie.directSource,
+        num: widget.channelSerie.num,
       );
+
       context.read<FavoritesCubit>().addSerie(
-        widget.channelSerie,
-        isAdd: !isLiked,
+        serieToSave,
+        isAdd: !currentlyLiked,
+      );
+
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            currentlyLiked
+                ? "Removed from Favourites"
+                : "Added to Favourites",
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          backgroundColor:
+              currentlyLiked ? Colors.grey.shade800 : Colors.red.shade900,
+          duration: const Duration(seconds: 2),
+        ),
       );
     }
   }
@@ -486,11 +545,7 @@ class _SerieContentState extends State<SerieContent> {
                             // Fav button
                             BlocBuilder<FavoritesCubit, FavoritesState>(
                               builder: (context, favState) {
-                                final isLiked = favState.series.any(
-                                  (s) =>
-                                      s.seriesId ==
-                                      widget.channelSerie.seriesId,
-                                );
+                                final isLiked = _isLiked(favState);
                                 return GestureDetector(
                                   onTap: () {
                                     setState(() {
@@ -506,7 +561,9 @@ class _SerieContentState extends State<SerieContent> {
                                     isSelected:
                                         _selectedButton == favIdx &&
                                         _panel == 0,
-                                    isFavorite: true,
+                                    isFavorite: isLiked,
+                                    iconColor:
+                                        isLiked ? Colors.redAccent : Colors.white70,
                                   ),
                                 );
                               },
@@ -884,11 +941,13 @@ class _SideButton extends StatelessWidget {
     required this.icon,
     required this.isSelected,
     this.isFavorite = false,
+    this.iconColor,
   });
 
   final IconData icon;
   final bool isSelected;
   final bool isFavorite;
+  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) {
@@ -901,8 +960,8 @@ class _SideButton extends StatelessWidget {
             : isFavorite
             ? LinearGradient(
                 colors: [
-                  Colors.red.withValues(alpha: 0.25),
-                  Colors.red.withValues(alpha: 0.25),
+                  Colors.red.withValues(alpha: 0.35),
+                  Colors.red.withValues(alpha: 0.2),
                 ],
               )
             : LinearGradient(
@@ -913,7 +972,11 @@ class _SideButton extends StatelessWidget {
               ),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isSelected ? kColorFocus : Colors.transparent,
+          color: isSelected
+              ? kColorFocus
+              : (isFavorite
+                  ? Colors.redAccent.withValues(alpha: 0.5)
+                  : Colors.transparent),
           width: 2,
         ),
         boxShadow: isSelected
@@ -926,7 +989,11 @@ class _SideButton extends StatelessWidget {
               ]
             : [],
       ),
-      child: Icon(icon, color: Colors.white, size: 16),
+      child: Icon(
+        icon,
+        color: iconColor ?? (isFavorite ? Colors.redAccent : Colors.white),
+        size: 16,
+      ),
     );
   }
 }

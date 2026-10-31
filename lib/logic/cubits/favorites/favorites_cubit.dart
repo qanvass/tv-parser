@@ -67,15 +67,36 @@ class FavoritesCubit extends Cubit<FavoritesState> {
     final id = value?.seriesId;
 
     if (isAdd) {
-      if (id != null &&
-          id.isNotEmpty &&
-          oldList.any((serie) => serie.seriesId == id)) {
-        return;
+      if (id != null && id.isNotEmpty) {
+        if (oldList.any((serie) => serie.seriesId == id)) return;
+      } else {
+        final nameLower = value?.name?.trim().toLowerCase();
+        if (nameLower != null &&
+            nameLower.isNotEmpty &&
+            oldList.any((serie) =>
+                (serie.seriesId == null || serie.seriesId!.isEmpty) &&
+                serie.name != null &&
+                serie.name!.trim().toLowerCase() == nameLower)) {
+          return;
+        }
       }
       newList.insert(0, value!);
     } else {
-      newList =
-          oldList.where((serie) => serie.seriesId != value!.seriesId).toList();
+      newList = oldList.where((serie) {
+        if (id != null && id.isNotEmpty) {
+          if (serie.seriesId == id) return false;
+        } else {
+          final nameLower = value?.name?.trim().toLowerCase();
+          if ((serie.seriesId == null || serie.seriesId!.isEmpty) &&
+              nameLower != null &&
+              nameLower.isNotEmpty &&
+              serie.name != null &&
+              serie.name!.trim().toLowerCase() == nameLower) {
+            return false;
+          }
+        }
+        return true;
+      }).toList();
     }
 
     await favoriteLocale.saveFavoriteSerie(newList);

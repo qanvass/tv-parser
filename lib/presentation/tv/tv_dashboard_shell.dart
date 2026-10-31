@@ -1459,7 +1459,8 @@ class _TvDashboardShellState extends State<TvDashboardShell>
   /// Back contract for the post-login shell:
   /// - Search tab → return to Live + expand rail (never dump to Google TV Home)
   /// - Content focus → move focus back to the selected rail item
-  /// - Already on rail → ignore so the system can leave the app
+  /// - Already on rail (non-Live) → return to Live rail + expand rail
+  /// - Already on rail (Live) → ignore so the system can leave the app
   KeyEventResult _onShellKey(FocusNode _, KeyEvent event) {
     if (!_isBackKey(event.logicalKey)) return KeyEventResult.ignored;
     // Android fires system Back on key *up*. When a child route already
@@ -1504,7 +1505,28 @@ class _TvDashboardShellState extends State<TvDashboardShell>
       return KeyEventResult.handled;
     }
 
-    // Rail already focused. Swallow a leftover Back from a just-popped
+    // Rail already focused. If not on the Live tab, Back returns to the Live rail.
+    if (_selectedNavIndex != _TvNav.live) {
+      _backDownConsumed = true;
+      setState(() {
+        _selectedNavIndex = _TvNav.live;
+        _railCollapsed = false;
+      });
+      _syncLivePreview(immediate: true);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _navFocusNodes[_TvNav.live].requestFocus();
+      });
+      logTvBack(
+        screen: 'TvShell',
+        source: 'focus',
+        action: 'returnToLiveRail',
+        blockedDuplicate: false,
+        routeBefore: Get.currentRoute,
+      );
+      return KeyEventResult.handled;
+    }
+
+    // Live rail already focused. Swallow a leftover Back from a just-popped
     // child route so it cannot finish the Activity on the same press.
     if (TvBackGate.shouldSuppressShellExit()) {
       _backDownConsumed = true;
