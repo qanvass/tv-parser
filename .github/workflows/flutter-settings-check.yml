@@ -34,6 +34,32 @@ jobs:
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
       - name: Focused navigation and preview regression tests
         run: flutter test test/tv_back_navigation_test.dart test/live_hero_preview_controller_test.dart
+      - name: Add Maven Central fallback for Flutter's embedded Gradle build
+        run: |
+          mkdir -p "$HOME/.gradle/init.d"
+          cat > "$HOME/.gradle/init.d/maven-central.gradle" <<'GRADLE'
+          gradle.beforeSettings { settings ->
+              settings.pluginManagement {
+                  repositories {
+                      mavenCentral()
+                      google()
+                      gradlePluginPortal()
+                  }
+              }
+          }
+          gradle.beforeProject { project ->
+              project.buildscript.repositories {
+                  mavenCentral()
+                  google()
+                  gradlePluginPortal()
+              }
+              project.repositories {
+                  mavenCentral()
+                  google()
+                  gradlePluginPortal()
+              }
+          }
+          GRADLE
       - name: Compile unsigned debug APK
         run: flutter build apk --debug
       - name: Upload Android TV test APK
