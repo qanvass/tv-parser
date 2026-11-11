@@ -32,6 +32,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _detailPanelActive = false;
 
   final _navFocus = FocusNode();
+  final _savedTvScroll = ScrollController();
   String _currentQualityMode = "Balanced";
   HeroPreviewMode _heroPreviewMode = HeroPreviewMode.muted;
   bool _locationPersonalizationEnabled = false;
@@ -67,6 +68,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void dispose() {
     _navFocus.dispose();
+    _savedTvScroll.dispose();
     super.dispose();
   }
 
@@ -222,8 +224,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (_detailPanelActive) {
       if (k == LogicalKeyboardKey.arrowLeft) {
         if (section == _TvSettingsSection.sources &&
-            (_detailIdx == 1 || _detailIdx > firstTool)) {
+            (_detailIdx == 1 || (_detailIdx > 2 && _detailIdx <= firstTool) ||
+                _detailIdx > firstTool)) {
           setState(() => _detailIdx--);
+          _scrollSavedTvLoginIntoView();
         } else {
           setState(() {
             _detailPanelActive = false;
@@ -232,9 +236,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       } else if (k == LogicalKeyboardKey.arrowRight) {
         if (section == _TvSettingsSection.sources &&
-            (_detailIdx == 0 || _detailIdx >= firstTool) &&
+            (_detailIdx == 0 ||
+                (_detailIdx >= 2 && _detailIdx < firstTool - 1) ||
+                _detailIdx >= firstTool) &&
             _detailIdx < detailMax) {
           setState(() => _detailIdx++);
+          _scrollSavedTvLoginIntoView();
         }
       } else if (k == LogicalKeyboardKey.arrowUp) {
         if (section == _TvSettingsSection.sources && _detailIdx >= firstTool) {
@@ -286,6 +293,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
+  }
+
+  void _scrollSavedTvLoginIntoView() {
+    if (_detailIdx < 2 || _detailIdx >= 2 + _savedAccounts.length) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_savedTvScroll.hasClients) return;
+      final x = ((_detailIdx - 2) * 1114.0).clamp(
+        0.0, _savedTvScroll.position.maxScrollExtent,
+      );
+      _savedTvScroll.animateTo(
+        x,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      );
+    });
   }
 
   KeyEventResult _onMobileKey(LogicalKeyboardKey k) {
