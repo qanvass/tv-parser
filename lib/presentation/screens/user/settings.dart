@@ -167,11 +167,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
       } else if (k == LogicalKeyboardKey.arrowLeft) {
         if (_appbarIdx > 0) setState(() => _appbarIdx--);
       } else if (k == LogicalKeyboardKey.arrowRight) {
-        if (_appbarIdx < _appbarBtnMax) setState(() => _appbarIdx++);
+        if (isTvDevice() && _appbarIdx < _appbarBtnMax) {
+          setState(() => _appbarIdx++);
+        }
       } else if (k == LogicalKeyboardKey.select ||
           k == LogicalKeyboardKey.enter ||
           k == LogicalKeyboardKey.gameButtonA) {
-        _tvSettingsOpenTopTab(_appbarIdx);
+        if (isTvDevice()) {
+          _tvSettingsOpenTopTab(_appbarIdx);
+        } else {
+          _popToShell();
+        }
       } else if (k == LogicalKeyboardKey.escape ||
           k == LogicalKeyboardKey.goBack) {
         _popToShell();
