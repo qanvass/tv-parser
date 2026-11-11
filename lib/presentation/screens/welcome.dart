@@ -250,26 +250,70 @@ class _WelcomeScreenState extends State<WelcomeScreen>
         return true;
       }
     }
-    for (final s in LocaleApi.getM3uSeries()) {
-      if (s.directSource == url) {
-        Get.to(
-          () => MoviePlayerScreen(
-            link: url,
-            title: s.name ?? 'Episode',
-            streamId: s.seriesId,
-            image: s.cover,
-            recordHistory: true,
-            historyIsSeries: true,
-            startAt: _savedPosition(
-              context.read<WatchingCubit>().state.series,
-              s.seriesId,
-            ),
-          ),
-        );
-        return true;
-      }
+    final episode = LocaleApi.m3uSeriesInMemoryByDirectSource(url);
+    if (episode != null) {
+      _openCatalogEpisode(episode, url);
+      return true;
     }
     return false;
+  }
+
+  void _openCatalogEpisode(ChannelSerie s, String url) {
+    Get.to(
+      () => MoviePlayerScreen(
+        link: url,
+        title: s.name ?? 'Episode',
+        streamId: s.seriesId,
+        image: s.cover,
+        recordHistory: true,
+        historyIsSeries: true,
+        startAt: _savedPosition(
+          context.read<WatchingCubit>().state.series,
+          s.seriesId,
+        ),
+      ),
+    );
+  }
+
+  /// Opens [url] in the player that fits it. Playlist episodes that are not
+  /// in memory (shows-only catalog) are looked up in the catalog database.
+  Future<void> _openTvSelection(String url) async {
+    // Playlist movies/episodes share the /api/stream/ URL shape with
+    // live channels; the catalog says which player they belong in.
+    if (_openCatalogVod(url)) return;
+    if (LocaleApi.m3uSeriesShowsOnly) {
+      final stored = await LocaleApi.m3uSeriesByDirectSource(url);
+      if (!mounted) return;
+      if (stored != null) {
+        _openCatalogEpisode(stored, url);
+        return;
+      }
+    }
+    var effectiveUrl = url.trim();
+    if (!effectiveUrl.startsWith('http://') && !effectiveUrl.startsWith('https://')) {
+      try {
+        final liveUrl = await PlaybackUrlBuilder.buildLiveUrl(effectiveUrl);
+        if (liveUrl.isNotEmpty) {
+          effectiveUrl = liveUrl;
+        } else {
+          final vodUrl = await PlaybackUrlBuilder.buildMovieUrl(effectiveUrl);
+          if (vodUrl.isNotEmpty) effectiveUrl = vodUrl;
+        }
+      } catch (_) {}
+    }
+    final streamId = extractStreamIdFromUrl(effectiveUrl);
+    // M3U providers (e.g. /api/stream/.../*.m3u8) are not Xtream /live/<id>.
+    if (isLikelyLiveStreamUrl(effectiveUrl)) {
+      Get.to(
+        () => LivePlayerScreen(
+          link: effectiveUrl,
+          title: 'TV Stream',
+          streamId: streamId,
+        ),
+      );
+    } else {
+      Get.to(() => MoviePlayerScreen(link: effectiveUrl, title: 'TV Stream'));
+    }
   }
 
   @override
@@ -281,22 +325,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
           if (url == "adult_locked") {
             _showTvAdultPinDialog(context);
           } else {
-            // Playlist movies/episodes share the /api/stream/ URL shape with
-            // live channels; the catalog says which player they belong in.
-            if (_openCatalogVod(url)) return;
-            final streamId = extractStreamIdFromUrl(url);
-            // M3U providers (e.g. /api/stream/.../*.m3u8) are not Xtream /live/<id>.
-            if (isLikelyLiveStreamUrl(url)) {
-              Get.to(
-                () => LivePlayerScreen(
-                  link: url,
-                  title: 'TV Stream',
-                  streamId: streamId,
-                ),
-              );
-            } else {
-              Get.to(() => MoviePlayerScreen(link: url, title: 'TV Stream'));
-            }
+            _openTvSelection(url);
           }
         },
       );

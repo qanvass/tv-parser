@@ -6,6 +6,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../helpers/helpers.dart';
@@ -285,10 +286,33 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     });
   }
 
+  Future<String> _resolveStreamUrl(String rawUrl, {bool isVod = false}) async {
+    final trimmed = rawUrl.trim();
+    if (trimmed.isEmpty) return trimmed;
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+    // Bare numeric streamId passed in from Xtream catalog
+    try {
+      if (isVod) {
+        if (_selectedNavIndex == _TvNav.series) {
+          final resolved = await PlaybackUrlBuilder.buildSeriesUrl(trimmed);
+          if (resolved.isNotEmpty) return resolved;
+        }
+        final resolved = await PlaybackUrlBuilder.buildMovieUrl(trimmed);
+        if (resolved.isNotEmpty) return resolved;
+      } else {
+        final resolved = await PlaybackUrlBuilder.buildLiveUrl(trimmed);
+        if (resolved.isNotEmpty) return resolved;
+      }
+    } catch (_) {}
+    return trimmed;
+  }
+
   /// Explicit Watch Live / Live card handoff.
   /// Captures this record, releases preview, then plays THIS streamUrl.
   Future<void> _watchLive(TvStreamRecord active) async {
-    final url = active.streamUrl;
+    final url = await _resolveStreamUrl(active.streamUrl, isVod: false);
     final heroHash = _livePreview.activeUrlHash;
     final watchHash = LivePreviewTrace.urlHash(url);
     LivePreviewTrace.log(
@@ -304,8 +328,9 @@ class _TvDashboardShellState extends State<TvDashboardShell>
 
   /// URL-only Live launches (home/local rows that already hold streamUrl).
   Future<void> _openPlayback(String streamUrl) async {
+    final resolvedUrl = await _resolveStreamUrl(streamUrl, isVod: false);
     final heroHash = _livePreview.activeUrlHash;
-    final watchHash = LivePreviewTrace.urlHash(streamUrl);
+    final watchHash = LivePreviewTrace.urlHash(resolvedUrl);
     LivePreviewTrace.log(
       'watch_live_handoff',
       'source=url_only heroHash=$heroHash watchHash=$watchHash '
@@ -313,7 +338,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     );
     await _livePreview.stopAndRelease(reason: 'fullscreen_handoff');
     if (!mounted) return;
-    widget.onChannelSelected(streamUrl);
+    widget.onChannelSelected(resolvedUrl);
     unawaited(_resumePreviewWhenDashboardCurrent());
   }
 
@@ -363,12 +388,13 @@ class _TvDashboardShellState extends State<TvDashboardShell>
       '[PLAYBACK_HANDOFF] preview_release_completed reason=movie_play '
       'phase=${_livePreview.phase.name}',
     );
+    final resolvedUrl = await _resolveStreamUrl(streamUrl, isVod: true);
     // ignore: avoid_print
     print(
       '[PLAYBACK_HANDOFF] movie_open_requested '
-      'hash=${LivePreviewTrace.urlHash(streamUrl)}',
+      'hash=${LivePreviewTrace.urlHash(resolvedUrl)}',
     );
-    widget.onChannelSelected(streamUrl);
+    widget.onChannelSelected(resolvedUrl);
   }
 
   Future<void> _resumePreviewWhenDashboardCurrent() async {
@@ -1061,6 +1087,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
               watchById: watchById,
               headCount: _kShelfHeadCount,
               headLimit: _kShelfHeadLimit,
+              episodeCounts: LocaleApi.m3uSeriesEpisodeCounts,
             ),
           );
           if (!mounted || gen != _seriesLoadGen) return;
@@ -1101,6 +1128,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
             watchById: watchById,
             headCount: _kShelfHeadCount,
             headLimit: _kShelfHeadLimit,
+              episodeCounts: LocaleApi.m3uSeriesEpisodeCounts,
           ),
         );
       } catch (e) {
@@ -1337,6 +1365,11 @@ class _TvDashboardShellState extends State<TvDashboardShell>
           _onPrimarySelected(_TvNav.movies);
         } else if (result == 'series') {
           _onPrimarySelected(_TvNav.series);
+        } else if (result == 'search') {
+          _onPrimarySelected(_TvNav.search);
+        } else if (result == 'settings') {
+          _onUtilitySelected(0);
+          return;
         } else {
           _navFocusNodes[_TvNav.favorites].requestFocus();
         }
@@ -1383,9 +1416,9 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     }
   }
 
-  /// Opens the 2×2 multiview route. Does not change preview request,
-  /// stopAndRelease, or hero sync. Drops the one hero player first so the
-  /// grid does not start a fifth player beside it.
+  /// Opens multiview. Layout 2 starts two players. Layout 4 can start four.
+  /// Drops the one hero player first so the panes do not start beside it.
+  /// A category result selects that tab. Back returns to Live.
   Future<void> _openMultiview() async {
     if (_multiviewOpening) return;
     _multiviewOpening = true;
@@ -1394,9 +1427,32 @@ class _TvDashboardShellState extends State<TvDashboardShell>
         await _livePreview.release(reason: 'navigation');
       } catch (_) {}
       if (!mounted) return;
-      await Get.toNamed(screenMultiview);
+      final result = await Get.toNamed(screenMultiview);
       TvBackGate.noteRoutePopped();
       if (!mounted) return;
+      if (result == 'movies' ||
+          result == 'series' ||
+          result == 'search' ||
+          result == 'favorites' ||
+          result == 'history') {
+        final index = switch (result) {
+          'movies' => _TvNav.movies,
+          'series' => _TvNav.series,
+          'search' => _TvNav.search,
+          'favorites' => _TvNav.favorites,
+          _ => _TvNav.history,
+        };
+        _onPrimarySelected(index);
+        if (index == _TvNav.movies ||
+            index == _TvNav.series ||
+            index == _TvNav.search) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _navFocusNodes[index].requestFocus();
+          });
+        }
+        return;
+      }
       _syncLivePreview(immediate: true);
       _multiviewFocus.requestFocus();
     } finally {
@@ -1416,8 +1472,24 @@ class _TvDashboardShellState extends State<TvDashboardShell>
       unawaited(_livePreview.release(reason: 'navigation'));
       Get.toNamed(screenSettings)?.then((_) {
         TvBackGate.noteRoutePopped();
-        if (mounted) setState(_refreshHeaderPrefs);
-        if (mounted && _utilityFocusNodes.isNotEmpty) {
+        if (!mounted) return;
+        setState(_refreshHeaderPrefs);
+        final prefs = GetStorage('preferences');
+        final requested = prefs.read('settings_return_tab');
+        final refresh = prefs.read('settings_refresh_requested') == true;
+        if (requested != null) {
+          prefs.remove('settings_return_tab');
+        }
+        if (refresh) {
+          prefs.remove('settings_refresh_requested');
+          _loadRealPlaylistContent();
+        }
+        if (requested is int && requested >= _TvNav.live &&
+            requested <= _TvNav.series) {
+          _onPrimarySelected(requested);
+          return;
+        }
+        if (_utilityFocusNodes.isNotEmpty) {
           _utilityFocusNodes.first.requestFocus();
         }
         _syncLivePreview(immediate: true);

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_vlc_player_16kb/flutter_vlc_player.dart';
 
+import '../../../repository/api/playback_url_builder.dart';
 import '../widgets/tv_channel_grid.dart';
 import 'live_preview_trace.dart';
 
@@ -206,26 +207,35 @@ class LiveHeroPreviewController extends ChangeNotifier {
       return;
     }
 
+    String playUrl = url;
+    if (!playUrl.startsWith('http://') && !playUrl.startsWith('https://')) {
+      final resolved = await PlaybackUrlBuilder.buildLiveUrl(playUrl);
+      if (resolved.isNotEmpty) {
+        playUrl = resolved;
+      }
+    }
+    if (gen != _gen || _disposed) return;
+
     final canReplace =
         _player != null && _player!.value.isInitialized && _activeUrl != null;
     if (canReplace) {
       try {
         LivePreviewTrace.log(
           'initialize_open_begins',
-          'mode=replace gen=$gen hash=${LivePreviewTrace.urlHash(url)}',
+          'mode=replace gen=$gen hash=${LivePreviewTrace.urlHash(playUrl)}',
         );
         await _forceMuted();
         await _player!.stop();
         if (gen != _gen || _disposed) return;
         await _player!.setMediaFromNetwork(
-          url,
+          playUrl,
           autoPlay: false,
           hwAcc: HwAcc.auto,
         );
         if (gen != _gen || _disposed) return;
         LivePreviewTrace.log(
           'initialize_open_completes',
-          'mode=replace gen=$gen hash=${LivePreviewTrace.urlHash(url)}',
+          'mode=replace gen=$gen hash=${LivePreviewTrace.urlHash(playUrl)}',
         );
         await _forceMuted();
         if (gen != _gen || _disposed) return;
@@ -252,26 +262,31 @@ class LiveHeroPreviewController extends ChangeNotifier {
           'mode=replace type=${e.runtimeType}',
         );
         if (gen != _gen || _disposed) return;
-        await _openFreshPlayer(url, title, gen);
+        await _openFreshPlayer(playUrl, url, title, gen);
         return;
       }
     }
 
-    await _openFreshPlayer(url, title, gen);
+    await _openFreshPlayer(playUrl, url, title, gen);
   }
 
-  Future<void> _openFreshPlayer(String url, String title, int gen) async {
+  Future<void> _openFreshPlayer(
+    String playUrl,
+    String rawUrl,
+    String title,
+    int gen,
+  ) async {
     await _tearDownPlayer();
     if (gen != _gen || _disposed) return;
 
     LivePreviewTrace.log(
       'controller_creation_begins',
-      'gen=$gen hash=${LivePreviewTrace.urlHash(url)} channel=$title',
+      'gen=$gen hash=${LivePreviewTrace.urlHash(playUrl)} channel=$title',
     );
     // Vanilla options (3015 proved LibVLC create). autoPlay MUST stay false —
     // mute via setVolume(0) before any play() to avoid audible race.
     final created = VlcPlayerController.network(
-      url,
+      playUrl,
       hwAcc: HwAcc.auto,
       autoInitialize: true,
       autoPlay: false,
@@ -282,7 +297,7 @@ class LiveHeroPreviewController extends ChangeNotifier {
     created.addListener(_onVlc);
     _player = created;
     _playerKey = UniqueKey();
-    _activeUrl = url;
+    _activeUrl = rawUrl;
     _activeTitle = title;
     _phase = LiveHeroPreviewPhase.loading;
     _hasFirstFrame = false;
@@ -292,7 +307,7 @@ class LiveHeroPreviewController extends ChangeNotifier {
     _muteAsserted = false;
     LivePreviewTrace.log(
       'controller_created',
-      'gen=$gen hash=${LivePreviewTrace.urlHash(url)} '
+      'gen=$gen hash=${LivePreviewTrace.urlHash(playUrl)} '
           'autoPlay=false initialized=${created.value.isInitialized}',
     );
     LivePreviewTrace.log(
