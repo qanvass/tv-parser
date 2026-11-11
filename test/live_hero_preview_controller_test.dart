@@ -69,7 +69,7 @@ void main() {
   });
 
   group('LiveHeroPreviewController debounce', () {
-    test('cancels stale focus and opens only the last streamUrl', () async {
+    testWidgets('cancels stale focus and opens only the last streamUrl', (tester) async {
       final opened = <String>[];
       final ctrl = LiveHeroPreviewController(
         hooks: LiveHeroPreviewHooks(
@@ -78,15 +78,15 @@ void main() {
       );
 
       ctrl.request(_live('One', 'https://x/1'));
-      await Future<void>.delayed(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 400));
       ctrl.request(_live('Two', 'https://x/2'));
-      await Future<void>.delayed(const Duration(milliseconds: 699));
+      await tester.pump(const Duration(milliseconds: 699));
       expect(opened, isEmpty);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await tester.pump(const Duration(milliseconds: 50));
       expect(opened, ['Two|https://x/2']);
 
       ctrl.request(_live('Two', 'https://x/2'));
-      await Future<void>.delayed(const Duration(milliseconds: 800));
+      await tester.pump(const Duration(milliseconds: 800));
       expect(opened, ['Two|https://x/2']);
 
       ctrl.dispose();
