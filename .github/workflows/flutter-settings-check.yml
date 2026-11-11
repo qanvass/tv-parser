@@ -1,0 +1,37 @@
+name: Android TV settings verification
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'lib/presentation/screens/**'
+      - 'lib/presentation/tv/tv_dashboard_shell.dart'
+      - 'pubspec.yaml'
+      - '.github/workflows/flutter-settings-check.yml'
+  workflow_dispatch:
+
+jobs:
+  flutter-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Java for Android build
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Fetch dependencies
+        run: flutter pub get
+      - name: Static analysis (errors are fatal)
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - name: Focused navigation and preview regression tests
+        run: flutter test test/tv_back_navigation_test.dart test/live_hero_preview_controller_test.dart
+      - name: Compile unsigned debug APK
+        run: flutter build apk --debug
