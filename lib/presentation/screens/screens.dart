@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
 import 'package:dio/dio.dart';
@@ -15,6 +16,8 @@ import 'package:flutter_vlc_player_16kb/flutter_vlc_player.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import 'package:responsive_sizer/responsive_sizer.dart';
 import 'package:cast/cast.dart';
@@ -80,6 +83,7 @@ part 'series/series_categories.dart';
 part 'user/register.dart';
 part 'user/register_tv.dart';
 part 'user/settings.dart';
+part 'user/settings_tv_design.dart';
 part 'user/splash.dart';
 part 'user/intro.dart';
 part 'user/favourites.dart';

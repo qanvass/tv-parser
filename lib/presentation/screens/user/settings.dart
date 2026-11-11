@@ -19,7 +19,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _appbarActive = false;
   int _appbarIdx = 0;
-  static const int _appbarBtnMax = 0;
+  static const int _appbarBtnMax = 5;
 
   // Mobile flat action list
   int _actionIdx = 0;
@@ -32,6 +32,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _detailPanelActive = false;
 
   final _navFocus = FocusNode();
+  final _savedTvScroll = ScrollController();
   String _currentQualityMode = "Balanced";
   HeroPreviewMode _heroPreviewMode = HeroPreviewMode.muted;
   bool _locationPersonalizationEnabled = false;
@@ -67,6 +68,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void dispose() {
     _navFocus.dispose();
+    _savedTvScroll.dispose();
     super.dispose();
   }
 
@@ -113,7 +115,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int _detailCountFor(_TvSettingsSection section) {
     switch (section) {
       case _TvSettingsSection.sources:
-        return 2 + _savedAccounts.length; // refresh + add + saved
+        return 6 + _savedAccounts.length; // refresh + add + saved + 4 quick tools
       case _TvSettingsSection.playback:
         return 2; // quality + hero preview
       case _TvSettingsSection.local:
@@ -165,11 +167,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
       } else if (k == LogicalKeyboardKey.arrowLeft) {
         if (_appbarIdx > 0) setState(() => _appbarIdx--);
       } else if (k == LogicalKeyboardKey.arrowRight) {
-        if (_appbarIdx < _appbarBtnMax) setState(() => _appbarIdx++);
+        if (isTvDevice() && _appbarIdx < _appbarBtnMax) {
+          setState(() => _appbarIdx++);
+        }
       } else if (k == LogicalKeyboardKey.select ||
           k == LogicalKeyboardKey.enter ||
           k == LogicalKeyboardKey.gameButtonA) {
-        if (_appbarIdx == 0) _popToShell();
+        if (isTvDevice()) {
+          _tvSettingsOpenTopTab(_appbarIdx);
+        } else {
+          _popToShell();
+        }
       } else if (k == LogicalKeyboardKey.escape ||
           k == LogicalKeyboardKey.goBack) {
         _popToShell();
@@ -186,6 +194,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   KeyEventResult _onTvKey(LogicalKeyboardKey k) {
     final section = _tvSections[_sectionIdx];
     final detailMax = _detailCountFor(section) - 1;
+    final firstTool = 2 + _savedAccounts.length;
 
     if (_sectionPanelActive) {
       if (k == LogicalKeyboardKey.arrowUp) {
@@ -195,7 +204,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           setState(() {
             _sectionPanelActive = false;
             _appbarActive = true;
-            _appbarIdx = 0;
+            _appbarIdx = 5;
           });
         }
       } else if (k == LogicalKeyboardKey.arrowDown) {
@@ -220,21 +229,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (_detailPanelActive) {
       if (k == LogicalKeyboardKey.arrowLeft) {
-        setState(() {
-          _detailPanelActive = false;
-          _sectionPanelActive = true;
-        });
+        if (section == _TvSettingsSection.sources &&
+            (_detailIdx == 1 || (_detailIdx > 2 && _detailIdx <= firstTool) ||
+                _detailIdx > firstTool)) {
+          setState(() => _detailIdx--);
+          _scrollSavedTvLoginIntoView();
+        } else {
+          setState(() {
+            _detailPanelActive = false;
+            _sectionPanelActive = true;
+          });
+        }
+      } else if (k == LogicalKeyboardKey.arrowRight) {
+        if (section == _TvSettingsSection.sources &&
+            (_detailIdx == 0 ||
+                (_detailIdx >= 2 && _detailIdx < firstTool - 1) ||
+                _detailIdx >= firstTool) &&
+            _detailIdx < detailMax) {
+          setState(() => _detailIdx++);
+          _scrollSavedTvLoginIntoView();
+        }
       } else if (k == LogicalKeyboardKey.arrowUp) {
-        if (_detailIdx > 0) {
+        if (section == _TvSettingsSection.sources && _detailIdx >= firstTool) {
+          setState(() => _detailIdx = _savedAccounts.isNotEmpty ? 2 : 0);
+        } else if (section == _TvSettingsSection.sources && _detailIdx >= 2) {
+          setState(() => _detailIdx = 0);
+        } else if (_detailIdx > 0 && section != _TvSettingsSection.sources) {
           setState(() => _detailIdx--);
         } else {
           setState(() {
             _detailPanelActive = false;
             _appbarActive = true;
+            _appbarIdx = 5;
           });
         }
       } else if (k == LogicalKeyboardKey.arrowDown) {
-        if (_detailIdx < detailMax) setState(() => _detailIdx++);
+        if (section == _TvSettingsSection.sources && _detailIdx < 2) {
+          setState(() => _detailIdx = _savedAccounts.isNotEmpty ? 2 : firstTool);
+        } else if (section == _TvSettingsSection.sources &&
+            _detailIdx < firstTool) {
+          setState(() => _detailIdx = firstTool);
+        } else if (_detailIdx < detailMax &&
+            section != _TvSettingsSection.sources) {
+          setState(() => _detailIdx++);
+        }
       } else if (k == LogicalKeyboardKey.select ||
           k == LogicalKeyboardKey.enter ||
           k == LogicalKeyboardKey.gameButtonA) {
@@ -249,7 +287,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return KeyEventResult.handled;
     }
 
-    if (k == LogicalKeyboardKey.arrowUp || k == LogicalKeyboardKey.arrowDown) {
+    if (k == LogicalKeyboardKey.arrowDown) {
       setState(() {
         _sectionPanelActive = true;
         _sectionIdx = 0;
@@ -261,6 +299,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
+  }
+
+  void _scrollSavedTvLoginIntoView() {
+    if (_detailIdx < 2 || _detailIdx >= 2 + _savedAccounts.length) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_savedTvScroll.hasClients) return;
+      final x = ((_detailIdx - 2) * 1114.0).clamp(
+        0.0, _savedTvScroll.position.maxScrollExtent,
+      );
+      _savedTvScroll.animateTo(
+        x,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      );
+    });
   }
 
   KeyEventResult _onMobileKey(LogicalKeyboardKey k) {
@@ -307,18 +360,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     switch (section) {
       case _TvSettingsSection.sources:
         if (idx == 0) {
-          context.read<LiveCatyBloc>().add(GetLiveCategories());
-          context.read<MovieCatyBloc>().add(GetMovieCategories());
-          context.read<SeriesCatyBloc>().add(GetSeriesCategories());
-          Get.back();
+          _tvSettingsRefreshPlaylist();
         } else if (idx == 1) {
           context.read<AuthBloc>().add(AuthLogOut());
           Get.offAllNamed('/');
+        } else if (idx < 2 + _savedAccounts.length) {
+          _switchToSavedAccount(_savedAccounts[idx - 2]);
         } else {
-          final accountIdx = idx - 2;
-          if (accountIdx >= 0 && accountIdx < _savedAccounts.length) {
-            _switchToSavedAccount(_savedAccounts[accountIdx]);
-          }
+          _tvSettingsQuickTool(idx - 2 - _savedAccounts.length);
         }
         break;
       case _TvSettingsSection.playback:
@@ -649,6 +698,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               final user = authState is AuthSuccess ? authState.user : null;
               final userInfo = user?.userInfo;
               final serverInfo = user?.serverInfo;
+
+              if (isTvDevice()) {
+                return _buildTvSettingsRedesign(userInfo, serverInfo);
+              }
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

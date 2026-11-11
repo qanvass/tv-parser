@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../helpers/helpers.dart';
@@ -1304,7 +1305,25 @@ class _TvDashboardShellState extends State<TvDashboardShell>
       unawaited(_livePreview.release(reason: 'navigation'));
       Get.toNamed(screenSettings)?.then((_) {
         TvBackGate.noteRoutePopped();
-        if (mounted && _utilityFocusNodes.isNotEmpty) {
+        if (!mounted) return;
+        // The screenshot-style Settings header can send the user back to
+        // Live TV, Movies or Series without opening a legacy parallel route.
+        final prefs = GetStorage('preferences');
+        final requested = prefs.read('settings_return_tab');
+        final refresh = prefs.read('settings_refresh_requested') == true;
+        if (requested != null) {
+          prefs.remove('settings_return_tab');
+        }
+        if (refresh) {
+          prefs.remove('settings_refresh_requested');
+          _loadRealPlaylistContent();
+        }
+        if (requested is int && requested >= _TvNav.live &&
+            requested <= _TvNav.series) {
+          _onPrimarySelected(requested);
+          return;
+        }
+        if (_utilityFocusNodes.isNotEmpty) {
           _utilityFocusNodes.first.requestFocus();
         }
         _syncLivePreview(immediate: true);
