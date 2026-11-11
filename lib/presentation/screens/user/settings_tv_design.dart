@@ -312,6 +312,7 @@ extension _TvSettingsVisual on _SettingsScreenState {
               )
             : ListView.separated(
                 scrollDirection: Axis.horizontal,
+                controller: _savedTvScroll,
                 itemCount: _savedAccounts.length,
                 separatorBuilder: (_, __) => const SizedBox(width: 14),
                 itemBuilder: (context, i) {
@@ -430,7 +431,7 @@ extension _TvSettingsVisual on _SettingsScreenState {
       height: 185,
       selected: true,
       focused: _detailPanelActive && _detailIdx == idx,
-      violet: idx.isOdd,
+      violet: idx - (2 + _savedAccounts.length) >= 2,
       radius: 22,
       onTap: () => _handleTvDetailAction(_TvSettingsSection.sources, idx),
       padding: const EdgeInsets.all(10),
@@ -465,6 +466,7 @@ extension _TvSettingsVisual on _SettingsScreenState {
           const _TvSettingsActionData(Icons.tune_rounded, 'Stream Quality Mode', 'Tune buffer sizes for your connection.'),
           const _TvSettingsActionData(Icons.live_tv_rounded, 'Hero Preview', 'Control the preview experience while browsing.'),
         ]);
+        break;
       case _TvSettingsSection.local:
         subhead = 'Market: ' + _activeMarketName;
         entries.addAll([
@@ -473,16 +475,19 @@ extension _TvSettingsVisual on _SettingsScreenState {
           const _TvSettingsActionData(Icons.map_outlined, 'Change Local TV Market', 'Choose the market used for local channels.'),
           const _TvSettingsActionData(Icons.restart_alt_rounded, 'Reset Location Preferences', 'Clear location preferences and market.'),
         ]);
+        break;
       case _TvSettingsSection.diagnostics:
         subhead = 'Test network latency, stream reachability and download speed';
         entries.add(const _TvSettingsActionData(Icons.monitor_heart_rounded,
           'Connection Diagnostics', 'Run the existing network and streaming diagnostic suite.'));
+        break;
       case _TvSettingsSection.account:
         subhead = 'Account: ' + (userInfo?.username?.toString() ?? 'Playlist user');
         entries.addAll([
           const _TvSettingsActionData(Icons.person_add_alt_rounded, 'Add New Account', 'Log in with another playlist or service.'),
           const _TvSettingsActionData(Icons.logout_rounded, 'Log Out', 'Sign out of the current source.'),
         ]);
+        break;
       case _TvSettingsSection.about:
         subhead = 'App details, controls and content credits';
         entries.addAll([
@@ -491,6 +496,7 @@ extension _TvSettingsVisual on _SettingsScreenState {
           const _TvSettingsActionData(Icons.info_outline_rounded, 'TV Parser', 'Media player information and support.'),
           const _TvSettingsActionData(Icons.photo_library_outlined, 'Artwork Credit', 'Read third-party artwork attribution.'),
         ]);
+        break;
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -520,12 +526,16 @@ extension _TvSettingsVisual on _SettingsScreenState {
     switch (tool) {
       case 0:
         unawaited(_tvSettingsClearCache());
+        break;
       case 1:
         unawaited(_tvSettingsRebuildData());
+        break;
       case 2:
         unawaited(_tvSettingsCheckUpdates());
+        break;
       case 3:
         unawaited(_tvSettingsSystemInfo());
+        break;
     }
   }
 
@@ -547,19 +557,32 @@ extension _TvSettingsVisual on _SettingsScreenState {
   }
 
   void _tvSettingsRefreshPlaylist() {
+    unawaited(_tvSettingsRefreshPlaylistAsync());
+  }
+
+  Future<void> _tvSettingsRefreshPlaylistAsync() async {
     final auth = context.read<AuthBloc>().state;
     if (auth is AuthSuccess) {
       final url = m3uPlaylistUrlFromServerUrl(auth.user.serverInfo?.serverUrl);
       if (url != null && url.isNotEmpty) {
-        context.read<AuthBloc>().add(AuthLoadM3u(url));
-        Get.offAllNamed('/');
-        return;
+        _snack('Downloading the latest playlist data…');
+        // Keep the logged-in session intact on download failure. A refresh is
+        // not a reason to force the user back through the splash/login flow.
+        final reloaded = await AuthApi().registerM3u(url);
+        if (!mounted) return;
+        if (reloaded == null) {
+          _snack('Playlist refresh failed. Existing channels are preserved.');
+          _restoreFocus();
+          return;
+        }
       }
     }
+    if (!mounted) return;
     context.read<LiveCatyBloc>().add(GetLiveCategories());
     context.read<MovieCatyBloc>().add(GetMovieCategories());
     context.read<SeriesCatyBloc>().add(GetSeriesCategories());
-    _snack('Refreshing your channel categories.');
+    GetStorage('preferences').write('settings_refresh_requested', true);
+    _snack('Refreshing channels and categories.');
     _popToShell();
   }
 
@@ -597,6 +620,12 @@ extension _TvSettingsVisual on _SettingsScreenState {
     try {
       await XmlTvRepository.instance.clear();
       if (!mounted) return;
+      final auth = context.read<AuthBloc>().state;
+      if (auth is AuthSuccess) {
+        unawaited(XmlTvRepository.instance.ensureLoaded(
+          playlistUrl: m3uPlaylistUrlFromServerUrl(auth.user.serverInfo?.serverUrl),
+        ));
+      }
       _tvSettingsRefreshPlaylist();
     } catch (e) {
       if (mounted) _snack('Could not rebuild the guide: ' + e.toString());
