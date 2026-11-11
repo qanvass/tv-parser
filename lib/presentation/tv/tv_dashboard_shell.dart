@@ -1310,13 +1310,18 @@ class _TvDashboardShellState extends State<TvDashboardShell>
         // Live TV, Movies or Series without opening a legacy parallel route.
         final prefs = GetStorage('preferences');
         final requested = prefs.read('settings_return_tab');
+        final refresh = prefs.read('settings_refresh_requested') == true;
         if (requested != null) {
           prefs.remove('settings_return_tab');
-          if (requested is int && requested >= _TvNav.live &&
-              requested <= _TvNav.series) {
-            _onPrimarySelected(requested);
-            return;
-          }
+        }
+        if (refresh) {
+          prefs.remove('settings_refresh_requested');
+          _loadRealPlaylistContent();
+        }
+        if (requested is int && requested >= _TvNav.live &&
+            requested <= _TvNav.series) {
+          _onPrimarySelected(requested);
+          return;
         }
         if (_utilityFocusNodes.isNotEmpty) {
           _utilityFocusNodes.first.requestFocus();
