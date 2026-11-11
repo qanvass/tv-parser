@@ -166,7 +166,7 @@ extension _TvSettingsVisual on _SettingsScreenState {
     ];
     return Column(
       children: [
-        for (var i = 0; i < _tvSections.length; i++) ...[
+        for (var i = 0; i < _SettingsScreenState._tvSections.length; i++) ...[
           _TvSettingsNeonTile(
             width: 418,
             height: 92,
@@ -207,7 +207,7 @@ extension _TvSettingsVisual on _SettingsScreenState {
               ],
             ),
           ),
-          if (i < _tvSections.length - 1) const SizedBox(height: 11),
+          if (i < _SettingsScreenState._tvSections.length - 1) const SizedBox(height: 11),
         ],
       ],
     );
@@ -453,7 +453,7 @@ extension _TvSettingsVisual on _SettingsScreenState {
   }
 
   Widget _tvSettingsOtherPanel(dynamic userInfo, dynamic serverInfo) {
-    final selected = _tvSections[_sectionIdx];
+    final selected = _SettingsScreenState._tvSections[_sectionIdx];
     final entries = <_TvSettingsActionData>[];
     String heading = _sectionLabel(selected);
     String subhead = '';
