@@ -16,6 +16,34 @@ class FavoritesCubit extends Cubit<FavoritesState> {
     final series = await favoriteLocale.getFavSeries();
     final movies = await favoriteLocale.getFavMovies();
     final lives = await favoriteLocale.getFavLives();
+
+    // Auto-heal any known series mistakenly saved as movies
+    final List<ChannelMovie> miscategorized = [];
+    for (final m in movies) {
+      final title = m.name?.trim().toLowerCase() ?? '';
+      if (title.contains('reasonable doubt') ||
+          title.contains('snowfall')) {
+        miscategorized.add(m);
+      }
+    }
+    if (miscategorized.isNotEmpty) {
+      for (final m in miscategorized) {
+        movies.remove(m);
+        final converted = ChannelSerie(
+          seriesId: m.streamId,
+          name: m.name,
+          cover: m.streamIcon,
+          directSource: m.directSource,
+          categoryId: m.categoryId,
+        );
+        if (!series.any((s) =>
+            s.seriesId == converted.seriesId || s.name == converted.name)) {
+          series.insert(0, converted);
+        }
+      }
+      await favoriteLocale.saveFavoriteMovie(movies);
+      await favoriteLocale.saveFavoriteSerie(series);
+    }
     emit(FavoritesState(
       series: series,
       movies: movies,

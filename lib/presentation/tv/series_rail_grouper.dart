@@ -41,6 +41,7 @@ class SeriesRailGrouper {
     List<TvStreamRecord> episodes, {
     required String title,
     int? year,
+    int lazyEpisodeCount = 0,
   }) {
     final eps = [for (final e in episodes) _withParsedBadge(e)];
     final indexed = [for (var i = 0; i < eps.length; i++) (i, eps[i])];
@@ -59,7 +60,24 @@ class SeriesRailGrouper {
       }
     }
     if (ordered.length == 1) {
-      return best.copyWith(title: title, year: year ?? best.year);
+      // One row stands for a show whose other episodes are in the database:
+      // it is a show card, not an S1:E1 card.
+      if (lazyEpisodeCount > 1) {
+        return best.copyWith(
+          title: title,
+          year: year ?? best.year,
+          season: null,
+          episode: null,
+          badge: null,
+          isSeries: true,
+          lazyEpisodeCount: lazyEpisodeCount,
+        );
+      }
+      return best.copyWith(
+        title: title,
+        year: year ?? best.year,
+        isSeries: true,
+      );
     }
     return best.copyWith(
       title: title,
@@ -67,6 +85,7 @@ class SeriesRailGrouper {
       season: null,
       episode: null,
       badge: null,
+      isSeries: true,
       groupedEpisodes: ordered,
     );
   }

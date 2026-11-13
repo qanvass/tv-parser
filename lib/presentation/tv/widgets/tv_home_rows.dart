@@ -88,6 +88,9 @@ class TvHomeRows extends StatelessWidget {
                       subtitle: 'Series',
                       streamUrl: s.seriesId ?? '',
                       imageUrl: s.cover,
+                      streamId: s.seriesId,
+                      isSeries: true,
+                      posterStyle: TvPosterStyle.vodPortrait,
                     ),
                   ),
             ];

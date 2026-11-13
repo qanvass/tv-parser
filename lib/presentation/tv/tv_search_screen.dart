@@ -1,3 +1,5 @@
+import '../shared/hold_to_favorite.dart';
+import 'tv_favorite_action.dart';
 import 'dart:async';
 
 import 'package:android_tv_text_field/native_textfield_tv.dart';
@@ -483,6 +485,7 @@ class _TvSearchScreenState extends State<TvSearchScreen> {
       posterStyle: TvPosterStyle.vodPortrait,
       streamId: s.seriesId,
       enrichmentKey: key,
+      isSeries: true,
     );
   }
 
@@ -1062,7 +1065,8 @@ class _SearchVodPosterCard extends StatefulWidget {
   State<_SearchVodPosterCard> createState() => _SearchVodPosterCardState();
 }
 
-class _SearchVodPosterCardState extends State<_SearchVodPosterCard> {
+
+class _SearchVodPosterCardState extends State<_SearchVodPosterCard> with HoldToFavorite<_SearchVodPosterCard> {
   bool _focused = false;
 
   @override
@@ -1071,18 +1075,9 @@ class _SearchVodPosterCardState extends State<_SearchVodPosterCard> {
     const focusScale = 1.05;
     return Focus(
       onFocusChange: (value) => setState(() => _focused = value),
-      onKeyEvent: (node, event) {
-        if (event is! KeyDownEvent) return KeyEventResult.ignored;
-        final k = event.logicalKey;
-        if (k == LogicalKeyboardKey.select ||
-            k == LogicalKeyboardKey.enter ||
-            k == LogicalKeyboardKey.gameButtonA ||
-            k == LogicalKeyboardKey.space) {
-          widget.onSelected();
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
+      onKeyEvent: (node, event) => favoriteKey(event,
+          onOpen: widget.onSelected,
+          onFavorite: () => addRecordToFavorites(context, widget.stream)),
       child: AnimatedScale(
         scale: _focused ? focusScale : 1.0,
         duration: CinematicMotion.focus,
@@ -1098,6 +1093,7 @@ class _SearchVodPosterCardState extends State<_SearchVodPosterCard> {
                 child: InkWell(
                   canRequestFocus: false,
                   onTap: widget.onSelected,
+                      onLongPress: () => addRecordToFavorites(context, widget.stream),
                   borderRadius: BorderRadius.circular(
                     CinematicTokens.radiusPoster,
                   ),

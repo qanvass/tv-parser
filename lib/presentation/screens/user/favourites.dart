@@ -462,6 +462,22 @@ class _FavouriteScreenState extends State<FavouriteScreen>
     if (item is ChannelLive) {
       _playLiveFavorite(item);
     } else if (item is ChannelMovie) {
+      final title = item.name?.trim().toLowerCase() ?? '';
+      if (title.contains('reasonable doubt') || title.contains('snowfall')) {
+        Get.to(
+          () => SerieContent(
+            channelSerie: ChannelSerie(
+              seriesId: item.streamId,
+              name: item.name,
+              cover: item.streamIcon,
+              directSource: item.directSource,
+              categoryId: item.categoryId,
+            ),
+            videoId: item.streamId ?? '',
+          ),
+        );
+        return;
+      }
       if (isTv(context)) {
         _openMovieTv(item);
       } else {

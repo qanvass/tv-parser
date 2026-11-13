@@ -1,11 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../logic/cubits/favorites/favorites_cubit.dart';
 import '../../../logic/cubits/watch/watching_cubit.dart';
+import '../../../repository/api/api.dart';
 import '../../../repository/models/channel_serie.dart';
 import '../../../repository/provider/tmdb_enrichment_worker.dart';
+import '../series_rail_grouper.dart';
+import '../series_rails_isolate.dart';
 import '../widgets/tv_channel_grid.dart';
 import 'cinematic_artwork.dart';
 import 'cinematic_episode_card.dart';
@@ -60,6 +65,13 @@ class _CinematicSeriesPageState extends State<CinematicSeriesPage> {
   List<TvChannelRow>? _indexedRows;
   Map<String, TvStreamRecord>? _seriesById;
 
+  /// Shows whose episodes were read from the catalog database, by category
+  /// id. Small, so scrolling back to a show does not query again.
+  final Map<String, TvStreamRecord> _loadedShows = <String, TvStreamRecord>{};
+  static const int _loadedShowsCap = 8;
+  Timer? _episodeFetchDebounce;
+  int _episodeFetchGen = 0;
+
   @override
   void initState() {
     super.initState();
@@ -68,6 +80,8 @@ class _CinematicSeriesPageState extends State<CinematicSeriesPage> {
     _heroStream = ValueNotifier(_focused);
     if ((_focused?.groupedEpisodes.length ?? 0) > 1) {
       _episodeShow = _focused;
+    } else if (_focused?.needsEpisodeFetch ?? false) {
+      _scheduleEpisodeFetch(_focused!);
     }
     _bindFocusedKeyListener(_focused);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -99,6 +113,8 @@ class _CinematicSeriesPageState extends State<CinematicSeriesPage> {
     if (widget.selectedCategory != oldWidget.selectedCategory) {
       _episodeShow = null;
       _indexedRows = null;
+      _episodeFetchDebounce?.cancel();
+      _episodeFetchGen++;
     }
     if (!identical(widget.rows, _indexedRows)) _indexedRows = null;
     if (_focused == null && widget.rows.isNotEmpty) {
@@ -112,6 +128,7 @@ class _CinematicSeriesPageState extends State<CinematicSeriesPage> {
   @override
   void dispose() {
     _focusedKeyListenable?.removeListener(_onFocusedEnrichment);
+    _episodeFetchDebounce?.cancel();
     _heroStream.dispose();
     _preview.dispose();
     super.dispose();
@@ -134,8 +151,66 @@ class _CinematicSeriesPageState extends State<CinematicSeriesPage> {
     _pushHero(stream);
     if (stream.groupedEpisodes.length > 1 &&
         !identical(_episodeShow, stream)) {
+      _episodeFetchDebounce?.cancel();
+      _episodeFetchGen++;
       setState(() => _episodeShow = stream);
+    } else if (stream.needsEpisodeFetch) {
+      _scheduleEpisodeFetch(stream);
     }
+  }
+
+  /// The show's episodes are in the catalog database, not on the card. Read
+  /// them once focus settles, so holding the D-pad does not queue a read for
+  /// every card passed.
+  void _scheduleEpisodeFetch(TvStreamRecord show) {
+    final categoryId = show.providerCategoryId;
+    if (categoryId == null || categoryId.isEmpty) return;
+    final loaded = _loadedShows[categoryId];
+    _episodeFetchDebounce?.cancel();
+    final gen = ++_episodeFetchGen;
+    if (loaded != null) {
+      if (!identical(_episodeShow, loaded) && mounted) {
+        setState(() => _episodeShow = loaded);
+      }
+      return;
+    }
+    _episodeFetchDebounce = Timer(const Duration(milliseconds: 280), () {
+      _fetchEpisodes(show, categoryId, gen);
+    });
+  }
+
+  Future<void> _fetchEpisodes(
+    TvStreamRecord show,
+    String categoryId,
+    int gen,
+  ) async {
+    List<ChannelSerie> episodes;
+    try {
+      episodes = await LocaleApi.m3uSeriesEpisodesForCategory(categoryId);
+    } catch (_) {
+      return;
+    }
+    if (!mounted || gen != _episodeFetchGen) return;
+    if (episodes.length < 2) return;
+    final name = show.providerCategoryName ?? show.title;
+    final card = SeriesRailGrouper.showCard(
+      [
+        for (final ch in episodes)
+          seriesStreamRecordFor(
+            ch,
+            name,
+            providerCategoryId: categoryId,
+            providerCategoryName: name,
+          ),
+      ],
+      title: show.title,
+      year: show.year,
+    ).copyWith(enrichmentKey: show.enrichmentKey);
+    if (_loadedShows.length >= _loadedShowsCap) {
+      _loadedShows.remove(_loadedShows.keys.first);
+    }
+    _loadedShows[categoryId] = card;
+    setState(() => _episodeShow = card);
   }
 
   void _pushHero(TvStreamRecord stream) {
@@ -186,6 +261,7 @@ class _CinematicSeriesPageState extends State<CinematicSeriesPage> {
             imageUrl: w.image.isNotEmpty ? w.image : null,
             streamId: w.streamId,
             posterStyle: TvPosterStyle.vodPortrait,
+            isSeries: true,
             watchProgress: progress,
           ),
         );

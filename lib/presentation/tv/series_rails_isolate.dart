@@ -26,6 +26,10 @@ class SeriesRailsJob {
   final int headCount;
   final int headLimit;
 
+  /// Episodes per category id when [series] holds one row per show and the
+  /// rest are in the catalog database. Empty when [series] is every episode.
+  final Map<String, int> episodeCounts;
+
   const SeriesRailsJob({
     required this.series,
     required this.categories,
@@ -34,6 +38,7 @@ class SeriesRailsJob {
     required this.watchById,
     required this.headCount,
     required this.headLimit,
+    this.episodeCounts = const <String, int>{},
   });
 }
 
@@ -169,6 +174,7 @@ TvStreamRecord seriesStreamRecordFor(
     overview: ch.plot,
     watchProgress: watchProgress,
     enrichmentKey: key,
+    isSeries: true,
     providerCategoryId: providerCategoryId ?? ch.categoryId,
     providerCategoryName: providerCategoryName ?? subtitle,
   );
@@ -350,6 +356,7 @@ SeriesRailsResult _buildPerShow(
       ],
       title: title,
       year: year,
+      lazyEpisodeCount: job.episodeCounts[cat.categoryId] ?? 0,
     );
     return card.copyWith(
       // Same id the shelf enqueue uses (stream.streamId). A category id

@@ -1,3 +1,5 @@
+import '../../shared/hold_to_favorite.dart';
+import '../tv_favorite_action.dart';
 import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -64,6 +66,12 @@ class TvStreamRecord {
   final double? watchProgress;
   final String? enrichmentKey;
   final List<TvStreamRecord> groupedEpisodes;
+  final bool isSeries;
+
+  /// Episodes this show has in the catalog database when they are not carried
+  /// in [groupedEpisodes]. 0 for ordinary rows. The series page reads them by
+  /// [providerCategoryId] when the show is focused.
+  final int lazyEpisodeCount;
 
   /// Provider taxonomy — not a UI heading. Never overwrite the catalog name.
   final String? providerCategoryId;
@@ -92,18 +100,30 @@ class TvStreamRecord {
     this.watchProgress,
     this.enrichmentKey,
     this.groupedEpisodes = const [],
+    this.isSeries = false,
+    this.lazyEpisodeCount = 0,
     this.providerCategoryId,
     this.providerCategoryName,
   });
 
   bool get isVod =>
+      isSeries ||
       posterStyle == TvPosterStyle.vodPortrait ||
       subtitle == 'Movie' ||
       subtitle == 'Series' ||
       subtitle == 'Episode' ||
       season != null ||
       episode != null ||
-      groupedEpisodes.isNotEmpty;
+      groupedEpisodes.isNotEmpty ||
+      lazyEpisodeCount > 0;
+
+  /// A show card with more than one episode, loaded or still in the database.
+  bool get hasEpisodeList =>
+      groupedEpisodes.length > 1 || lazyEpisodeCount > 1;
+
+  /// Episodes must be fetched before the episode list can be shown.
+  bool get needsEpisodeFetch =>
+      groupedEpisodes.length <= 1 && lazyEpisodeCount > 1;
 
   TvStreamRecord copyWith({
     String? title,
@@ -128,6 +148,8 @@ class TvStreamRecord {
     Object? watchProgress = _keep,
     Object? enrichmentKey = _keep,
     List<TvStreamRecord>? groupedEpisodes,
+    bool? isSeries,
+    int? lazyEpisodeCount,
     Object? providerCategoryId = _keep,
     Object? providerCategoryName = _keep,
   }) {
@@ -172,6 +194,8 @@ class TvStreamRecord {
           ? this.enrichmentKey
           : enrichmentKey as String?,
       groupedEpisodes: groupedEpisodes ?? this.groupedEpisodes,
+      isSeries: isSeries ?? this.isSeries,
+      lazyEpisodeCount: lazyEpisodeCount ?? this.lazyEpisodeCount,
       providerCategoryId: identical(providerCategoryId, _keep)
           ? this.providerCategoryId
           : providerCategoryId as String?,
@@ -1288,22 +1312,13 @@ class _NoopChannelListenable extends Listenable {
   void removeListener(VoidCallback listener) {}
 }
 
-class _TvChannelCardState extends State<TvChannelCard> {
+class _TvChannelCardState extends State<TvChannelCard> with HoldToFavorite<TvChannelCard> {
   static const Listenable _noopListenable = _NoopChannelListenable();
   bool _focused = false;
 
-  KeyEventResult _onKey(FocusNode _, KeyEvent event) {
-    if (event is! KeyDownEvent) return KeyEventResult.ignored;
-    final k = event.logicalKey;
-    if (k == LogicalKeyboardKey.select ||
-        k == LogicalKeyboardKey.enter ||
-        k == LogicalKeyboardKey.gameButtonA ||
-        k == LogicalKeyboardKey.space) {
-      widget.onSelected();
-      return KeyEventResult.handled;
-    }
-    return KeyEventResult.ignored;
-  }
+  KeyEventResult _onKey(FocusNode _, KeyEvent event) => favoriteKey(event,
+      onOpen: widget.onSelected,
+      onFavorite: () => addRecordToFavorites(context, widget.stream));
 
   Widget _buildLiveCard() {
     return RepaintBoundary(
@@ -1341,6 +1356,7 @@ class _TvChannelCardState extends State<TvChannelCard> {
                 hoverColor: Colors.transparent,
                 overlayColor: const WidgetStatePropertyAll(Colors.transparent),
                 onTap: widget.onSelected,
+                onLongPress: () => addRecordToFavorites(context, widget.stream),
                 child: SizedBox(
                   width: TvChannelCard.tileWidth,
                   height: TvChannelCard.tileHeight,
@@ -1454,6 +1470,7 @@ class _TvChannelCardState extends State<TvChannelCard> {
               borderRadius: BorderRadius.circular(12),
               canRequestFocus: false,
               onTap: widget.onSelected,
+                onLongPress: () => addRecordToFavorites(context, widget.stream),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
                 curve: Curves.easeOutCubic,
