@@ -47,6 +47,8 @@ import 'widgets/tv_home_rows.dart';
 import 'widgets/tv_shell_backdrop.dart';
 import 'widgets/tv_status_clock.dart';
 import 'tv_search_screen.dart';
+import 'remote_watch_service.dart';
+import '../screens/screens.dart' show SerieContent;
 import 'cinematic/cinematic_movies_page.dart';
 import 'cinematic/cinematic_series_page.dart';
 import 'live/live_hero_preview_controller.dart';
@@ -226,7 +228,36 @@ class _TvDashboardShellState extends State<TvDashboardShell>
     IptvProviderSession.instance.onMoviesCatalogReady = _onMoviesCatalogReady;
     IptvProviderSession.instance.onSeriesCatalogReady = _onSeriesCatalogReady;
     FocusManager.instance.addListener(_syncRailCollapse);
+    // Remote "play by name" uses the same handoffs as a remote-control click.
+    RemoteWatchService.instance.attachHost(_remoteWatchHost);
+    unawaited(RemoteWatchService.instance.start());
   }
+
+  late final RemoteWatchHost _remoteWatchHost = RemoteWatchHost(
+    playLive: _openPlayback,
+    playMovie: (url) async {
+      await _openMovieFromCatalog(url);
+      // A movie started from the Live tab: bring the hero back on return.
+      if (mounted) unawaited(_resumePreviewWhenDashboardCurrent());
+    },
+    openSeries: (show, {season, episode}) async {
+      // Same order as a movie: give the provider connection back first.
+      await _livePreview.stopAndRelease(reason: 'series_play');
+      if (!mounted) return;
+      unawaited(
+        Get.to(
+          () => SerieContent(
+            channelSerie: show,
+            videoId: show.seriesId ?? '',
+            autoPlay: true,
+            autoSeason: season,
+            autoEpisode: episode,
+          ),
+        ),
+      );
+      unawaited(_resumePreviewWhenDashboardCurrent());
+    },
+  );
 
   bool get _liveSurfaceVisible {
     if (!mounted || _selectedNavIndex != _TvNav.live) return false;
@@ -815,8 +846,9 @@ class _TvDashboardShellState extends State<TvDashboardShell>
                 !ProviderCurationRules.isAdultCategory(c.categoryName!),
           )
           .toList();
-      final sortedCats = ProviderCurationRules.sortCategoriesForNormalDashboard(
-        normalCats,
+      // Movies 2026, 2025, 2024, 2023 first (and built first); the rest keep their order after.
+      final sortedCats = ProviderCurationRules.recentYearsFirst(
+        ProviderCurationRules.sortCategoriesForNormalDashboard(normalCats),
       );
       final byCat = <String, List<ChannelMovie>>{};
       var moviesUnassigned = 0;
@@ -1685,6 +1717,7 @@ class _TvDashboardShellState extends State<TvDashboardShell>
 
   @override
   void dispose() {
+    RemoteWatchService.instance.detachHost(_remoteWatchHost);
     WidgetsBinding.instance.removeObserver(this);
     _livePreview.dispose();
     _focusedLive.dispose();

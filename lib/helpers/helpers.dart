@@ -8,6 +8,7 @@ import 'package:responsive_sizer/responsive_sizer.dart';
 import 'package:get_storage/get_storage.dart';
 
 export 'tv_back_navigation.dart';
+export 'playback_wake_lock.dart';
 
 part 'colors.dart';
 part 'constants.dart';

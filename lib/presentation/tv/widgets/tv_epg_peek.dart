@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../../../repository/api/api.dart';
+import '../../../repository/models/channel_live.dart';
 import '../../../repository/models/epg.dart';
 
 /// Lightweight now/next EPG strip for live playback / peeks.
@@ -195,4 +196,53 @@ String? extractStreamIdFromUrl(String url) {
   } catch (_) {
     return null;
   }
+}
+
+/// Channel the live-player heart should save.
+///
+/// A numeric path id is used when the catalog has that row. Otherwise the
+/// playback link is matched to [ChannelLive.directSource]. If neither hits,
+/// the link itself is the id so the press still saves.
+ChannelLive resolveLiveFavoriteChannel({
+  required String link,
+  String? streamId,
+  String? title,
+  String? streamIcon,
+  required List<ChannelLive> catalog,
+}) {
+  final explicit = streamId?.trim();
+  final extracted = extractStreamIdFromUrl(link);
+  final wanted = (explicit != null && explicit.isNotEmpty)
+      ? explicit
+      : extracted;
+  if (wanted != null && wanted.isNotEmpty) {
+    for (final channel in catalog) {
+      if ((channel.streamId ?? '').trim() == wanted) return channel;
+    }
+  }
+  final trimmed = link.trim();
+  if (trimmed.isNotEmpty) {
+    for (final channel in catalog) {
+      final direct = (channel.directSource ?? '').trim();
+      if (direct.isNotEmpty && direct == trimmed) return channel;
+    }
+  }
+  final id = (wanted != null && wanted.isNotEmpty)
+      ? wanted
+      : trimmed;
+  return ChannelLive(
+    streamId: id.isEmpty ? null : id,
+    name: title,
+    streamIcon: streamIcon,
+    directSource: trimmed.isEmpty ? null : trimmed,
+  );
+}
+
+bool sameLiveFavorite(ChannelLive saved, ChannelLive target) {
+  final savedId = saved.streamId?.trim() ?? '';
+  final targetId = target.streamId?.trim() ?? '';
+  if (savedId.isNotEmpty && savedId == targetId) return true;
+  final savedLink = saved.directSource?.trim() ?? '';
+  final targetLink = target.directSource?.trim() ?? '';
+  return savedLink.isNotEmpty && savedLink == targetLink;
 }

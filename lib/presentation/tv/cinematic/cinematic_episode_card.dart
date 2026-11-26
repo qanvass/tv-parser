@@ -1,3 +1,5 @@
+import '../../shared/hold_to_favorite.dart';
+import '../tv_favorite_action.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -29,7 +31,7 @@ class CinematicEpisodeCard extends StatefulWidget {
   State<CinematicEpisodeCard> createState() => _CinematicEpisodeCardState();
 }
 
-class _CinematicEpisodeCardState extends State<CinematicEpisodeCard> {
+class _CinematicEpisodeCardState extends State<CinematicEpisodeCard> with HoldToFavorite<CinematicEpisodeCard> {
   static final Listenable _noopListenable = ValueNotifier<int>(0);
   bool _focused = false;
 
@@ -60,18 +62,9 @@ class _CinematicEpisodeCardState extends State<CinematicEpisodeCard> {
         setState(() => _focused = value);
         if (value) widget.onFocused?.call(widget.stream);
       },
-      onKeyEvent: (node, event) {
-        if (event is! KeyDownEvent) return KeyEventResult.ignored;
-        final k = event.logicalKey;
-        if (k == LogicalKeyboardKey.select ||
-            k == LogicalKeyboardKey.enter ||
-            k == LogicalKeyboardKey.gameButtonA ||
-            k == LogicalKeyboardKey.space) {
-          widget.onSelected();
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
+      onKeyEvent: (node, event) => favoriteKey(event,
+          onOpen: widget.onSelected,
+          onFavorite: () => addRecordToFavorites(context, widget.stream)),
       child: AnimatedScale(
         scale: _focused ? 1.06 : 1.0,
         duration: CinematicMotion.focus,

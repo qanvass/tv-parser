@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_vlc_player_16kb/flutter_vlc_player.dart';
 import 'package:get/get.dart';
 
+import '../../../helpers/playback_wake_lock.dart';
 import '../../../helpers/tv_back_navigation.dart';
 import '../../../repository/api/api.dart';
 import '../../../repository/models/channel_live.dart';
@@ -12,7 +13,9 @@ import '../../screens/screens.dart';
 import 'multiview_channel_picker.dart';
 import 'multiview_store.dart';
 
-/// 2×2 live grid. Each tile has its own [VlcPlayerController].
+/// Live multiview. Layout 2 is two equal panes. Layout 4 is the 2×2 grid.
+/// Hidden panes do not start a player. Down from the layout choice reaches
+/// Movies, Series, Search, Favs, and History.
 ///
 /// D-pad moves the ring. OK makes that tile the only one with audio.
 /// OK again, or holding OK, opens the live channel list for that tile.
@@ -40,7 +43,10 @@ class _Tile {
 class _MultiviewScreenState extends State<MultiviewScreen> {
   static const int _tiles = MultiviewStore.slotCount;
   static const Duration _stagger = Duration(milliseconds: 400);
-  static const int _hlsMaxHeight = 480;
+
+  /// Two panes can take a taller HLS rendition. Four panes stay at 480
+  /// so four players do not each pull a large stream.
+  int get _hlsMaxHeight => _layout == 2 ? 720 : 480;
 
   final List<_Tile> _tilesState = List.generate(_tiles, (_) => _Tile());
   final List<FocusNode> _focus = List.generate(
@@ -53,6 +59,35 @@ class _MultiviewScreenState extends State<MultiviewScreen> {
   Set<String> _hiddenCategoryIds = const {};
   int _focusIndex = 0;
   int _audioIndex = 0;
+  int _layout = 2;
+  final FocusNode _layoutFocus2 = FocusNode(debugLabel: 'MultiviewLayout2');
+  final FocusNode _layoutFocus4 = FocusNode(debugLabel: 'MultiviewLayout4');
+  static const List<String> _categoryIds = [
+    'movies',
+    'series',
+    'search',
+    'favorites',
+    'history',
+  ];
+  static const List<String> _categoryLabels = [
+    'Movies',
+    'Series',
+    'Search',
+    'Favs',
+    'History',
+  ];
+  static const List<IconData> _categoryIcons = [
+    Icons.movie_outlined,
+    Icons.tv_outlined,
+    Icons.search,
+    Icons.favorite_border,
+    Icons.history,
+  ];
+  final List<FocusNode> _categoryFocus = List.generate(
+    _categoryIds.length,
+    (i) => FocusNode(debugLabel: 'MultiviewCategory$i'),
+  );
+  int _categoryIndex = 0;
   bool _playersReleased = false;
   bool _pickerOpen = false;
   Timer? _holdTimer;
@@ -61,14 +96,16 @@ class _MultiviewScreenState extends State<MultiviewScreen> {
   @override
   void initState() {
     super.initState();
+    PlaybackWakeLock.acquire(this);
     final saved = MultiviewStore.read();
+    _layout = MultiviewStore.readLayout();
     for (var i = 0; i < _tiles; i++) {
       _tilesState[i].streamId = saved[i];
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _loadCatalog();
-      for (var i = 0; i < _tiles; i++) {
+      for (var i = 0; i < _layout; i++) {
         if (_tilesState[i].streamId != null) {
           _scheduleStart(i, stagger: _stagger * i);
         }
@@ -80,7 +117,13 @@ class _MultiviewScreenState extends State<MultiviewScreen> {
 
   @override
   void dispose() {
+    PlaybackWakeLock.release(this);
     _holdTimer?.cancel();
+    _layoutFocus2.dispose();
+    _layoutFocus4.dispose();
+    for (final node in _categoryFocus) {
+      node.dispose();
+    }
     for (final node in _focus) {
       node.dispose();
     }
@@ -144,7 +187,22 @@ class _MultiviewScreenState extends State<MultiviewScreen> {
     return '';
   }
 
+  /// Current guide title when the loaded feed has one. Never invented.
+  String? _programmeFor(int index) {
+    final channel = _channelFor(index);
+    if (channel == null) return null;
+    final epg = XmlTvRepository.instance.nowNext(
+      tvgId: channel.epgChannelId?.toString(),
+      channelName: channel.name,
+      streamId: channel.streamId,
+    );
+    final title = epg?.now.title.trim() ?? '';
+    if (title.isEmpty) return null;
+    return title;
+  }
+
   void _scheduleStart(int index, {Duration stagger = Duration.zero}) {
+    if (index >= _layout) return;
     final tile = _tilesState[index];
     tile.startTimer?.cancel();
     final generation = tile.generation;
@@ -156,6 +214,7 @@ class _MultiviewScreenState extends State<MultiviewScreen> {
 
   Future<void> _startTile(int index, int generation) async {
     final tile = _tilesState[index];
+    if (index >= _layout) return;
     if (!mounted || tile.generation != generation || _playersReleased) return;
     final channel = _channelFor(index);
     if (channel == null) {
@@ -390,7 +449,7 @@ class _MultiviewScreenState extends State<MultiviewScreen> {
     await Future.wait(pending.map(_disposeController));
   }
 
-  Future<void> _leave() async {
+  Future<void> _leave({String? category}) async {
     if (!mounted || _pickerOpen) return;
     if (!_backGate.allow(screen: 'MultiviewScreen', source: 'focus')) return;
     _backGate.markRouteExit();
@@ -403,7 +462,7 @@ class _MultiviewScreenState extends State<MultiviewScreen> {
     );
     await _releaseAll();
     if (!mounted) return;
-    Get.back();
+    Get.back(result: category);
   }
 
   Future<void> _setAudio(int index) async {
@@ -511,7 +570,64 @@ class _MultiviewScreenState extends State<MultiviewScreen> {
       key == LogicalKeyboardKey.gameButtonA ||
       key == LogicalKeyboardKey.numpadEnter;
 
+  Future<void> _stopTile(int index) async {
+    final tile = _tilesState[index];
+    tile.startTimer?.cancel();
+    tile.timeout?.cancel();
+    final old = tile.controller;
+    tile.generation++;
+    if (old != null) _detach(old, tile);
+    tile.controller = null;
+    tile.starting = false;
+    if (mounted) setState(() {});
+    await _disposeController(old);
+  }
+
+  Future<void> _restartTile(int index) async {
+    await _stopTile(index);
+    if (!mounted || _playersReleased || index >= _layout) return;
+    if (_tilesState[index].streamId == null) return;
+    _scheduleStart(index);
+  }
+
+  void _setLayout(int next) {
+    if (next != 2 && next != 4) return;
+    if (next == _layout || _playersReleased) return;
+    setState(() => _layout = next);
+    MultiviewStore.writeLayout(next);
+    if (next == 2) {
+      if (_focusIndex > 1) _focusIndex = 0;
+      if (_audioIndex > 1) unawaited(_setAudio(0));
+      for (var i = 2; i < _tiles; i++) {
+        unawaited(_stopTile(i));
+      }
+      for (var i = 0; i < 2; i++) {
+        if (_tilesState[i].controller != null || _tilesState[i].starting) {
+          unawaited(_restartTile(i));
+        }
+      }
+    } else {
+      for (var i = 0; i < 2; i++) {
+        if (_tilesState[i].controller != null || _tilesState[i].starting) {
+          unawaited(_restartTile(i));
+        }
+      }
+      for (var i = 2; i < _tiles; i++) {
+        final tile = _tilesState[i];
+        if (tile.streamId != null && tile.controller == null && !tile.starting) {
+          _scheduleStart(i, stagger: _stagger * (i - 2));
+        }
+      }
+    }
+    _focus[_focusIndex.clamp(0, next - 1)].requestFocus();
+  }
+
   int _neighbor(int index, LogicalKeyboardKey key) {
+    if (_layout == 2) {
+      if (key == LogicalKeyboardKey.arrowLeft) return 0;
+      if (key == LogicalKeyboardKey.arrowRight) return 1;
+      return index;
+    }
     final col = index % 2;
     final row = index ~/ 2;
     if (key == LogicalKeyboardKey.arrowLeft) {
@@ -559,11 +675,22 @@ class _MultiviewScreenState extends State<MultiviewScreen> {
       return KeyEventResult.ignored;
     }
     final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.arrowDown && _layout == 2) {
+      if (event is KeyRepeatEvent) return KeyEventResult.handled;
+      _layoutFocus2.requestFocus();
+      return KeyEventResult.handled;
+    }
     if (key == LogicalKeyboardKey.arrowLeft ||
         key == LogicalKeyboardKey.arrowRight ||
         key == LogicalKeyboardKey.arrowUp ||
         key == LogicalKeyboardKey.arrowDown) {
       if (event is KeyRepeatEvent) return KeyEventResult.handled;
+      if (_layout == 4 &&
+          key == LogicalKeyboardKey.arrowDown &&
+          index >= 2) {
+        _layoutFocus4.requestFocus();
+        return KeyEventResult.handled;
+      }
       final next = _neighbor(index, key);
       if (next != index) {
         _focusIndex = next;
@@ -600,34 +727,36 @@ class _MultiviewScreenState extends State<MultiviewScreen> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
             child: Column(
               children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      Expanded(child: _tile(0)),
-                      const SizedBox(width: 8),
-                      Expanded(child: _tile(1)),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: Row(
-                    children: [
-                      Expanded(child: _tile(2)),
-                      const SizedBox(width: 8),
-                      Expanded(child: _tile(3)),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'OK listens on this tile. OK again changes the channel. Back closes.',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Color(0xFFB8B8C0),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                Expanded(child: _panes()),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: MediaQuery.sizeOf(context).width - 32,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: const Color(0xCC10141C),
+                      borderRadius: BorderRadius.circular(28),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 6, 8, 6),
+                      child: Row(
+                        children: [
+                          _layoutChip(2, _layoutFocus2),
+                          const SizedBox(width: 8),
+                          _layoutChip(4, _layoutFocus4),
+                          const SizedBox(width: 10),
+                          Container(
+                            width: 1,
+                            height: 28,
+                            color: const Color(0x33FFFFFF),
+                          ),
+                          const SizedBox(width: 6),
+                          for (var i = 0; i < _categoryIds.length; i++)
+                            Expanded(
+                              child: Center(child: _categoryChip(i)),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -638,18 +767,212 @@ class _MultiviewScreenState extends State<MultiviewScreen> {
     );
   }
 
+  Widget _panes() {
+    final top = Row(
+      children: [
+        Expanded(child: _tile(0)),
+        const SizedBox(width: 10),
+        Expanded(child: _tile(1)),
+      ],
+    );
+    if (_layout == 2) return top;
+    return Column(
+      children: [
+        Expanded(child: top),
+        const SizedBox(height: 8),
+        Expanded(
+          child: Row(
+            children: [
+              Expanded(child: _tile(2)),
+              const SizedBox(width: 10),
+              Expanded(child: _tile(3)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  KeyEventResult _onLayoutKey(int layout, KeyEvent event) {
+    if (isTvBackKey(event.logicalKey)) return KeyEventResult.ignored;
+    if (event is KeyDownEvent && _isSelect(event.logicalKey)) {
+      _setLayout(layout);
+      return KeyEventResult.handled;
+    }
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.arrowLeft) {
+      _layoutFocus2.requestFocus();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowRight) {
+      if (layout == 4) {
+        _categoryIndex = 0;
+        _categoryFocus[0].requestFocus();
+      } else {
+        _layoutFocus4.requestFocus();
+      }
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowUp) {
+      final index = _focusIndex.clamp(0, _layout - 1);
+      _focusIndex = index;
+      _focus[index].requestFocus();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowDown) {
+      _categoryFocus[_categoryIndex].requestFocus();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  KeyEventResult _onCategoryKey(int index, KeyEvent event) {
+    if (isTvBackKey(event.logicalKey)) return KeyEventResult.ignored;
+    if (event is KeyDownEvent && _isSelect(event.logicalKey)) {
+      unawaited(_leave(category: _categoryIds[index]));
+      return KeyEventResult.handled;
+    }
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.arrowLeft && index == 0) {
+      _layoutFocus4.requestFocus();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowLeft && index > 0) {
+      _categoryIndex = index - 1;
+      _categoryFocus[_categoryIndex].requestFocus();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowRight &&
+        index < _categoryIds.length - 1) {
+      _categoryIndex = index + 1;
+      _categoryFocus[_categoryIndex].requestFocus();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowLeft ||
+        key == LogicalKeyboardKey.arrowRight) {
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowUp) {
+      final pane = _focusIndex.clamp(0, _layout - 1);
+      _focusIndex = pane;
+      _focus[pane].requestFocus();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowDown) {
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  Widget _categoryChip(int index) {
+    return Focus(
+      focusNode: _categoryFocus[index],
+      onKeyEvent: (node, event) => _onCategoryKey(index, event),
+      child: Builder(
+        builder: (context) {
+          final focused = Focus.of(context).hasFocus;
+          return GestureDetector(
+            onTap: () => unawaited(_leave(category: _categoryIds[index])),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: focused
+                          ? const Color(0xFF3DDCFF)
+                          : const Color(0x00000000),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Icon(
+                    _categoryIcons[index],
+                    size: 18,
+                    color: focused
+                        ? const Color(0xFF3DDCFF)
+                        : const Color(0xFFF7F7F8),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _categoryLabels[index],
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: focused
+                          ? const Color(0xFF3DDCFF)
+                          : const Color(0xFFF7F7F8),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _layoutChip(int layout, FocusNode node) {
+    final selected = _layout == layout;
+    return Focus(
+      focusNode: node,
+      onKeyEvent: (n, event) => _onLayoutKey(layout, event),
+      child: Builder(
+        builder: (context) {
+          final focused = Focus.of(context).hasFocus;
+          return GestureDetector(
+            onTap: () => _setLayout(layout),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: selected
+                    ? const Color(0x332EE6FF)
+                    : const Color(0x14FFFFFF),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: focused || selected
+                      ? const Color(0xFF3DDCFF)
+                      : const Color(0x38FFFFFF),
+                  width: focused ? 2 : 1,
+                ),
+              ),
+              child: Text(
+                layout == 2 ? '2 screens' : '4 screens',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _tile(int index) {
     final tile = _tilesState[index];
-    final focused = _focus[index].hasFocus || _focusIndex == index;
+    final focused = _focus[index].hasFocus;
     final audible = _audioIndex == index;
     final title = _titleFor(index);
     final ctrl = tile.controller;
     return Focus(
       focusNode: _focus[index],
       onFocusChange: (hasFocus) {
-        if (hasFocus && _focusIndex != index && mounted) {
-          setState(() => _focusIndex = index);
-        }
+        if (!mounted) return;
+        if (hasFocus) _focusIndex = index;
+        setState(() {});
       },
       onKeyEvent: (node, event) => _onTileKey(index, event),
       child: GestureDetector(
@@ -658,25 +981,48 @@ class _MultiviewScreenState extends State<MultiviewScreen> {
           unawaited(_setAudio(index));
           unawaited(_openPicker(index));
         },
-        child: DecoratedBox(
+        child: Container(
           decoration: BoxDecoration(
             color: const Color(0xFF0B0B0E),
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: focused
+                ? const [
+                    BoxShadow(
+                      color: Color(0x883DDCFF),
+                      blurRadius: 18,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : null,
+          ),
+          foregroundDecoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: focused ? Colors.white : const Color(0x33FFFFFF),
+              color: focused
+                  ? const Color(0xFF3DDCFF)
+                  : const Color(0x22FFFFFF),
               width: focused ? 3 : 1,
             ),
           ),
-          child: Stack(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Stack(
             fit: StackFit.expand,
             children: [
               if (ctrl != null)
-                Center(
-                  child: VlcPlayer(
-                    key: ValueKey('multiview-$index-${tile.generation}'),
-                    controller: ctrl,
-                    aspectRatio: 16 / 9,
-                    placeholder: const SizedBox.shrink(),
-                  ),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final height = constraints.maxHeight;
+                    final ratio = height <= 0
+                        ? 16 / 9
+                        : constraints.maxWidth / height;
+                    return VlcPlayer(
+                      key: ValueKey('multiview-$index-${tile.generation}'),
+                      controller: ctrl,
+                      aspectRatio: ratio,
+                      placeholder: const SizedBox.shrink(),
+                    );
+                  },
                 ),
               if (tile.starting)
                 const Center(
@@ -700,43 +1046,87 @@ class _MultiviewScreenState extends State<MultiviewScreen> {
                     ),
                   ),
                 ),
-              Positioned(
-                left: 8,
-                right: 8,
-                bottom: 8,
-                child: Row(
-                  children: [
-                    Text(
-                      '${index + 1}',
-                      style: const TextStyle(
-                        color: Color(0xFFB8B8C0),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                      ),
+              if (focused && title.isNotEmpty)
+                const Positioned(
+                  left: 10,
+                  top: 10,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Color(0xCC10141C),
+                      borderRadius: BorderRadius.all(Radius.circular(4)),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       child: Text(
-                        title.isEmpty ? 'Empty' : title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
+                        'LIVE',
+                        style: TextStyle(
+                          color: Color(0xFF3DDCFF),
+                          fontSize: 12,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
                     ),
-                    if (audible)
-                      const Icon(
-                        Icons.volume_up_rounded,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                  ],
+                  ),
                 ),
-              ),
+              if (focused && title.isNotEmpty)
+                Positioned(
+                  left: 12,
+                  right: 12,
+                  bottom: 12,
+                  child: ListenableBuilder(
+                    listenable: XmlTvRepository.instance,
+                    builder: (context, _) {
+                      final programme = _programmeFor(index);
+                      return DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: const Color(0xE610141C),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (programme != null)
+                                Text(
+                                  programme,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Color(0xFFF7F7F8),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              Text(
+                                'Stream ${index + 1}  ·  $title',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Color(0xFFB8C4D4),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              if (audible)
+                                const Padding(
+                                  padding: EdgeInsets.only(top: 4),
+                                  child: Icon(
+                                    Icons.volume_up_rounded,
+                                    color: Color(0xFF3DDCFF),
+                                    size: 16,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
             ],
+          ),
           ),
         ),
       ),

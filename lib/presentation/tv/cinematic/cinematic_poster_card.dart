@@ -1,3 +1,5 @@
+import '../../shared/hold_to_favorite.dart';
+import '../tv_favorite_action.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -38,7 +40,7 @@ class _NoopListenable extends Listenable {
   void removeListener(VoidCallback listener) {}
 }
 
-class _CinematicPosterCardState extends State<CinematicPosterCard> {
+class _CinematicPosterCardState extends State<CinematicPosterCard> with HoldToFavorite<CinematicPosterCard> {
   static const Listenable _noopListenable = _NoopListenable();
   bool _focused = false;
 
@@ -65,19 +67,9 @@ class _CinematicPosterCardState extends State<CinematicPosterCard> {
             });
           }
         },
-        onKeyEvent: (node, event) {
-          if (event is! KeyDownEvent) return KeyEventResult.ignored;
-          final k = event.logicalKey;
-          if (k == LogicalKeyboardKey.select ||
-              k == LogicalKeyboardKey.enter ||
-              k == LogicalKeyboardKey.gameButtonA ||
-              k == LogicalKeyboardKey.numpadEnter ||
-              k == LogicalKeyboardKey.space) {
-            widget.onSelected();
-            return KeyEventResult.handled;
-          }
-          return KeyEventResult.ignored;
-        },
+        onKeyEvent: (node, event) => favoriteKey(event,
+          onOpen: widget.onSelected,
+          onFavorite: () => addRecordToFavorites(context, widget.stream)),
         child: AnimatedScale(
           scale: _focused ? CinematicTokens.focusScale : 1.0,
           duration: CinematicMotion.focus,
@@ -96,6 +88,7 @@ class _CinematicPosterCardState extends State<CinematicPosterCard> {
                     child: InkWell(
                       canRequestFocus: false,
                       onTap: widget.onSelected,
+                      onLongPress: () => addRecordToFavorites(context, widget.stream),
                       borderRadius: BorderRadius.circular(
                         CinematicTokens.radiusPoster,
                       ),
@@ -144,6 +137,7 @@ class _CinematicPosterCardState extends State<CinematicPosterCard> {
                             );
                             final isSeries =
                                 widget.stream.groupedEpisodes.isNotEmpty ||
+                                widget.stream.lazyEpisodeCount > 0 ||
                                 widget.stream.season != null ||
                                 widget.stream.episode != null ||
                                 (widget.stream.enrichmentKey != null &&

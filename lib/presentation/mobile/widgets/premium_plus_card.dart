@@ -1,3 +1,4 @@
+import '../../shared/favorite_actions.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
@@ -31,6 +32,7 @@ class PremiumPlusCard extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(18),
           onTap: channel == null ? null : onTap,
+          onLongPress: channel == null ? null : () => FavoriteActions.add(context, channel),
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Row(

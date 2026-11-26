@@ -134,9 +134,17 @@ class XmlTvRepository extends ChangeNotifier {
 
     final candidates = resolveUrls(playlistUrl: playlistUrl);
     if (candidates.isEmpty) {
-      debugPrint('[XMLTV] no url — skip');
+      // Record the attempt time so the throttle above applies. Without it
+      // every call came back here and notified again; a listener that calls
+      // ensureLoaded on rebuild then spun the UI isolate forever (ANR on a
+      // playlist with no guide address).
+      final firstAttempt = !_attempted || _fetchedAt == null;
       _attempted = true;
-      notifyListeners();
+      _fetchedAt = DateTime.now().toUtc();
+      if (firstAttempt) {
+        debugPrint('[XMLTV] no url — skip');
+        notifyListeners();
+      }
       return;
     }
 
@@ -195,6 +203,9 @@ class XmlTvRepository extends ChangeNotifier {
       );
     } finally {
       _attempted = true;
+      // A run that found no usable guide still counts as an attempt in time,
+      // or every caller would start another download straight away.
+      _fetchedAt ??= DateTime.now().toUtc();
       _loading = false;
       notifyListeners();
     }

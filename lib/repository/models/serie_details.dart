@@ -94,6 +94,9 @@ class InfoSerie {
   final String? episodeRunTime;
   final String? categoryId;
 
+  /// TMDB id, when the provider sends one with the show.
+  final String? tmdbId;
+
   InfoSerie({
     this.name,
     this.cover,
@@ -109,6 +112,7 @@ class InfoSerie {
     this.youtubeTrailer,
     this.episodeRunTime,
     this.categoryId,
+    this.tmdbId,
   });
 
   static String? _str(dynamic v) {
@@ -140,7 +144,8 @@ class InfoSerie {
             _str(json['trailer']) ??
             _str(json['youtube_id']),
         episodeRunTime = _str(json['episode_run_time']),
-        categoryId = _str(json['category_id']);
+        categoryId = _str(json['category_id']),
+        tmdbId = _str(json['tmdb']) ?? _str(json['tmdb_id']);
 
   Map<String, dynamic> toJson() => {
         'name': name,

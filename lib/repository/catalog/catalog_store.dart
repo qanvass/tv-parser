@@ -106,6 +106,90 @@ class CatalogStore {
     );
   }
 
+  /// One series row per category (the first in catalog order). Empty until
+  /// the series kind is committed.
+  Future<List<ChannelSerie>> seriesCategoryHeads() {
+    return serialize(() async {
+      if (!await isReady(CatalogKind.series)) return <ChannelSerie>[];
+      final key = CatalogKind.series.storageKey;
+      final rows = await _executor.query(CatalogSql.firstPerCategory, [
+        key,
+        key,
+      ]);
+      return [for (final row in rows) _decodeSeriesRow(row)];
+    });
+  }
+
+  /// Rows per category id for series. Rows without a category are skipped.
+  Future<Map<String, int>> seriesCountsByCategory() {
+    return serialize(() async {
+      if (!await isReady(CatalogKind.series)) return <String, int>{};
+      final rows = await _executor.query(CatalogSql.countPerCategory, [
+        CatalogKind.series.storageKey,
+      ]);
+      final counts = <String, int>{};
+      for (final row in rows) {
+        final id = row['category_id'];
+        final n = row['n'];
+        if (id is String && id.isNotEmpty && n is num) {
+          counts[id] = n.toInt();
+        }
+      }
+      return counts;
+    });
+  }
+
+  /// Every series row of one category, in catalog order.
+  Future<List<ChannelSerie>> seriesForCategory(String categoryId) {
+    return serialize(() async {
+      if (categoryId.isEmpty) return <ChannelSerie>[];
+      if (!await isReady(CatalogKind.series)) return <ChannelSerie>[];
+      final rows = await _executor.query(CatalogSql.allByCategory, [
+        CatalogKind.series.storageKey,
+        categoryId,
+      ]);
+      return [for (final row in rows) _decodeSeriesRow(row)];
+    });
+  }
+
+  Future<ChannelSerie?> seriesByItemId(String itemId) {
+    return serialize(() async {
+      if (itemId.isEmpty) return null;
+      if (!await isReady(CatalogKind.series)) return null;
+      final rows = await _executor.query(CatalogSql.byItemId, [
+        CatalogKind.series.storageKey,
+        itemId,
+      ]);
+      if (rows.isEmpty) return null;
+      return _decodeSeriesRow(rows.first);
+    });
+  }
+
+  /// Finds the series row whose stream address is [directSource]. Scans the
+  /// whole kind, so callers try memory first.
+  Future<ChannelSerie?> seriesByDirectSource(String directSource) {
+    return serialize(() async {
+      if (directSource.isEmpty) return null;
+      if (!await isReady(CatalogKind.series)) return null;
+      final fragment = '"direct_source":${jsonEncode(directSource)}';
+      final rows = await _executor.query(CatalogSql.byPayloadFragment, [
+        CatalogKind.series.storageKey,
+        fragment,
+      ]);
+      for (final row in rows) {
+        final serie = _decodeSeriesRow(row);
+        if (serie.directSource == directSource) return serie;
+      }
+      return null;
+    });
+  }
+
+  static ChannelSerie _decodeSeriesRow(Map<String, Object?> row) {
+    return CatalogRowCodec.decodeSeries(
+      Map<String, dynamic>.from(jsonDecode(row['payload']! as String) as Map),
+    );
+  }
+
   Future<void> close() => _executor.close();
 
   Future<List<T>> _page<T>({

@@ -1,3 +1,4 @@
+import '../shared/favorite_actions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -1058,10 +1059,10 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                   onLongPress: () {
                     context.read<FavoritesCubit>().addLive(
                       channel,
-                      isAdd: !isFav,
+                      isAdd: true,
                     );
                     _showSuccessToast(
-                      isFav ? "Removed from Favourites" : "Added to Favourites",
+                      isFav ? "Already in Favorites" : "Added to Favourites",
                     );
                   },
                   onTap: () {
@@ -1108,6 +1109,9 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                 final watchItem = recentLives[index];
                 return PosterCard(
                   title: watchItem.title,
+                  onLongPress: () => FavoriteActions.add(context, ChannelLive(
+                    streamId: watchItem.streamId, name: watchItem.title,
+                    streamIcon: watchItem.image, directSource: watchItem.stream)),
                   imageUrl: watchItem.image,
                   aspect: PosterAspect.landscape,
                   ratingBadge: watchItem.sliderValue > 0
@@ -1161,21 +1165,21 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                     if (isLive) {
                       context.read<FavoritesCubit>().addLive(
                         item,
-                        isAdd: !isFav,
+                        isAdd: true,
                       );
                     } else if (isMovie) {
                       context.read<FavoritesCubit>().addMovie(
                         item,
-                        isAdd: !isFav,
+                        isAdd: true,
                       );
                     } else {
                       context.read<FavoritesCubit>().addSerie(
                         item,
-                        isAdd: !isFav,
+                        isAdd: true,
                       );
                     }
                     _showSuccessToast(
-                      isFav ? "Removed from Favourites" : "Added to Favourites",
+                      isFav ? "Already in Favorites" : "Added to Favourites",
                     );
                   },
                   onTap: () {
@@ -1215,10 +1219,10 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                   onLongPress: () {
                     context.read<FavoritesCubit>().addLive(
                       sportCh,
-                      isAdd: !isFav,
+                      isAdd: true,
                     );
                     _showSuccessToast(
-                      isFav ? "Removed from Favourites" : "Added to Favourites",
+                      isFav ? "Already in Favorites" : "Added to Favourites",
                     );
                   },
                   onTap: () {
@@ -1252,9 +1256,9 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                 isFavorite: isFav,
                 ratingBadge: movie.rating != null ? "⭐ ${movie.rating}" : null,
                 onLongPress: () {
-                  context.read<FavoritesCubit>().addMovie(movie, isAdd: !isFav);
+                  context.read<FavoritesCubit>().addMovie(movie, isAdd: true);
                   _showSuccessToast(
-                    isFav ? "Removed from Favourites" : "Added to Favourites",
+                    isFav ? "Already in Favorites" : "Added to Favourites",
                   );
                 },
                 onTap: () {
@@ -1291,9 +1295,9 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                 isFavorite: isFav,
                 ratingBadge: serie.rating != null ? "⭐ ${serie.rating}" : null,
                 onLongPress: () {
-                  context.read<FavoritesCubit>().addSerie(serie, isAdd: !isFav);
+                  context.read<FavoritesCubit>().addSerie(serie, isAdd: true);
                   _showSuccessToast(
-                    isFav ? "Removed from Favourites" : "Added to Favourites",
+                    isFav ? "Already in Favorites" : "Added to Favourites",
                   );
                 },
                 onTap: () {
@@ -1337,10 +1341,10 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
                   onLongPress: () {
                     context.read<FavoritesCubit>().addLive(
                       channel,
-                      isAdd: !isFav,
+                      isAdd: true,
                     );
                     _showSuccessToast(
-                      isFav ? "Removed from Favourites" : "Added to Favourites",
+                      isFav ? "Already in Favorites" : "Added to Favourites",
                     );
                   },
                   onTap: () {
@@ -1642,9 +1646,9 @@ class _MobileWatchScreenState extends State<MobileWatchScreen> {
           isLive: true,
           isFavorite: isFav,
           onLongPress: () {
-            context.read<FavoritesCubit>().addLive(channel, isAdd: !isFav);
+            context.read<FavoritesCubit>().addLive(channel, isAdd: true);
             _showSuccessToast(
-              isFav ? "Removed from Favourites" : "Added to Favourites",
+              isFav ? "Already in Favorites" : "Added to Favourites",
             );
           },
           onTap: () {

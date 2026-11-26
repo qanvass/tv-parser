@@ -239,29 +239,34 @@ class StarliteVodM3uSession {
       );
       final status = res.statusCode ?? 0;
       final raw = res.data;
-      final body = raw == null ? null : _decodePlaylistBytes(raw);
 
-      final stop = StarliteVodM3uUrls.reasonToStop(
-        statusCode: status,
-        body: body,
-        seenFingerprints: seen,
+      // Offload gzip decode, fingerprinting, and line-filtering to background isolate.
+      final processed = await compute(
+        _processShardIsolate,
+        _ShardInput(
+          rawBytes: raw,
+          statusCode: status,
+          seenFingerprints: Set<String>.from(seen),
+        ),
       );
-      if (stop != StarliteVodShardStop.none) {
+
+      if (processed.stop != StarliteVodShardStop.none) {
         debugPrint(
-          '[VOD_M3U] tvshows stop shard=${i + 1} reason=${stop.name} '
+          '[VOD_M3U] tvshows stop shard=${i + 1} reason=${processed.stop.name} '
           'status=$status',
         );
         break;
       }
 
-      seen.add(StarliteVodM3uUrls.bodyFingerprint(body!));
-      for (final line in body.split(RegExp(r'\r?\n'))) {
-        final t = line.trimRight();
-        if (t.isEmpty) continue;
-        if (t.startsWith('#EXTM3U')) continue;
-        buf.writeln(t);
+      if (processed.fingerprint != null) {
+        seen.add(processed.fingerprint!);
+      }
+      if (processed.content.isNotEmpty) {
+        buf.write(processed.content);
       }
       fetched++;
+      // Yield to let UI events, D-pad, and frame rendering breathe freely.
+      await Future<void>.delayed(const Duration(milliseconds: 10));
     }
 
     lastTvShowShardsFetched = fetched;
@@ -328,7 +333,7 @@ class StarliteVodM3uSession {
   }
 
   /// Decode playlist bytes; handle accidental gzip without Content-Encoding.
-  static String _decodePlaylistBytes(List<int> bytes) {
+  static String decodePlaylistBytes(List<int> bytes) {
     List<int> raw = bytes;
     if (bytes.length >= 2 && bytes[0] == 0x1f && bytes[1] == 0x8b) {
       try {
@@ -343,6 +348,8 @@ class StarliteVodM3uSession {
       return String.fromCharCodes(raw);
     }
   }
+
+  static String _decodePlaylistBytes(List<int> bytes) => decodePlaylistBytes(bytes);
 
   Future<void> _publishCapabilities(String playlistUrl) async {
     final xmlTv = lastXmlTvUrl;
@@ -386,3 +393,55 @@ class StarliteVodM3uSession {
 
 M3uParseResult _parseSeriesCatalog(String body) =>
     M3uParser.parseCatalog(body, forceEntryType: M3uEntryType.series);
+
+class _ShardInput {
+  final List<int>? rawBytes;
+  final int statusCode;
+  final Set<String> seenFingerprints;
+
+  const _ShardInput({
+    required this.rawBytes,
+    required this.statusCode,
+    required this.seenFingerprints,
+  });
+}
+
+class _ShardOutput {
+  final StarliteVodShardStop stop;
+  final String? fingerprint;
+  final String content;
+
+  const _ShardOutput({
+    required this.stop,
+    this.fingerprint,
+    this.content = '',
+  });
+}
+
+_ShardOutput _processShardIsolate(_ShardInput input) {
+  final raw = input.rawBytes;
+  final body = raw == null ? null : StarliteVodM3uSession.decodePlaylistBytes(raw);
+  final stop = StarliteVodM3uUrls.reasonToStop(
+    statusCode: input.statusCode,
+    body: body,
+    seenFingerprints: input.seenFingerprints,
+  );
+  if (stop != StarliteVodShardStop.none || body == null) {
+    return _ShardOutput(stop: stop);
+  }
+
+  final fp = StarliteVodM3uUrls.bodyFingerprint(body);
+  final lines = const LineSplitter().convert(body);
+  final buf = StringBuffer();
+  for (final line in lines) {
+    final t = line.trimRight();
+    if (t.isEmpty || t.startsWith('#EXTM3U')) continue;
+    buf.writeln(t);
+  }
+
+  return _ShardOutput(
+    stop: StarliteVodShardStop.none,
+    fingerprint: fp,
+    content: buf.toString(),
+  );
+}

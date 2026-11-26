@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 import '../api/artwork_url_resolver.dart';
 import '../api/metadata_enrichment_service.dart';
 import 'provider_enums.dart';

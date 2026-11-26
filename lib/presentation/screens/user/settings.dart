@@ -117,7 +117,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       case _TvSettingsSection.sources:
         return 6 + _savedAccounts.length; // refresh + add + saved + 4 quick tools
       case _TvSettingsSection.playback:
-        return 2; // quality + hero preview
+        return 4; // quality + hero preview + subtitle size + VOD quality
       case _TvSettingsSection.local:
         return 3; // toggle + market + reset
       case _TvSettingsSection.diagnostics:
@@ -388,6 +388,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         } else if (idx == 1) {
           setState(() => _heroPreviewMode = CinematicPrefs.cycle());
           _snack('Hero preview: ${CinematicPrefs.label(_heroPreviewMode)}');
+        } else if (idx == 3) {
+          final h = HlsVodPlaylist.cycleQuality();
+          setState(() {});
+          _snack('Movies & series quality: ${HlsVodPlaylist.qualityLabel(h)}');
         } else {
           _cycleSubtitleSize();
         }
@@ -890,6 +894,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: 'Current: $_subtitleSize (Small · Medium · Large)',
               isFocused: _detailPanelActive && _detailIdx == 2,
               onTap: () => _handleTvDetailAction(section, 2),
+            ),
+            const SizedBox(height: 12),
+            _SettingsAction(
+              icon: Icons.high_quality_rounded,
+              label: 'Movies & Series Quality',
+              subtitle:
+                  'Locked to ${HlsVodPlaylist.qualityLabel(HlsVodPlaylist.maxHeightPref)} '
+                  '(1080p · 4K · 720p). One quality, no switching mid-stream.',
+              isFocused: _detailPanelActive && _detailIdx == 3,
+              onTap: () => _handleTvDetailAction(section, 3),
             ),
           ],
         );

@@ -87,6 +87,11 @@ class PlaybackUrlBuilder {
       );
       final direct = match.directSource?.trim() ?? '';
       if (direct.isNotEmpty) return direct;
+      // Shows-only memory holds one row per show: other episodes are in SQLite.
+      if (LocaleApi.m3uSeriesShowsOnly) {
+        final stored = await LocaleApi.m3uSeriesByItemId(episodeId);
+        return stored?.directSource?.trim() ?? '';
+      }
       return '';
     }
     return buildSeriesUrlSync(
@@ -113,7 +118,8 @@ class PlaybackUrlBuilder {
     } else {
       ext = isFallback ? 'm3u8' : 'ts';
     }
-    return '$serverUrl/live/$username/$password/$streamId.$ext';
+    final raw = '$serverUrl/live/$username/$password/$streamId.$ext';
+    return GatewaySecurity.signUrl(raw);
   }
 
   /// Builds a URL for movies synchronously with provided credentials.

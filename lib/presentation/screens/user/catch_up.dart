@@ -7,7 +7,7 @@ class CatchUpScreen extends StatefulWidget {
   State<CatchUpScreen> createState() => _CatchUpScreenState();
 }
 
-class _CatchUpScreenState extends State<CatchUpScreen> {
+class _CatchUpScreenState extends State<CatchUpScreen> with HoldToFavorite<CatchUpScreen> {
   // panel: 1 = sidebar, 2 = content
   int _panel = 1;
   int _tabIdx = 0; // 0=Movies, 1=Series
@@ -89,7 +89,29 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
     Get.back();
   }
 
+  Object? _selectedFavorite() {
+    final state = context.read<WatchingCubit>().state;
+    final items = _tabIdx == 0 ? state.movies : state.series;
+    if (_currentIdx < 0 || _currentIdx >= items.length) return null;
+    return _historyFavorite(items[_currentIdx]);
+  }
+
+  Object _historyFavorite(WatchingModel model) => _tabIdx == 0
+      ? ChannelMovie(streamId: model.streamId, name: model.title,
+          streamIcon: model.image, directSource: model.stream)
+      : ChannelSerie(seriesId: model.streamId, name: model.title,
+          cover: model.image, directSource: model.stream);
+
   KeyEventResult _onKey(FocusNode _, KeyEvent e) {
+    if (!_appbarActive && _panel == 2) {
+      final item = _selectedFavorite();
+      if (item != null) {
+        final result = favoriteKey(e, onOpen: _handleSelect,
+            onFavorite: () => FavoriteActions.add(context, item));
+        if (result == KeyEventResult.handled) return result;
+      }
+    }
+
     if (e is! KeyDownEvent) return KeyEventResult.ignored;
     final k = e.logicalKey;
 
@@ -516,6 +538,7 @@ class _CatchUpScreenState extends State<CatchUpScreen> {
             final isSelected = i == selectedIdx;
             final isFocused = isSelected && _panel == 2;
             return GestureDetector(
+              onLongPress: () => FavoriteActions.add(context, _historyFavorite(model)),
               onTap: () {
                 setState(() {
                   if (_tabIdx == 0)

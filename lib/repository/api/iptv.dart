@@ -175,9 +175,12 @@ class IpTvApi {
     if (user != null &&
         IptvProviderSession.isM3uServerUrl(user.serverInfo?.serverUrl)) {
       await LocaleApi.warmM3uSeriesCache();
-      final list = IptvProviderSession.instance.seriesChannels(
-        categoryId: catyId,
-      );
+      // Shows-only memory has one row per show, so one show's episodes come
+      // from SQLite. The unfiltered list stays the show rows.
+      final oneCategory = catyId.isNotEmpty && catyId != 'all';
+      final list = oneCategory && LocaleApi.m3uSeriesShowsOnly
+          ? await LocaleApi.m3uSeriesEpisodesForCategory(catyId)
+          : IptvProviderSession.instance.seriesChannels(categoryId: catyId);
       debugPrint(
         "[IPTV_WIRING] getSeriesChannels caty=${catyId.isEmpty ? 'all' : catyId} "
         "count=${list.length}",
@@ -262,14 +265,32 @@ class IpTvApi {
     }
   }
 
-  /// Serie Detail
-  static Future<SerieDetails?> getSerieDetails(String serieId) async {
+  /// Serie Detail. [saved] is the row the caller opened (favourite, search
+  /// hit, list card); playlist accounts use it to catch a stale [serieId].
+  static Future<SerieDetails?> getSerieDetails(
+    String serieId, {
+    ChannelSerie? saved,
+  }) async {
     try {
       final user = await LocaleApi.getUser();
       if (user != null &&
           IptvProviderSession.isM3uServerUrl(user.serverInfo?.serverUrl)) {
         await LocaleApi.warmM3uSeriesCache();
-        return m3uSerieDetails(serieId);
+        final anchor = await _resolveM3uSeriesAnchor(serieId, saved);
+        // Saved show is gone from the catalog: show nothing, never the
+        // show that now sits at its old id.
+        if (anchor == null && saved != null) return null;
+        if (LocaleApi.m3uSeriesShowsOnly) {
+          if (anchor == null) return null;
+          final episodes = await LocaleApi.m3uSeriesEpisodesForCategory(
+            anchor.categoryId ?? '',
+          );
+          return m3uSerieDetails(
+            anchor.seriesId ?? serieId,
+            source: episodes.isEmpty ? [anchor] : episodes,
+          );
+        }
+        return m3uSerieDetails(anchor?.seriesId ?? serieId);
       }
 
       if (user == null) {
@@ -377,6 +398,89 @@ class IpTvApi {
       if (tvg != null && tvg == needle) return ch;
     }
     return null;
+  }
+
+  /// The playlist row a saved series points at, or null when the saved show
+  /// is no longer in the catalog.
+  ///
+  /// Playlist ids are positions in the provider list (`m3u_stream_N`), so an
+  /// id saved earlier (favourite, history) names a different show once the
+  /// provider adds or removes entries. The row found by id is used only when
+  /// it still is the saved show; otherwise the show is found by its stream
+  /// address, then by title. A page must never list another show's episodes
+  /// under the saved name, so no match means null, not the row at that id.
+  /// With nothing saved to compare, the id decides.
+  static Future<ChannelSerie?> _resolveM3uSeriesAnchor(
+    String serieId,
+    ChannelSerie? saved,
+  ) async {
+    final byId = await LocaleApi.m3uSeriesByItemId(serieId);
+    if (saved == null) return byId;
+    if (byId != null) {
+      if (m3uSeriesIsSavedShow(byId, saved)) return byId;
+      // Per-show playlists title the card after the category, not the episode.
+      final catId = byId.categoryId;
+      if (catId != null) {
+        for (final c in LocaleApi.getM3uSeriesCategories()) {
+          if (c.categoryId != catId) continue;
+          final asShow = ChannelSerie(name: c.categoryName);
+          if (m3uSeriesIsSavedShow(asShow, ChannelSerie(name: saved.name))) {
+            return byId;
+          }
+          break;
+        }
+      }
+    }
+
+    final savedUrl = saved.directSource?.trim() ?? '';
+    if (savedUrl.isNotEmpty) {
+      final byUrl = await LocaleApi.m3uSeriesByDirectSource(savedUrl);
+      if (byUrl != null) return byUrl;
+    }
+    final byTitle = m3uSeriesByShowTitle(LocaleApi.getM3uSeries(), saved);
+    debugPrint(
+      '[M3U] saved series id was stale; '
+      '${byTitle != null ? 'matched by title' : 'show not found'}',
+    );
+    return byTitle;
+  }
+
+  static String _showKey(String? name) =>
+      TitleNormalizer.parse(name ?? '').matchTitle.toLowerCase();
+
+  /// True when [row] is the show [saved] names: same stream address or same
+  /// show title. True too when [saved] has neither to compare.
+  @visibleForTesting
+  static bool m3uSeriesIsSavedShow(ChannelSerie row, ChannelSerie saved) {
+    final savedUrl = saved.directSource?.trim() ?? '';
+    final savedKey = _showKey(saved.name);
+    if (savedUrl.isEmpty && savedKey.isEmpty) return true;
+    if (savedUrl.isNotEmpty && row.directSource?.trim() == savedUrl) {
+      return true;
+    }
+    return savedKey.isNotEmpty && _showKey(row.name) == savedKey;
+  }
+
+  /// First row of [rows] with the show title of [saved], preferring the same
+  /// year when the saved name carries one.
+  @visibleForTesting
+  static ChannelSerie? m3uSeriesByShowTitle(
+    Iterable<ChannelSerie> rows,
+    ChannelSerie saved,
+  ) {
+    final key = _showKey(saved.name);
+    if (key.isEmpty) return null;
+    final year = TitleNormalizer.extractYear(saved.name ?? '');
+    ChannelSerie? anyYear;
+    for (final s in rows) {
+      final name = s.name ?? '';
+      // Cheap substring gate before the regex parse (catalogs can be 100k).
+      if (!name.toLowerCase().contains(key)) continue;
+      if (_showKey(name) != key) continue;
+      if (year == null || TitleNormalizer.extractYear(name) == year) return s;
+      anyYear ??= s;
+    }
+    return anyYear;
   }
 
   /// Playlist (M3U) accounts have no `get_series_info`: every playlist series

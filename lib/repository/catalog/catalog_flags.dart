@@ -17,6 +17,13 @@
 class CatalogDbFlags {
   static bool readsEnabled = false;
 
+  /// Series only, and only for playlists with one category per show.
+  ///
+  /// When true, memory holds one row per show. The episodes stay in SQLite and
+  /// are read when a show is opened. A playlist that is not per-show, or a
+  /// failed ingest, keeps the full JSON list exactly as before.
+  static bool seriesShowsOnly = true;
+
   /// Shelf pages stay small even if a caller asks for the whole catalog.
   static const int maxPage = 200;
 }

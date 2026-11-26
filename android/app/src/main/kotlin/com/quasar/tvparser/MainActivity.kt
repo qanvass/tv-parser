@@ -2,6 +2,7 @@ package com.quasar.tvparser
 
 import android.app.UiModeManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
@@ -11,6 +12,17 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "main_activity_channel"
+    private val WATCH_CHANNEL = "tvparser/watch"
+    private val WATCH_TAG = "TVParserWatch"
+    private val EXTRA_WATCH_QUERY = "tvp_watch_query"
+    private val EXTRA_WATCH_KIND = "tvp_watch_kind"
+    private val EXTRA_WATCH_ID = "tvp_watch_id"
+    private val EXTRA_WATCH_SEASON = "tvp_watch_season"
+    private val EXTRA_WATCH_EPISODE = "tvp_watch_episode"
+
+    private var watchChannel: MethodChannel? = null
+    private var pendingWatch: HashMap<String, String>? = null
+    private var dartWatchReady = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         forceCorrectOrientationBeforeFlutter()
@@ -26,6 +38,70 @@ class MainActivity : FlutterActivity() {
                 result.notImplemented()
             }
         }
+
+        // "Play this by name" from the home assistant (see remote_watch_service.dart).
+        val watch = MethodChannel(flutterEngine!!.dartExecutor, WATCH_CHANNEL)
+        watchChannel = watch
+        watch.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "take" -> {
+                    dartWatchReady = true
+                    result.success(pendingWatch)
+                    pendingWatch = null
+                }
+                "report" -> {
+                    // Names only: never a stream address.
+                    android.util.Log.i(
+                        WATCH_TAG,
+                        "id=${call.argument<String>("id") ?: ""} " +
+                            "status=${call.argument<String>("status") ?: ""} " +
+                            "kind=${call.argument<String>("kind") ?: ""} " +
+                            "title=${(call.argument<String>("title") ?: "").take(80)} " +
+                            "alts=${(call.argument<String>("alts") ?: "").take(200)}"
+                    )
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+        if (savedInstanceState == null) {
+            pendingWatch = readWatchCommand(intent)
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        val cmd = readWatchCommand(intent) ?: return
+        val channel = watchChannel
+        if (dartWatchReady && channel != null) {
+            channel.invokeMethod("watch", cmd)
+        } else {
+            pendingWatch = cmd
+        }
+    }
+
+    /// Reads and removes the watch extras so the same command cannot run twice.
+    private fun readWatchCommand(intent: Intent?): HashMap<String, String>? {
+        if (intent == null) return null
+        if (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return null
+        val query = intent.getStringExtra(EXTRA_WATCH_QUERY)?.trim() ?: return null
+        val kind = intent.getStringExtra(EXTRA_WATCH_KIND)?.trim() ?: "any"
+        val id = intent.getStringExtra(EXTRA_WATCH_ID)?.trim() ?: ""
+        intent.removeExtra(EXTRA_WATCH_QUERY)
+        intent.removeExtra(EXTRA_WATCH_KIND)
+        val season = intent.getStringExtra(EXTRA_WATCH_SEASON)?.trim() ?: ""
+        val episode = intent.getStringExtra(EXTRA_WATCH_EPISODE)?.trim() ?: ""
+        intent.removeExtra(EXTRA_WATCH_ID)
+        intent.removeExtra(EXTRA_WATCH_SEASON)
+        intent.removeExtra(EXTRA_WATCH_EPISODE)
+        if (query.isEmpty() || query.length > 120) return null
+        return hashMapOf(
+            "query" to query,
+            "kind" to kind,
+            "id" to id,
+            "season" to season.take(4),
+            "episode" to episode.take(4),
+        )
     }
 
     private fun forceCorrectOrientationBeforeFlutter() {

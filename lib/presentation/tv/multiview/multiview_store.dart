@@ -9,6 +9,27 @@ class MultiviewStore {
 
   static const int slotCount = 4;
   static const String storageKey = 'multiview_live_stream_ids';
+  static const String layoutKey = 'multiview_layout';
+
+  /// 2 is the side-by-side layout. 4 is the existing grid.
+  static int layoutFromRaw(Object? raw) {
+    final parsed = raw is int ? raw : int.tryParse('${raw ?? ''}');
+    return parsed == 4 ? 4 : 2;
+  }
+
+  static int readLayout() {
+    try {
+      return layoutFromRaw(GetStorage('preferences').read(layoutKey));
+    } catch (_) {
+      return 2;
+    }
+  }
+
+  static void writeLayout(int layout) {
+    try {
+      GetStorage('preferences').write(layoutKey, layout == 4 ? 4 : 2);
+    } catch (_) {}
+  }
 
   static List<String?> read() {
     final out = List<String?>.filled(slotCount, null);

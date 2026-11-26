@@ -69,4 +69,37 @@ SELECT payload FROM catalog_items
 WHERE kind = ? AND category_id = ?
 ORDER BY row_index
 LIMIT ? OFFSET ?''';
+
+  /// First row of every category, in catalog order. On a playlist with one
+  /// category per show this is one row per show.
+  static const firstPerCategory = '''
+SELECT payload FROM catalog_items
+WHERE kind = ? AND row_index IN (
+  SELECT MIN(row_index) FROM catalog_items WHERE kind = ? GROUP BY category_id
+)
+ORDER BY row_index''';
+
+  static const countPerCategory = '''
+SELECT category_id, COUNT(*) AS n FROM catalog_items
+WHERE kind = ?
+GROUP BY category_id''';
+
+  static const allByCategory = '''
+SELECT payload FROM catalog_items
+WHERE kind = ? AND category_id = ?
+ORDER BY row_index''';
+
+  /// Unindexed scan of the payload text. Only for the rare resume path where
+  /// nothing but the stream address is known.
+  static const byPayloadFragment = '''
+SELECT payload FROM catalog_items
+WHERE kind = ? AND instr(payload, ?) > 0
+ORDER BY row_index
+LIMIT 1''';
+
+  static const byItemId = '''
+SELECT payload FROM catalog_items
+WHERE kind = ? AND item_id = ?
+ORDER BY row_index
+LIMIT 1''';
 }

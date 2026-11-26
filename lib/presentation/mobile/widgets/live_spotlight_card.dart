@@ -1,3 +1,4 @@
+import '../../shared/favorite_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -38,6 +39,7 @@ class LiveSpotlightCard extends StatelessWidget {
 
     return GestureDetector(
       onTap: bestCh != null ? () => onPlayChannel(bestCh) : null,
+      onLongPress: bestCh == null ? null : () => FavoriteActions.add(context, bestCh),
       child: Container(
         width: 320,
         margin: const EdgeInsets.only(right: 16),

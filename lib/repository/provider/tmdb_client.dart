@@ -145,6 +145,70 @@ class TmdbClient {
     );
   }
 
+  /// Show details for a TMDB tv id that a confident match (or the provider)
+  /// already supplied. Null on any failure. Never guesses an id.
+  Future<Map<String, dynamic>?> tvDetails(String tmdbId) async {
+    if (!isEnabled) return null;
+    final id = tmdbId.trim();
+    if (!_numericId.hasMatch(id)) return null;
+    final map = await _getJson('/3/tv/$id', {'language': 'en-US'});
+    if (map == null || map['id'] == null) return null;
+    final genres = <String>[];
+    final rawGenres = map['genres'];
+    if (rawGenres is List) {
+      for (final g in rawGenres) {
+        if (g is Map && g['name'] is String) genres.add(g['name'] as String);
+      }
+    }
+    int? runtime;
+    final runTimes = map['episode_run_time'];
+    if (runTimes is List && runTimes.isNotEmpty && runTimes.first is num) {
+      runtime = (runTimes.first as num).round();
+    }
+    return {
+      ..._mapTv(map),
+      'genres': genres,
+      if (runtime != null && runtime > 0) 'runtime_minutes': runtime,
+      'end_year': TmdbMatch.yearFromDate(map['last_air_date'] as String?),
+      if (map['in_production'] is bool) 'in_production': map['in_production'],
+      if (map['number_of_seasons'] is int)
+        'season_count': map['number_of_seasons'],
+    };
+  }
+
+  /// Episodes of one season of a matched show: number, name, still, runtime.
+  /// Null on failure; an empty list when TMDB has the season but no episodes.
+  Future<List<Map<String, dynamic>>?> tvSeasonEpisodes(
+    String tmdbId,
+    int season,
+  ) async {
+    if (!isEnabled) return null;
+    final id = tmdbId.trim();
+    if (!_numericId.hasMatch(id) || season < 0 || season > 999) return null;
+    final map = await _getJson('/3/tv/$id/season/$season', {
+      'language': 'en-US',
+    });
+    final raw = map?['episodes'];
+    if (raw is! List) return null;
+    final out = <Map<String, dynamic>>[];
+    for (final e in raw) {
+      if (e is! Map) continue;
+      final number = e['episode_number'];
+      if (number is! int) continue;
+      final runtime = e['runtime'];
+      out.add({
+        'number': number,
+        'name': _cleanText(e['name'] as String?),
+        'overview': _cleanText(e['overview'] as String?),
+        'still_url': ArtworkUrlResolver.tmdbStill(e['still_path'] as String?),
+        if (runtime is num && runtime > 0) 'runtime_minutes': runtime.round(),
+      });
+    }
+    return out;
+  }
+
+  static final RegExp _numericId = RegExp(r'^[0-9]{1,10}$');
+
   Map<String, dynamic>? _firstConfident(
     Map<String, dynamic>? data, {
     required String titleField,

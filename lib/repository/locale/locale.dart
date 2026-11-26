@@ -41,6 +41,17 @@ class LocaleApi {
   static List<ChannelMovie>? _m3uMoviesMem;
   static List<CategoryModel>? _m3uSeriesCategoriesMem;
   static List<ChannelSerie>? _m3uSeriesMem;
+
+  /// True when [_m3uSeriesMem] holds one row per show and the episodes are
+  /// only in SQLite. See [CatalogDbFlags.seriesShowsOnly].
+  static bool _m3uSeriesShowsOnly = false;
+  static Map<String, int> _m3uSeriesEpisodeCounts = const <String, int>{};
+
+  /// Episodes read from SQLite for shows the user opened, by stream address.
+  /// Lets the player find a just-shown episode without a database scan.
+  static final Map<String, ChannelSerie> _m3uSeriesRecentByUrl =
+      <String, ChannelSerie>{};
+  static const int _seriesRecentCap = 6000;
   static Directory? _m3uDir;
   static CatalogStore? _catalogStore;
 
@@ -88,6 +99,10 @@ class LocaleApi {
       await locale.remove("m3u_series_categories_count");
       await locale.remove("m3u_series_count");
       await locale.remove("m3u_series_last_sync_ms");
+      await locale.remove(_seriesDbStampKey);
+      _m3uSeriesRecentByUrl.clear();
+      _m3uSeriesShowsOnly = false;
+      _m3uSeriesEpisodeCounts = const <String, int>{};
       _m3uCategoriesMem = null;
       _m3uChannelsMem = null;
       _m3uMovieCategoriesMem = null;
@@ -287,11 +302,17 @@ class LocaleApi {
         _parseCategoriesIsolate,
         (list) => _m3uSeriesCategoriesMem = list,
       );
-      await _warmTypedList<ChannelSerie>(
-        '${dir.path}/m3u_series.json',
-        _parseSeriesIsolate,
-        (list) => _m3uSeriesMem = list,
-      );
+      // Per-show playlists keep one row per show in memory. Everything else,
+      // and any failure, decodes the whole JSON list as before.
+      if (!await _loadSeriesShowHeads(reingest: false)) {
+        _m3uSeriesShowsOnly = false;
+        _m3uSeriesEpisodeCounts = const <String, int>{};
+        await _warmTypedList<ChannelSerie>(
+          '${dir.path}/m3u_series.json',
+          _parseSeriesIsolate,
+          (list) => _m3uSeriesMem = list,
+        );
+      }
       _m3uSeriesMem ??= <ChannelSerie>[];
       _m3uSeriesCategoriesMem ??= <CategoryModel>[];
       CatalogPerf.span(
@@ -558,7 +579,12 @@ class LocaleApi {
       );
 
   static Future<bool> saveM3uSeries(List<ChannelSerie> series) async {
-    _m3uSeriesMem = List<ChannelSerie>.from(series);
+    // In shows-only mode the show rows stay in memory while the new file is
+    // written, so the full list is never resident next to them.
+    final keepShowRows = _m3uSeriesShowsOnly;
+    if (!keepShowRows) {
+      _m3uSeriesMem = List<ChannelSerie>.from(series);
+    }
     await locale.write("m3u_series_last_sync_ms", DateTime.now().millisecondsSinceEpoch);
     final ok = await _writeM3uJson(
       'm3u_series.json',
@@ -569,7 +595,153 @@ class LocaleApi {
     if (ok) {
       debugPrint("[M3U] saved series to file count=${series.length}");
     }
+    final showsOnly = ok && await _loadSeriesShowHeads(reingest: true);
+    if (!showsOnly) {
+      _m3uSeriesShowsOnly = false;
+      _m3uSeriesEpisodeCounts = const <String, int>{};
+      _m3uSeriesMem = List<ChannelSerie>.from(series);
+    }
     return ok || (_m3uSeriesMem?.isNotEmpty == true);
+  }
+
+  static const String _seriesDbStampKey = 'm3u_series_db_stamp';
+
+  /// Puts one row per show in memory, with the episodes left in SQLite.
+  ///
+  /// Returns false, changing nothing, when the flag is off, the playlist is
+  /// not one-category-per-show, the JSON file is missing, or the ingest
+  /// fails. The caller then loads the full JSON list.
+  static Future<bool> _loadSeriesShowHeads({required bool reingest}) async {
+    if (!CatalogDbFlags.seriesShowsOnly) return false;
+    final cats = _m3uSeriesCategoriesMem ?? const <CategoryModel>[];
+    if (!SeriesShelfPlanner.looksPerShow(cats)) return false;
+    try {
+      final dir = await _ensureM3uDir();
+      final file = File('${dir.path}/m3u_series.json');
+      if (!await file.exists()) return false;
+      final stat = await file.stat();
+      final stamp = '${stat.size}:${stat.modified.millisecondsSinceEpoch}';
+      final store = await _catalogStoreOpen();
+      final ready = await store.isReady(CatalogKind.series);
+      if (reingest || !ready || locale.read(_seriesDbStampKey) != stamp) {
+        final watch = Stopwatch()..start();
+        final count = await CatalogIngest.ingestFile(
+          store: store,
+          kind: CatalogKind.series,
+          path: file.path,
+        );
+        debugPrint(
+          '[CATALOG_DB] series ingest rows=$count '
+          'ms=${watch.elapsedMilliseconds}',
+        );
+        if (count <= 0) return false;
+        await locale.write(_seriesDbStampKey, stamp);
+      }
+      final heads = await store.seriesCategoryHeads();
+      if (heads.isEmpty) return false;
+      final counts = await store.seriesCountsByCategory();
+      var episodes = 0;
+      for (final n in counts.values) {
+        episodes += n;
+      }
+      _m3uSeriesMem = heads;
+      _m3uSeriesEpisodeCounts = counts;
+      _m3uSeriesShowsOnly = true;
+      _m3uSeriesRecentByUrl.clear();
+      debugPrint(
+        '[CATALOG_DB] series shows-only shows=${heads.length} '
+        'episodes=$episodes',
+      );
+      return true;
+    } catch (e) {
+      debugPrint('[CATALOG_DB] series shows-only unavailable: ${e.runtimeType}');
+      return false;
+    }
+  }
+
+  /// True when [getM3uSeries] returns one row per show, not every episode.
+  static bool get m3uSeriesShowsOnly => _m3uSeriesShowsOnly;
+
+  /// Episodes per category id. Empty unless [m3uSeriesShowsOnly].
+  static Map<String, int> get m3uSeriesEpisodeCounts => _m3uSeriesEpisodeCounts;
+
+  /// Every episode of one category. Reads SQLite in shows-only mode, else
+  /// filters the list in memory.
+  static Future<List<ChannelSerie>> m3uSeriesEpisodesForCategory(
+    String categoryId,
+  ) async {
+    if (categoryId.isEmpty) return <ChannelSerie>[];
+    if (!_m3uSeriesShowsOnly) {
+      final mem = _m3uSeriesMem;
+      if (mem == null) return <ChannelSerie>[];
+      return [
+        for (final s in mem)
+          if (s.categoryId == categoryId) s,
+      ];
+    }
+    try {
+      final store = await _catalogStoreOpen();
+      final episodes = await store.seriesForCategory(categoryId);
+      if (_m3uSeriesRecentByUrl.length + episodes.length > _seriesRecentCap) {
+        _m3uSeriesRecentByUrl.clear();
+      }
+      for (final e in episodes) {
+        final url = e.directSource;
+        if (url != null && url.isNotEmpty) _m3uSeriesRecentByUrl[url] = e;
+      }
+      return episodes;
+    } catch (e) {
+      debugPrint('[CATALOG_DB] series category read failed: ${e.runtimeType}');
+      return <ChannelSerie>[];
+    }
+  }
+
+  /// The series row that plays [directSource], from memory only. Null when it
+  /// is neither a show row nor an episode of a recently opened show.
+  static ChannelSerie? m3uSeriesInMemoryByDirectSource(String directSource) {
+    if (directSource.isEmpty) return null;
+    final recent = _m3uSeriesRecentByUrl[directSource];
+    if (recent != null) return recent;
+    final mem = _m3uSeriesMem;
+    if (mem == null) return null;
+    for (final s in mem) {
+      if (s.directSource == directSource) return s;
+    }
+    return null;
+  }
+
+  /// Same lookup, falling back to SQLite in shows-only mode.
+  static Future<ChannelSerie?> m3uSeriesByDirectSource(
+    String directSource,
+  ) async {
+    final inMemory = m3uSeriesInMemoryByDirectSource(directSource);
+    if (inMemory != null || !_m3uSeriesShowsOnly) return inMemory;
+    try {
+      final store = await _catalogStoreOpen();
+      return await store.seriesByDirectSource(directSource);
+    } catch (e) {
+      debugPrint('[CATALOG_DB] series address read failed: ${e.runtimeType}');
+      return null;
+    }
+  }
+
+  /// One series row by id. Looks in memory first, then SQLite.
+  static Future<ChannelSerie?> m3uSeriesByItemId(String seriesId) async {
+    if (seriesId.isEmpty) return null;
+    final mem = _m3uSeriesMem;
+    if (mem != null) {
+      for (final s in mem) {
+        if (s.seriesId == seriesId) return s;
+      }
+    }
+    if (!_m3uSeriesShowsOnly) return null;
+    try {
+      final store = await _catalogStoreOpen();
+      return await store.seriesByItemId(seriesId);
+    } catch (e) {
+      debugPrint('[CATALOG_DB] series id read failed: ${e.runtimeType}');
+      return null;
+    }
   }
 
   static List<ChannelSerie> getM3uSeries() => _getM3uList<ChannelSerie>(

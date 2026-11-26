@@ -2,17 +2,95 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get/get.dart';
 
 import '../../../helpers/tv_back_navigation.dart';
+import '../../../logic/cubits/favorites/favorites_cubit.dart';
 import '../../../repository/api/api.dart';
 import '../../../repository/models/category.dart';
 import '../../../repository/models/channel_live.dart';
 
+/// One page of the multiview channel list.
+class MultiviewPickerSlice {
+  const MultiviewPickerSlice({required this.channels, required this.capped});
+
+  final List<ChannelLive> channels;
+  final bool capped;
+}
+
+/// Favorites is list 0. All is list 1. Later indexes are live categories.
+const int kMultiviewPickerFavorites = 0;
+const int kMultiviewPickerAll = 1;
+
+int multiviewPickerLastIndex(int categoryCount) => categoryCount + 1;
+
+/// Channels for one multiview picker list.
+///
+/// [needle] is already trimmed and lowercased. Favorites keep the saved
+/// order and are not capped until a search is typed. Every other list stops
+/// at [searchCap] so a large playlist does not build a tile per entry.
+MultiviewPickerSlice sliceMultiviewChannels({
+  required List<ChannelLive> catalog,
+  required List<String> favoriteIdsInOrder,
+  required int listIndex,
+  String? categoryId,
+  required String needle,
+  int searchCap = 200,
+}) {
+  if (listIndex <= kMultiviewPickerFavorites) {
+    final byId = <String, ChannelLive>{};
+    for (final channel in catalog) {
+      final id = channel.streamId?.trim() ?? '';
+      if (id.isEmpty || byId.containsKey(id)) continue;
+      byId[id] = channel;
+    }
+    final out = <ChannelLive>[];
+    final seen = <String>{};
+    var capped = false;
+    for (final raw in favoriteIdsInOrder) {
+      final id = raw.trim();
+      if (id.isEmpty || !seen.add(id)) continue;
+      final channel = byId[id];
+      if (channel == null) continue;
+      if (needle.isNotEmpty &&
+          !(channel.name ?? '').toLowerCase().contains(needle)) {
+        continue;
+      }
+      out.add(channel);
+      if (needle.isNotEmpty && out.length >= searchCap) {
+        capped = true;
+        break;
+      }
+    }
+    return MultiviewPickerSlice(channels: out, capped: capped);
+  }
+
+  final out = <ChannelLive>[];
+  var capped = false;
+  for (final channel in catalog) {
+    if (categoryId != null &&
+        categoryId.isNotEmpty &&
+        channel.categoryId != categoryId) {
+      continue;
+    }
+    if (needle.isNotEmpty &&
+        !(channel.name ?? '').toLowerCase().contains(needle)) {
+      continue;
+    }
+    out.add(channel);
+    if (out.length >= searchCap) {
+      capped = true;
+      break;
+    }
+  }
+  return MultiviewPickerSlice(channels: out, capped: capped);
+}
+
 /// Picks one live channel from the catalog already loaded for Live TV.
 ///
-/// Adult categories stay out, matching the live rails. Search keeps at most
-/// 200 matches so a large playlist does not build a tile per entry.
+/// Opens on Favorites so the first list is the channels the user already
+/// saved. Adult categories stay out, matching the live rails.
 class MultiviewChannelPicker extends StatefulWidget {
   const MultiviewChannelPicker({super.key});
 
@@ -33,8 +111,9 @@ class _MultiviewChannelPickerState extends State<MultiviewChannelPicker> {
 
   List<ChannelLive> _channels = const [];
   List<CategoryModel> _categories = const [];
+  List<String> _favoriteIds = const [];
   List<ChannelLive> _results = const [];
-  int _categoryIndex = 0;
+  int _categoryIndex = kMultiviewPickerFavorites;
   int _cursor = 0;
   bool _ready = false;
   bool _capped = false;
@@ -94,8 +173,13 @@ class _MultiviewChannelPickerState extends State<MultiviewChannelPicker> {
     }
     _channels = channels;
     _categories = sorted;
-    _rebuildResults();
+    unawaited(_finishLoad());
+  }
+
+  Future<void> _finishLoad() async {
+    _favoriteIds = await _favoriteStreamIds();
     if (!mounted) return;
+    _rebuildResults();
     setState(() => _ready = true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -107,29 +191,43 @@ class _MultiviewChannelPickerState extends State<MultiviewChannelPicker> {
     });
   }
 
-  void _rebuildResults() {
-    final catId = _categoryIndex == 0
-        ? null
-        : _categories[_categoryIndex - 1].categoryId;
-    final needle = _query;
-    final out = <ChannelLive>[];
-    var capped = false;
-    for (final ch in _channels) {
-      if (catId != null && catId.isNotEmpty && ch.categoryId != catId) {
-        continue;
-      }
-      if (needle.isNotEmpty) {
-        final name = (ch.name ?? '').toLowerCase();
-        if (!name.contains(needle)) continue;
-      }
-      out.add(ch);
-      if (needle.isNotEmpty && out.length >= _searchCap) {
-        capped = true;
-        break;
-      }
+  Future<List<String>> _favoriteStreamIds() async {
+    try {
+      final fromCubit = _idsOf(context.read<FavoritesCubit>().state.lives);
+      if (fromCubit.isNotEmpty) return fromCubit;
+    } catch (_) {}
+    try {
+      return _idsOf(await FavoriteLocale().getFavLives());
+    } catch (_) {
+      return const [];
     }
-    _results = out;
-    _capped = capped;
+  }
+
+  List<String> _idsOf(List<ChannelLive> lives) {
+    final ids = <String>[];
+    final seen = <String>{};
+    for (final live in lives) {
+      final id = live.streamId?.trim() ?? '';
+      if (id.isEmpty || !seen.add(id)) continue;
+      ids.add(id);
+    }
+    return ids;
+  }
+
+  void _rebuildResults() {
+    final catId = _categoryIndex <= kMultiviewPickerAll
+        ? null
+        : _categories[_categoryIndex - 2].categoryId;
+    final slice = sliceMultiviewChannels(
+      catalog: _channels,
+      favoriteIdsInOrder: _favoriteIds,
+      listIndex: _categoryIndex,
+      categoryId: catId,
+      needle: _query,
+      searchCap: _searchCap,
+    );
+    _results = slice.channels;
+    _capped = slice.capped;
     _cursor = 0;
   }
 
@@ -144,12 +242,15 @@ class _MultiviewChannelPickerState extends State<MultiviewChannelPicker> {
   }
 
   String get _categoryLabel {
-    if (_categoryIndex <= 0) return 'All';
-    return _categories[_categoryIndex - 1].categoryName ?? 'Live';
+    if (_categoryIndex <= kMultiviewPickerFavorites) return 'Favorites';
+    if (_categoryIndex == kMultiviewPickerAll) return 'All';
+    final index = _categoryIndex - 2;
+    if (index < 0 || index >= _categories.length) return 'Live';
+    return _categories[index].categoryName ?? 'Live';
   }
 
   void _stepCategory(int delta) {
-    final last = _categories.length;
+    final last = multiviewPickerLastIndex(_categories.length);
     final next = (_categoryIndex + delta).clamp(0, last);
     if (next == _categoryIndex) return;
     setState(() {
@@ -304,7 +405,7 @@ class _MultiviewChannelPickerState extends State<MultiviewChannelPicker> {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Left and right change category. OK picks. Back returns.',
+                'Opens on Favorites. Left and right change the list. OK picks. Back returns.',
                 style: TextStyle(
                   color: Color(0xFFB8B8C0),
                   fontSize: 15,
@@ -319,7 +420,9 @@ class _MultiviewChannelPickerState extends State<MultiviewChannelPicker> {
                 style: const TextStyle(color: Colors.white, fontSize: 18),
                 cursorColor: Colors.white,
                 decoration: InputDecoration(
-                  hintText: 'Search live channels',
+                  hintText: _categoryIndex <= kMultiviewPickerFavorites
+                      ? 'Filter favorites'
+                      : 'Search live channels',
                   hintStyle: const TextStyle(color: Color(0x88FFFFFF)),
                   filled: true,
                   fillColor: const Color(0x14FFFFFF),
@@ -389,10 +492,16 @@ class _MultiviewChannelPickerState extends State<MultiviewChannelPicker> {
       );
     }
     if (_results.isEmpty) {
-      return const Center(
+      final empty = _categoryIndex <= kMultiviewPickerFavorites
+          ? 'No favorite live channels. Move right for every channel.'
+          : _query.isNotEmpty
+          ? 'No live channels match that search'
+          : 'No live channels in this list';
+      return Center(
         child: Text(
-          'No live channels in this list',
-          style: TextStyle(
+          empty,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
             color: Color(0xFFB8B8C0),
             fontSize: 18,
             fontWeight: FontWeight.w700,
@@ -413,7 +522,7 @@ class _MultiviewChannelPickerState extends State<MultiviewChannelPicker> {
             const Padding(
               padding: EdgeInsets.only(bottom: 8),
               child: Text(
-                'Showing the first 200 matches. Keep typing to narrow the list.',
+                'Showing the first 200. Keep typing to narrow the list.',
                 style: TextStyle(
                   color: Color(0xFFB8B8C0),
                   fontSize: 13,

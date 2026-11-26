@@ -970,16 +970,16 @@ class _AllContentScreenState extends State<AllContentScreen> {
 
   void _toggleItemFavorite(dynamic item, bool isFav) {
     if (item is ChannelLive) {
-      context.read<FavoritesCubit>().addLive(item, isAdd: !isFav);
+      context.read<FavoritesCubit>().addLive(item, isAdd: true);
     } else if (item is ChannelMovie) {
-      context.read<FavoritesCubit>().addMovie(item, isAdd: !isFav);
+      context.read<FavoritesCubit>().addMovie(item, isAdd: true);
     } else if (item is ChannelSerie) {
-      context.read<FavoritesCubit>().addSerie(item, isAdd: !isFav);
+      context.read<FavoritesCubit>().addSerie(item, isAdd: true);
     }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          isFav ? "Removed from Favourites" : "Added to Favourites",
+          isFav ? "Already in Favorites" : "Added to Favourites",
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.amber.shade900,

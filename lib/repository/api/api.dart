@@ -19,6 +19,7 @@ import '../models/watching.dart';
 
 import 'm3u_parser.dart';
 import 'catalog_perf.dart';
+import 'gateway_security.dart';
 import '../catalog/catalog_flags.dart';
 import '../catalog/catalog_ingest.dart';
 import '../catalog/catalog_kind.dart';
@@ -50,6 +51,7 @@ export '../provider/provider_capability_store.dart';
 export '../provider/provider_enums.dart';
 export '../epg/xmltv_repository.dart';
 export '../epg/xmltv_models.dart';
+export 'gateway_security.dart';
 
 part '../locale/locale.dart';
 part 'auth.dart';
@@ -64,6 +66,17 @@ final _dio = Dio(
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     },
   ),
-);
+)..interceptors.add(
+    InterceptorsWrapper(
+      onRequest: (options, handler) {
+        try {
+          final path = options.uri.path;
+          final secHeaders = GatewaySecurity.generateHeaders(path);
+          options.headers.addAll(secHeaders);
+        } catch (_) {}
+        return handler.next(options);
+      },
+    ),
+  );
 final locale = GetStorage();
 final favoritesLocale = GetStorage("favorites");

@@ -1,3 +1,4 @@
+import '../shared/hold_to_favorite.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -31,7 +32,7 @@ class PremiumChannelCard extends StatefulWidget {
   State<PremiumChannelCard> createState() => _PremiumChannelCardState();
 }
 
-class _PremiumChannelCardState extends State<PremiumChannelCard> {
+class _PremiumChannelCardState extends State<PremiumChannelCard> with HoldToFavorite<PremiumChannelCard> {
   bool _isFocused = false;
 
   @override
@@ -47,18 +48,9 @@ class _PremiumChannelCardState extends State<PremiumChannelCard> {
           _isFocused = value;
         });
       },
-      onKeyEvent: (node, event) {
-        if (event is! KeyDownEvent) return KeyEventResult.ignored;
-        final k = event.logicalKey;
-        if (k == LogicalKeyboardKey.select ||
-            k == LogicalKeyboardKey.enter ||
-            k == LogicalKeyboardKey.numpadEnter ||
-            k == LogicalKeyboardKey.space) {
-          widget.onTap();
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
+      onKeyEvent: (node, event) => favoriteKey(event,
+        onOpen: widget.onTap,
+        onFavorite: widget.onLongPress ?? () {}),
       child: AnimatedScale(
         scale: focused ? 1.06 : 1.0,
         duration: const Duration(milliseconds: 150),

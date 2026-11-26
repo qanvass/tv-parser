@@ -10,6 +10,7 @@ ChannelSerie _ep(String id, String name, {String cat = 'c1'}) => ChannelSerie(
 );
 
 void main() {
+  staleIdTests();
   test('groups playlist episodes of one show into sorted seasons', () {
     final source = [
       _ep('3', 'Medusa S02 E01'),
@@ -43,5 +44,51 @@ void main() {
       ),
       isNull,
     );
+  });
+}
+
+// Playlist ids are list positions: a saved id can name another show later.
+void staleIdTests() {
+  final saved = ChannelSerie(
+    seriesId: 'm3u_stream_40',
+    name: 'Reasonable Doubt (2022) S01 E01',
+    directSource: 'https://example.test/tvshow/tt1/1/1',
+  );
+
+  test('row at a saved id that is now another show is rejected', () {
+    final other = _ep('m3u_stream_40', 'The Kids in the Hall S01 E01');
+    expect(IpTvApi.m3uSeriesIsSavedShow(other, saved), isFalse);
+  });
+
+  test('row with the saved title or address is accepted', () {
+    expect(
+      IpTvApi.m3uSeriesIsSavedShow(
+        _ep('m3u_stream_77', 'Reasonable Doubt (2022) S02 E03'),
+        saved,
+      ),
+      isTrue,
+    );
+    expect(
+      IpTvApi.m3uSeriesIsSavedShow(
+        ChannelSerie(name: 'Renamed', directSource: saved.directSource),
+        saved,
+      ),
+      isTrue,
+    );
+    expect(
+      IpTvApi.m3uSeriesIsSavedShow(_ep('1', 'Anything'), ChannelSerie()),
+      isTrue,
+    );
+  });
+
+  test('saved show is found again by title, same year first', () {
+    final rows = [
+      _ep('1', 'The Legend of Vox Machina (2022) S01 E01'),
+      _ep('2', 'Reasonable Doubt (1991) S01 E01'),
+      _ep('3', 'Reasonable Doubt (2022) S01 E01'),
+    ];
+    expect(IpTvApi.m3uSeriesByShowTitle(rows, saved)!.seriesId, '3');
+    expect(IpTvApi.m3uSeriesByShowTitle(rows.take(2), saved)!.seriesId, '2');
+    expect(IpTvApi.m3uSeriesByShowTitle(rows.take(1), saved), isNull);
   });
 }

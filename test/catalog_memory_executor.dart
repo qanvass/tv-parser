@@ -70,6 +70,53 @@ class CatalogMemoryExecutor implements CatalogExecutor {
       if (row == null) return [];
       return [Map<String, Object?>.from(row)];
     }
+    int rowIndex(Map<String, Object?> row) => row['row_index'] as int;
+    List<Map<String, Object?>> ofKind(Object? kind) =>
+        items.where((row) => row['kind'] == kind).toList()
+          ..sort((a, b) => rowIndex(a).compareTo(rowIndex(b)));
+    if (sql == CatalogSql.firstPerCategory) {
+      final seen = <Object?>{};
+      return [
+        for (final row in ofKind(args[0]))
+          if (seen.add(row['category_id'])) {'payload': row['payload']},
+      ];
+    }
+    if (sql == CatalogSql.countPerCategory) {
+      final counts = <Object?, int>{};
+      for (final row in ofKind(args[0])) {
+        counts[row['category_id']] = (counts[row['category_id']] ?? 0) + 1;
+      }
+      return [
+        for (final entry in counts.entries)
+          {'category_id': entry.key, 'n': entry.value},
+      ];
+    }
+    if (sql == CatalogSql.allByCategory) {
+      return [
+        for (final row in ofKind(args[0]))
+          if (row['category_id'] == args[1]) {'payload': row['payload']},
+      ];
+    }
+    if (sql == CatalogSql.byPayloadFragment) {
+      for (final row in ofKind(args[0])) {
+        if ((row['payload']! as String).contains(args[1]! as String)) {
+          return [
+            {'payload': row['payload']},
+          ];
+        }
+      }
+      return [];
+    }
+    if (sql == CatalogSql.byItemId) {
+      for (final row in ofKind(args[0])) {
+        if (row['item_id'] == args[1]) {
+          return [
+            {'payload': row['payload']},
+          ];
+        }
+      }
+      return [];
+    }
     final byCategory = sql == CatalogSql.pageByCategory;
     if (sql != CatalogSql.page && !byCategory) {
       throw StateError('unexpected catalog query');

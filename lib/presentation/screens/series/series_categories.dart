@@ -9,7 +9,7 @@ class SeriesCategoriesScreen extends StatefulWidget {
   State<SeriesCategoriesScreen> createState() => _SeriesCategoriesScreenState();
 }
 
-class _SeriesCategoriesScreenState extends State<SeriesCategoriesScreen> {
+class _SeriesCategoriesScreenState extends State<SeriesCategoriesScreen> with HoldToFavorite<SeriesCategoriesScreen> {
   List<CategoryModel> _cats = [];
   int _catIdx = 0;
 
@@ -130,6 +130,17 @@ class _SeriesCategoriesScreenState extends State<SeriesCategoriesScreen> {
   }
 
   KeyEventResult _onKey(FocusNode _, KeyEvent e) {
+    if (!_appbarActive && !_isSearchEditing && !_searchFocus.hasFocus && _panel == 1) {
+      final items = _filteredSeries;
+      if (_serieIdx >= 0 && _serieIdx < items.length) {
+        final item = items[_serieIdx];
+        final result = favoriteKey(e,
+          onOpen: () => _dpadSelect(),
+          onFavorite: () => FavoriteActions.add(context, item));
+        if (result == KeyEventResult.handled) return result;
+      }
+    }
+
     if (_searchFocus.hasFocus) return KeyEventResult.ignored;
     if (e is! KeyDownEvent) return KeyEventResult.ignored;
     final k = e.logicalKey;
@@ -642,6 +653,7 @@ class _SerieGridPanel extends StatelessWidget {
             isSelected: isSelected,
             isHighlighted: isItemFocused,
             onTap: () => onSerieTap(serie, index),
+            onLongPress: () => FavoriteActions.add(context, serie),
           );
         },
       ),
@@ -655,17 +667,20 @@ class _SerieGridItem extends StatelessWidget {
     required this.isSelected,
     required this.isHighlighted,
     required this.onTap,
+    this.onLongPress,
   });
 
   final ChannelSerie serie;
   final bool isSelected;
   final bool isHighlighted;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 130),
         decoration: BoxDecoration(

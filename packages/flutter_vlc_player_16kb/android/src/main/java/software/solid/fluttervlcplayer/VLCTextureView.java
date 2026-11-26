@@ -5,7 +5,9 @@ import org.videolan.libvlc.interfaces.IVLCVout;
 
 import android.content.Context;
 import android.graphics.SurfaceTexture;
+import android.view.Gravity;
 import android.view.TextureView;
+import android.widget.FrameLayout;
 import android.view.View;
 import android.os.Handler;
 import android.os.Looper;
@@ -182,9 +184,18 @@ public class VLCTextureView extends TextureView implements TextureView.SurfaceTe
         mVideoHeight = height;
         if (mVideoWidth * mVideoHeight <= 1) return;
 
-        // Screen size
+        // Screen size. TV Parser patch: measure the container, not this view.
+        // This view is shrunk to the letterboxed height below, so its own
+        // height is stale for the next video and could never grow back.
         int w = this.getWidth();
         int h = this.getHeight();
+        if (getParent() instanceof View) {
+            final View parent = (View) getParent();
+            if (parent.getWidth() > 0 && parent.getHeight() > 0) {
+                w = parent.getWidth();
+                h = parent.getHeight();
+            }
+        }
 
         // Size
         if (w > h && w < h) {
@@ -192,6 +203,8 @@ public class VLCTextureView extends TextureView implements TextureView.SurfaceTe
             w = h;
             h = i;
         }
+
+        final int containerHeight = h;
 
         float videoAR = (float) mVideoWidth / (float) mVideoHeight;
         float screenAR = (float) w / (float) h;
@@ -206,6 +219,16 @@ public class VLCTextureView extends TextureView implements TextureView.SurfaceTe
         ViewGroup.LayoutParams lp = this.getLayoutParams();
         lp.width = ViewGroup.LayoutParams.MATCH_PARENT;
         lp.height = h;
+        // TV Parser patch: a video wider than the screen (2.40:1 films) used to
+        // sit at the top with all the black below it. Centre it instead.
+        if (lp instanceof FrameLayout.LayoutParams) {
+            ((FrameLayout.LayoutParams) lp).gravity = Gravity.CENTER;
+            this.setTranslationY(0f);
+        } else {
+            // Container without gravity support: shift the view down by half
+            // of the spare height.
+            this.setTranslationY(Math.max(0, containerHeight - h) / 2f);
+        }
         this.setLayoutParams(lp);
         this.invalidate();
     }

@@ -465,15 +465,24 @@ class IptvProviderSession {
       // ignore: unawaited_futures
       LocaleApi.warmM3uSeriesCache().then((_) {
         if (kind != IptvProviderKind.m3uStarlite) return;
+        final hasCached = LocaleApi.getM3uSeries().isNotEmpty;
+        if (hasCached) {
+          // Immediately serve cached series catalog to UI so browsing has zero delay.
+          onSeriesCatalogReady?.call();
+        }
         final lastSync = LocaleApi.getM3uSeriesLastSyncMs();
         final isStale = lastSync == null ||
             DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(lastSync)).inHours >= 12;
-        if (LocaleApi.getM3uSeries().isEmpty || isStale) {
-          debugPrint('[IPTV_WIRING] series empty or stale (lastSync=$lastSync, isStale=$isStale) -> syncing');
+        if (!hasCached) {
+          debugPrint('[IPTV_WIRING] series empty -> syncing immediately');
           // ignore: unawaited_futures
           syncStarliteSeriesIfNeeded();
-        } else {
-          onSeriesCatalogReady?.call();
+        } else if (isStale) {
+          debugPrint('[IPTV_WIRING] series stale (lastSync=$lastSync) -> scheduling deferred background sync');
+          Future.delayed(const Duration(seconds: 60), () {
+            // ignore: unawaited_futures
+            syncStarliteSeriesIfNeeded();
+          });
         }
       });
     });

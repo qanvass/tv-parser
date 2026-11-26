@@ -26,6 +26,28 @@ class ProviderCurationRules {
     return hideKeywords.any((keyword) => lower.contains(keyword));
   }
 
+  static final RegExp _yearInName = RegExp(r'(?:^|[^0-9])(20[0-9]{2})(?:[^0-9]|$)');
+
+  /// Movies page: the newest years first (Quasar, 2026-11-21: "it should load 2026 to 2023 movies
+  /// first"). Categories named with a year from [newest] down to [oldest] move to the front, newest
+  /// first; every other category keeps the order it already had, after them.
+  static List<CategoryModel> recentYearsFirst(
+    List<CategoryModel> categories, {
+    int newest = 2026,
+    int oldest = 2023,
+  }) {
+    int? yearOf(CategoryModel c) {
+      final m = _yearInName.firstMatch(c.categoryName ?? '');
+      final y = m == null ? null : int.tryParse(m.group(1)!);
+      return (y != null && y >= oldest && y <= newest) ? y : null;
+    }
+
+    final recent = categories.where((c) => yearOf(c) != null).toList()
+      ..sort((a, b) => yearOf(b)!.compareTo(yearOf(a)!));
+    final rest = categories.where((c) => yearOf(c) == null).toList();
+    return [...recent, ...rest];
+  }
+
   /// Sorts category models placing USA first, followed by Canada, UK, other English, international, and backups.
   static List<CategoryModel> sortCategoriesForNormalDashboard(List<CategoryModel> categories) {
     final List<CategoryModel> sorted = List<CategoryModel>.from(categories);

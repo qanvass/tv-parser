@@ -1,0 +1,616 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:get/get.dart';
+
+import '../../helpers/helpers.dart';
+import '../../repository/api/api.dart';
+import '../../repository/api/search_index_service.dart';
+import '../../repository/models/category.dart';
+import '../../repository/models/channel_live.dart';
+import '../../repository/models/channel_movie.dart';
+import '../../repository/models/channel_serie.dart';
+import '../../repository/provider/series_collapse.dart';
+import '../../repository/provider/title_normalizer.dart';
+import 'live/live_browse_gate.dart';
+import 'playback_report.dart';
+
+/// "Play this by name" from outside the app (the home assistant sends an
+/// Android intent; MainActivity forwards it here).
+///
+/// It does what a person does with the remote: go back to the dashboard,
+/// search the catalog that is already loaded for the saved login, and open the
+/// best match through the dashboard's own play handoff. It never reads, writes
+/// or switches logins, and it never builds a playlist or provider URL itself
+/// beyond what Search already does.
+class RemoteWatchCommand {
+  final String id;
+
+  /// 'live', 'movie', 'series' or 'any'.
+  final String kind;
+  final String query;
+
+  /// Only for a series, when the viewer named them.
+  final int? season;
+  final int? episode;
+
+  const RemoteWatchCommand({
+    required this.id,
+    required this.kind,
+    required this.query,
+    this.season,
+    this.episode,
+  });
+
+  static int? _smallNumber(Object? raw) {
+    final n = int.tryParse((raw ?? '').toString().trim());
+    return (n == null || n < 1 || n > 999) ? null : n;
+  }
+
+  static RemoteWatchCommand? fromMap(Object? raw) {
+    if (raw is! Map) return null;
+    final query = (raw['query'] ?? '').toString().trim();
+    if (query.isEmpty || query.length > 120) return null;
+    final kindRaw = (raw['kind'] ?? 'any').toString().trim().toLowerCase();
+    final kind = switch (kindRaw) {
+      'live' || 'channel' || 'tv' => 'live',
+      'movie' || 'film' || 'vod' => 'movie',
+      'series' || 'show' || 'tv_show' || 'episode' => 'series',
+      _ => 'any',
+    };
+    final season = _smallNumber(raw['season']);
+    final episode = _smallNumber(raw['episode']);
+    return RemoteWatchCommand(
+      id: (raw['id'] ?? '').toString().trim(),
+      // A season or episode number can only mean a series.
+      kind: (kind == 'any' && (season != null || episode != null))
+          ? 'series'
+          : kind,
+      query: query,
+      season: season,
+      episode: episode,
+    );
+  }
+
+  /// Ids start with the sender's clock in epoch milliseconds. A command that
+  /// Android redelivers long after it was sent must not start playback.
+  bool isStale(DateTime now) {
+    final head = id.split('-').first;
+    final sentMs = int.tryParse(head);
+    if (sentMs == null || sentMs < 1000000000000) return false;
+    final ageMs = now.millisecondsSinceEpoch - sentMs;
+    return ageMs > const Duration(minutes: 3).inMilliseconds;
+  }
+}
+
+/// The dashboard registers these so a remote play releases the Live preview's
+/// provider connection exactly as a remote-control click does.
+class RemoteWatchHost {
+  final Future<void> Function(String url) playLive;
+  final Future<void> Function(String url) playMovie;
+
+  /// Opens the show's own page, which starts the episode itself.
+  final Future<void> Function(ChannelSerie show, {int? season, int? episode})
+  openSeries;
+
+  const RemoteWatchHost({
+    required this.playLive,
+    required this.playMovie,
+    required this.openSeries,
+  });
+}
+
+class RemoteWatchService {
+  RemoteWatchService._();
+  static final RemoteWatchService instance = RemoteWatchService._();
+
+  static const MethodChannel _channel = MethodChannel('tvparser/watch');
+
+  RemoteWatchHost? _host;
+  bool _started = false;
+  int _gen = 0;
+
+  /// Called once after the first frame. Safe to call on any platform.
+  Future<void> start() async {
+    if (_started) return;
+    _started = true;
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    _channel.setMethodCallHandler((call) async {
+      if (call.method == 'watch') {
+        final cmd = RemoteWatchCommand.fromMap(call.arguments);
+        if (cmd != null) unawaited(_run(cmd));
+      }
+      return null;
+    });
+    try {
+      final pending = await _channel.invokeMethod<Object?>('take');
+      final cmd = RemoteWatchCommand.fromMap(pending);
+      if (cmd != null) unawaited(_run(cmd));
+    } catch (_) {
+      // Older native side or no pending command.
+    }
+  }
+
+  void attachHost(RemoteWatchHost host) => _host = host;
+
+  void detachHost(RemoteWatchHost host) {
+    if (identical(_host, host)) _host = null;
+  }
+
+  Future<void> _report(
+    RemoteWatchCommand cmd,
+    String status, {
+    String kind = '',
+    String title = '',
+    List<String> alts = const [],
+  }) async {
+    try {
+      await _channel.invokeMethod<void>('report', <String, String>{
+        'id': cmd.id,
+        'status': status,
+        'kind': kind,
+        'title': title,
+        'alts': alts.join(' | '),
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _run(RemoteWatchCommand cmd) async {
+    // Latest command wins; an older one stops at its next checkpoint.
+    final gen = ++_gen;
+    bool superseded() => gen != _gen;
+    try {
+      if (cmd.isStale(DateTime.now())) {
+        await _report(cmd, 'stale');
+        return;
+      }
+      await _report(cmd, 'received');
+
+      // Cold start: splash, saved-login resume, then the dashboard.
+      final host = await _waitForHost(superseded);
+      if (superseded()) return;
+      if (host == null) {
+        // No dashboard means no active saved login on screen. Do nothing.
+        await _report(cmd, 'not_ready');
+        return;
+      }
+      await _waitForBrowseReady();
+      if (superseded()) return;
+
+      final adultIds = _adultCategoryIds();
+
+      ChannelLive? live;
+      var liveRank = 99;
+      var liveAlts = const <String>[];
+      var movieAlts = const <String>[];
+      if (cmd.kind == 'live' || cmd.kind == 'any') {
+        final lives = await _liveCatalog();
+        if (superseded()) return;
+        if (lives.isNotEmpty && !SearchIndexService.liveIndexReady) {
+          await SearchIndexService.indexLive(
+            liveChannels: lives,
+            adultCategoryIds: adultIds,
+          );
+        }
+        final found = await _search(cmd.query, 'live');
+        if (superseded()) return;
+        final candidates = found
+            .whereType<ChannelLive>()
+            .where((c) => !adultIds.contains(c.categoryId))
+            .toList();
+        final pick = pickBest<ChannelLive>(
+          cmd.query,
+          candidates,
+          (c) => c.name ?? '',
+        );
+        live = pick?.item;
+        liveRank = pick?.rank ?? 99;
+        liveAlts = otherNames(candidates, live, (c) => c.name ?? '');
+      }
+
+      // 'any' takes a clear channel-name match; otherwise it looks at movies.
+      final wantMovie =
+          cmd.kind == 'movie' || (cmd.kind == 'any' && liveRank > 1);
+      ChannelMovie? movie;
+      var movieRank = 99;
+      if (wantMovie) {
+        final movies = await _movieCatalog();
+        if (superseded()) return;
+        if (movies.isNotEmpty && !SearchIndexService.moviesIndexReady) {
+          await SearchIndexService.indexMovies(
+            movies: movies,
+            adultCategoryIds: adultIds,
+          );
+        }
+        final found = await _search(cmd.query, 'movie');
+        if (superseded()) return;
+        final candidates = found
+            .whereType<ChannelMovie>()
+            .where((m) => !adultIds.contains(m.categoryId))
+            .toList();
+        final pick = pickBest<ChannelMovie>(
+          cmd.query,
+          candidates,
+          (m) => m.name ?? '',
+        );
+        movie = pick?.item;
+        movieRank = pick?.rank ?? 99;
+        movieAlts = otherNames(candidates, movie, (m) => m.name ?? '');
+      }
+
+      // A series when it was asked for, or when no channel or movie has
+      // exactly that name.
+      final wantSeries =
+          cmd.kind == 'series' ||
+          (cmd.kind == 'any' && liveRank > 1 && movieRank > 0);
+      ChannelSerie? show;
+      var showAlts = const <String>[];
+      if (wantSeries) {
+        // The dashboard fills the series search list shortly after it opens.
+        await _waitForSeriesIndex(cmd.kind == 'series' ? 160 : 60);
+        if (superseded()) return;
+        final found = await _search(cmd.query, 'series');
+        if (superseded()) return;
+        final candidates = SeriesCollapse.collapseByShow(
+          found
+              .whereType<ChannelSerie>()
+              .where((s) => !adultIds.contains(s.categoryId))
+              .toList(),
+        );
+        final pick = pickBest<ChannelSerie>(cmd.query, candidates, showName);
+        showAlts = otherNames(candidates, pick?.item, showName);
+        // 'any': the series wins only with a better name match than the movie.
+        if (pick != null &&
+            (cmd.kind == 'series' || movie == null || pick.rank < movieRank)) {
+          show = pick.item;
+          movie = null;
+          live = null;
+        }
+      }
+
+      // Nothing by that name: leave whatever is on the screen alone.
+      if (movie == null && live == null && show == null) {
+        await _report(cmd, 'not_found');
+        return;
+      }
+      // Something to put on: close any open player first so only one
+      // provider connection is used.
+      if (Get.currentRoute != screenWelcome) {
+        Get.until((route) => route.settings.name == screenWelcome);
+        await Future<void>.delayed(const Duration(milliseconds: 900));
+        if (superseded()) return;
+      }
+
+      if (show != null) {
+        final picked = show;
+        PlaybackReport.note = '';
+        final outcome = await _playAndConfirm(
+          () => host.openSeries(
+            picked,
+            season: cmd.season,
+            episode: cmd.episode,
+          ),
+          wait: const Duration(seconds: 35),
+        );
+        if (superseded()) return;
+        final note = PlaybackReport.note;
+        PlaybackReport.note = '';
+        await _report(
+          cmd,
+          outcome,
+          kind: 'series',
+          title: outcome == 'no_episode'
+              ? '${showName(picked)}: $note'
+              : (note.isEmpty ? showName(picked) : note),
+          alts: showAlts,
+        );
+        return;
+      }
+      if (movie != null) {
+        final url = await _movieUrl(movie);
+        if (superseded()) return;
+        if (url.isNotEmpty) {
+          final outcome = await _playAndConfirm(() => host.playMovie(url));
+          if (superseded()) return;
+          await _report(
+            cmd,
+            outcome,
+            kind: 'movie',
+            title: movie.name ?? '',
+            alts: movieAlts,
+          );
+          return;
+        }
+      }
+      if (live != null) {
+        final url = await PlaybackUrlBuilder.resolveLivePlaybackUrl(live);
+        if (superseded()) return;
+        if (url.isNotEmpty) {
+          final outcome = await _playAndConfirm(() => host.playLive(url));
+          if (superseded()) return;
+          await _report(
+            cmd,
+            outcome,
+            kind: 'live',
+            title: live.name ?? '',
+            alts: liveAlts,
+          );
+          return;
+        }
+      }
+      await _report(cmd, 'not_found');
+    } catch (e) {
+      debugPrint('[RemoteWatch] failed: ${e.runtimeType}');
+      await _report(cmd, 'error');
+    }
+  }
+
+  /// Starts the stream and waits for the player's own verdict:
+  /// 'playing' (it held for a moment with no error), 'failed' (the player put
+  /// up its unavailable screen), or 'opened' when it said neither in time.
+  Future<String> _playAndConfirm(
+    Future<void> Function() start, {
+    Duration wait = const Duration(seconds: 25),
+  }) async {
+    final done = Completer<String>();
+    Timer? settle;
+    void finish(String outcome) {
+      if (!done.isCompleted) done.complete(outcome);
+    }
+
+    PlaybackReport.listener = (outcome) {
+      if (outcome != 'playing') {
+        finish(outcome);
+        return;
+      }
+      // A stream can start and die in its first second; let it hold.
+      settle ??= Timer(const Duration(milliseconds: 2500), () {
+        finish('playing');
+      });
+    };
+    final timeout = Timer(wait, () => finish('opened'));
+    try {
+      await start();
+      return await done.future;
+    } finally {
+      PlaybackReport.listener = null;
+      settle?.cancel();
+      timeout.cancel();
+    }
+  }
+
+  Future<RemoteWatchHost?> _waitForHost(bool Function() superseded) async {
+    for (var i = 0; i < 360; i++) {
+      final host = _host;
+      if (host != null) return host;
+      if (superseded()) return null;
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
+    return _host;
+  }
+
+  Future<void> _waitForSeriesIndex(int quarterSeconds) async {
+    for (var i = 0; i < quarterSeconds; i++) {
+      if (SearchIndexService.seriesIndexReady) return;
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
+  }
+
+  Future<void> _waitForBrowseReady() async {
+    for (var i = 0; i < 32; i++) {
+      if (LiveBrowseGate.welcomeOverlayCleared) return;
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
+  }
+
+  Set<String> _adultCategoryIds() {
+    final cats = <CategoryModel>[
+      ...LocaleApi.getM3uCategories(),
+      ...LocaleApi.getM3uMovieCategories(),
+      ...IptvProviderSession.instance.categoriesForAction(
+        'get_live_categories',
+      ),
+    ];
+    final ids = <String>{};
+    for (final cat in cats) {
+      final name = cat.categoryName;
+      final id = cat.categoryId;
+      if (name != null && id != null && id.isNotEmpty) {
+        if (ProviderCurationRules.isAdultCategory(name)) ids.add(id);
+      }
+    }
+    return ids;
+  }
+
+  /// Same sources Search uses: what is already in memory, then the saved
+  /// login's own list call.
+  Future<List<ChannelLive>> _liveCatalog() async {
+    final cached = IptvProviderSession.instance.liveChannels();
+    if (cached.isNotEmpty) return cached;
+    try {
+      return await IpTvApi().getLiveChannels('');
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<List<ChannelMovie>> _movieCatalog() async {
+    final cached = IptvProviderSession.instance.movieChannels();
+    if (cached.isNotEmpty) return cached;
+    try {
+      return await IpTvApi().getMovieChannels('');
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<List<Object>> _search(String query, String type) async {
+    final results = await SearchIndexService.searchAsync(query);
+    if (results == null) return const [];
+    return [
+      for (final entry in results)
+        if (entry.type == type) entry.item as Object,
+    ];
+  }
+
+  Future<String> _movieUrl(ChannelMovie movie) async {
+    final direct = movie.directSource?.trim() ?? '';
+    if (direct.isNotEmpty) return direct;
+    final id = movie.streamId;
+    if (id == null || id.isEmpty) return '';
+    return PlaybackUrlBuilder.buildMovieUrl(
+      id,
+      containerExtension: movie.containerExtension,
+    );
+  }
+
+  // ---- name matching (pure; unit tested) ----
+
+  /// A show's name without the episode tag playlists put on every row.
+  static String showName(ChannelSerie s) {
+    final raw = (s.name ?? '').trim();
+    final clean = TitleNormalizer.parse(raw).displayTitle.trim();
+    return clean.isEmpty ? raw : clean;
+  }
+
+  static final RegExp _firstNumber = RegExp(r'\d{1,3}');
+
+  /// The first number in a label: "2", "Season 02", "S2".
+  static int? firstNumber(String label) {
+    final m = _firstNumber.firstMatch(label);
+    return m == null ? null : int.tryParse(m.group(0)!);
+  }
+
+  /// Where number [want] sits in [labels] ("1", "Season 2", ...), or -1.
+  /// [byPosition] also accepts the Nth entry when no label carries the number.
+  static int numberedIndex(
+    List<String> labels,
+    int want, {
+    bool byPosition = false,
+  }) {
+    for (var i = 0; i < labels.length; i++) {
+      if (firstNumber(labels[i]) == want) return i;
+    }
+    if (byPosition && want >= 1 && want <= labels.length) return want - 1;
+    return -1;
+  }
+
+  static final RegExp _leadingRegion = RegExp(
+    r'^\s*[\[\(\|]?\s*(us|usa|uk|ca|en|eng|english)\s*[\]\)\|:\-]+\s*',
+    caseSensitive: false,
+  );
+  static final RegExp _qualityTag = RegExp(
+    r'\b(uhd|fhd|hd|sd|4k|8k|hevc|h265|h264|raw|backup|1080p|720p|50fps|60fps)\b',
+    caseSensitive: false,
+  );
+  // Only a bracketed or dashed year: "Blade Runner 2049" keeps its number.
+  static final RegExp _trailingYear = RegExp(
+    r'(\s*[\(\[]\s*(19|20)\d{2}\s*[\)\]]|\s+-\s*(19|20)\d{2})\s*$',
+  );
+  static final RegExp _notWord = RegExp(r'[^a-z0-9]+');
+
+  static final RegExp _regionWord = RegExp(r'^(us|usa|uk|ca)$');
+
+  /// Words that mark another edition of a channel. "CNN" means CNN, not
+  /// "CNN Espanol" or "CNN International", unless that word was asked for.
+  static const Set<String> _editionWords = {
+    'espanol', 'español', 'spanish', 'latino', 'latin', 'latam', 'mexico',
+    'international', 'intl', 'world', 'europe', 'asia', 'africa', 'arabic',
+    'brasil', 'brazil', 'portugal', 'turk', 'india', 'philippines', 'chile',
+    'french', 'france', 'deutsch', 'germany', 'italia', 'canada', 'indonesia',
+    'plus', 'kids', 'jr', 'junior', 'deportes', 'alt', 'alternate',
+  };
+
+  /// A title reduced to the words a person would say.
+  @visibleForTesting
+  static String spokenName(String raw) {
+    var s = raw.toLowerCase();
+    // Providers stack prefixes ("US: ", "USA | "); strip up to two.
+    for (var i = 0; i < 2; i++) {
+      s = s.replaceFirst(_leadingRegion, '');
+    }
+    s = s.replaceAll(_qualityTag, ' ');
+    s = s.replaceFirst(_trailingYear, ' ');
+    final words = s
+        .replaceAll(_notWord, ' ')
+        .trim()
+        .split(' ')
+        .where((w) => w.isNotEmpty)
+        .toList();
+    // "CNN US", "US CNN": the country tag is not part of the name.
+    while (words.length > 1 && _regionWord.hasMatch(words.last)) {
+      words.removeLast();
+    }
+    while (words.length > 1 && _regionWord.hasMatch(words.first)) {
+      words.removeAt(0);
+    }
+    return words.join(' ');
+  }
+
+  static final RegExp _feedNumber = RegExp(r'^\d{3,}$');
+
+  /// Picks from [candidates] (already in search-score order):
+  /// rank 0 = the name is exactly what was asked for, rank 1 = it starts with
+  /// it (fewest extra words first; numbered event feeds and other editions
+  /// last), rank 2 = the first hit whose name has every word that was asked
+  /// for. Null when nothing has all the words: better to say "not found" than
+  /// to put on something else. Ties keep search order.
+  static ({T item, int rank})? pickBest<T>(
+    String query,
+    List<T> candidates,
+    String Function(T) nameOf,
+  ) {
+    if (candidates.isEmpty) return null;
+    final want = spokenName(query);
+    if (want.isEmpty) return null;
+    final wantList = want.split(' ');
+    final wantWords = wantList.toSet();
+    T? prefix;
+    var prefixCost = 1 << 30;
+    T? allWords;
+    for (final candidate in candidates) {
+      final name = spokenName(nameOf(candidate));
+      if (name == want) return (item: candidate, rank: 0);
+      if (name.startsWith('$want ')) {
+        final extra = name.substring(want.length + 1).split(' ');
+        var cost = extra.length;
+        if (extra.any((w) => _feedNumber.hasMatch(w))) cost += 50;
+        if (extra.any(
+          (w) => _editionWords.contains(w) && !wantWords.contains(w),
+        )) {
+          cost += 100;
+        }
+        if (cost < prefixCost) {
+          prefixCost = cost;
+          prefix = candidate;
+        }
+        continue;
+      }
+      if (allWords == null) {
+        final have = name.split(' ').toSet();
+        if (wantList.every(have.contains)) allWords = candidate;
+      }
+    }
+    if (prefix != null) return (item: prefix, rank: 1);
+    if (allWords != null) return (item: allWords, rank: 2);
+    return null;
+  }
+
+  /// A few other matches, by name, so the assistant can offer them.
+  static List<String> otherNames<T>(
+    List<T> candidates,
+    T? picked,
+    String Function(T) nameOf,
+  ) {
+    final out = <String>[];
+    for (final c in candidates) {
+      if (identical(c, picked)) continue;
+      final name = nameOf(c).replaceAll('|', ' ').trim();
+      if (name.isEmpty || out.contains(name)) continue;
+      out.add(name.length > 32 ? name.substring(0, 32) : name);
+      if (out.length >= 5) break;
+    }
+    return out;
+  }
+}

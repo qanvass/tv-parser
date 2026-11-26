@@ -267,6 +267,16 @@ class _FavouriteScreenState extends State<FavouriteScreen>
   void _popToShell([String? result]) {
     // Focus-only Back (no PopScope). Gate blocks same-press double pop.
     if (!mounted) return;
+    if (TvBackGate.shouldSuppressShellExit()) {
+      logTvBack(
+        screen: 'FavouriteScreen',
+        source: 'focus',
+        action: 'blockedDuplicate',
+        blockedDuplicate: true,
+        routeBefore: Get.currentRoute,
+      );
+      return;
+    }
     if (!_backGate.allow(screen: 'FavouriteScreen', source: 'focus')) return;
     if (!Navigator.of(context).canPop()) return;
     _backGate.markRouteExit();

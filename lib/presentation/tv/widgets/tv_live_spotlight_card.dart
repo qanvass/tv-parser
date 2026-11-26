@@ -1,3 +1,5 @@
+import '../../shared/hold_to_favorite.dart';
+import '../../shared/favorite_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -23,7 +25,7 @@ class TvLiveSpotlightCard extends StatefulWidget {
   State<TvLiveSpotlightCard> createState() => _TvLiveSpotlightCardState();
 }
 
-class _TvLiveSpotlightCardState extends State<TvLiveSpotlightCard> {
+class _TvLiveSpotlightCardState extends State<TvLiveSpotlightCard> with HoldToFavorite<TvLiveSpotlightCard> {
   bool _focused = false;
 
   @override
@@ -56,17 +58,9 @@ class _TvLiveSpotlightCardState extends State<TvLiveSpotlightCard> {
           _focused = value;
         });
       },
-      onKeyEvent: (node, event) {
-        if (event is! KeyDownEvent) return KeyEventResult.ignored;
-        final k = event.logicalKey;
-        if (k == LogicalKeyboardKey.select ||
-            k == LogicalKeyboardKey.enter ||
-            k == LogicalKeyboardKey.gameButtonA) {
-          playBest();
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
+      onKeyEvent: (node, event) => favoriteKey(event,
+        onOpen: playBest,
+        onFavorite: () { if (bestCh != null) FavoriteActions.add(context, bestCh); }),
       child: AnimatedScale(
         scale: _focused ? 1.06 : 1.0,
         duration: const Duration(milliseconds: 160),
@@ -98,6 +92,7 @@ class _TvLiveSpotlightCardState extends State<TvLiveSpotlightCard> {
               borderRadius: BorderRadius.circular(14),
               canRequestFocus: false,
               onTap: playBest,
+              onLongPress: bestCh == null ? null : () => FavoriteActions.add(context, bestCh),
               child: Padding(
                 padding: const EdgeInsets.all(14.0),
                 child: Column(

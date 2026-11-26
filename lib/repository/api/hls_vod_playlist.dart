@@ -1,17 +1,80 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// VOD masters list up to dozens of subtitle languages and extra audio groups.
 /// VLC opens every one of them before the first frame, which took 20-40s and on
 /// some titles never finished (black screen). This hands VLC a local copy with
-/// the video variants and one audio group only.
+/// one audio group and, when a quality is chosen, a single video variant.
+///
+/// One variant because VLC otherwise climbs the ladder while playing (480p,
+/// 4K, 1440p, 4K in the first 25 s on the Chromecast) and every step rebuilds
+/// the decoder, which the viewer sees as buffering.
 class HlsVodPlaylist {
   HlsVodPlaylist._();
+
+  /// Selectable quality caps, by video height. First is the default.
+  static const List<int> qualityHeights = [1080, 2160, 720];
+  static const String _qualityKey = 'vod_max_height';
+
+  /// Tallest video the viewer wants for movies and episodes.
+  static int get maxHeightPref {
+    try {
+      final v = GetStorage('preferences').read(_qualityKey);
+      if (v is int && qualityHeights.contains(v)) return v;
+    } catch (_) {}
+    return qualityHeights.first;
+  }
+
+  static String qualityLabel(int height) =>
+      height >= 2160 ? '4K' : '${height}p';
+
+  /// Moves to the next quality cap and returns it.
+  static int cycleQuality() {
+    final i = qualityHeights.indexOf(maxHeightPref);
+    final next = qualityHeights[(i + 1) % qualityHeights.length];
+    try {
+      GetStorage('preferences').write(_qualityKey, next);
+    } catch (_) {}
+    return next;
+  }
+
+  static final RegExp _resolutionAttr = RegExp(r'RESOLUTION=(\d+)x(\d+)');
+  static final RegExp _bandwidthAttr = RegExp(r'[:,]BANDWIDTH=(\d+)');
+
+  /// Index in [infLines] of the variant to keep: the tallest one that fits
+  /// [maxHeight], highest bitrate on a tie. When none fits, the shortest.
+  /// Masters without RESOLUTION keep their highest bitrate.
+  @visibleForTesting
+  static int pickVariant(List<String> infLines, int maxHeight) {
+    int heightOf(String l) =>
+        int.tryParse(_resolutionAttr.firstMatch(l)?.group(2) ?? '') ?? 0;
+    int rateOf(String l) =>
+        int.tryParse(_bandwidthAttr.firstMatch(l)?.group(1) ?? '') ?? 0;
+    var best = 0;
+    for (var i = 1; i < infLines.length; i++) {
+      final h = heightOf(infLines[i]);
+      final bh = heightOf(infLines[best]);
+      final fits = h <= maxHeight;
+      final bestFits = bh <= maxHeight;
+      final bool better;
+      if (fits != bestFits) {
+        better = fits;
+      } else if (h != bh) {
+        better = fits ? h > bh : h < bh;
+      } else {
+        better = rateOf(infLines[i]) > rateOf(infLines[best]);
+      }
+      if (better) best = i;
+    }
+    return best;
+  }
 
   static const int _maxBytes = 256 * 1024;
   static final RegExp _uriAttr = RegExp(r'URI="([^"]*)"');
@@ -23,12 +86,17 @@ class HlsVodPlaylist {
 
   /// Trimmed master text, or null when [body] is not an HLS master with
   /// anything to trim (plain files and media playlists play as they are).
+  /// With [maxHeight], only the variant chosen by [pickVariant] is kept.
   @visibleForTesting
-  static String? trim(String body, Uri base) {
+  static String? trim(String body, Uri base, {int? maxHeight}) {
     if (!body.trimLeft().startsWith('#EXTM3U')) return null;
     final lines = const LineSplitter().convert(body);
-    if (!lines.any((l) => l.startsWith('#EXT-X-STREAM-INF'))) return null;
-    if (!lines.any((l) => l.startsWith('#EXT-X-MEDIA:'))) return null;
+    final variantCount = lines
+        .where((l) => l.startsWith('#EXT-X-STREAM-INF'))
+        .length;
+    if (variantCount == 0) return null;
+    final hasMedia = lines.any((l) => l.startsWith('#EXT-X-MEDIA:'));
+    if (!hasMedia && (maxHeight == null || variantCount < 2)) return null;
 
     String? audioGroup;
     for (final l in lines) {
@@ -66,7 +134,19 @@ class HlsVodPlaylist {
       }
       out.add(l);
     }
-    if (!out.any((l) => l.startsWith('#EXT-X-STREAM-INF'))) return null;
+    final infAt = <int>[
+      for (var i = 0; i < out.length; i++)
+        if (out[i].startsWith('#EXT-X-STREAM-INF')) i,
+    ];
+    if (infAt.isEmpty) return null;
+    if (maxHeight != null && infAt.length > 1) {
+      final keep =
+          infAt[pickVariant([for (final i in infAt) out[i]], maxHeight)];
+      // Each variant is its tag line plus the address line after it.
+      for (final i in infAt.reversed) {
+        if (i != keep) out.removeRange(i, i + 2);
+      }
+    }
     return '${out.join('\n')}\n';
   }
 
@@ -108,6 +188,7 @@ class HlsVodPlaylist {
       final trimmed = trim(
         utf8.decode(bytes.takeBytes(), allowMalformed: true),
         res.realUri,
+        maxHeight: maxHeightPref,
       );
       if (trimmed == null) return url;
       final dir = await getTemporaryDirectory();

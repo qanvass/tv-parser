@@ -16,7 +16,7 @@ class LiveCategoriesScreen extends StatefulWidget {
   State<LiveCategoriesScreen> createState() => _LiveCategoriesScreenState();
 }
 
-class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
+class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> with HoldToFavorite<LiveCategoriesScreen> {
   // ── Categories ────────────────────────────────────────────────────────────
   List<CategoryModel> _cats = [];
   int _catIdx = 0;
@@ -253,6 +253,17 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
   // ── D-pad Traversal ───────────────────────────────────────────────────────
 
   KeyEventResult _onKey(FocusNode _, KeyEvent e) {
+    if (!_appbarActive && !_isSearchEditing && !_searchFocus.hasFocus && _panel == 1) {
+      final items = _displayStreams;
+      if (_chIdx >= 0 && _chIdx < items.length) {
+        final item = items[_chIdx];
+        final result = favoriteKey(e,
+          onOpen: () => _play(item),
+          onFavorite: () => FavoriteActions.add(context, item));
+        if (result == KeyEventResult.handled) return result;
+      }
+    }
+
     if (_searchFocus.hasFocus || _isSearchEditing)
       return KeyEventResult.ignored;
     if (e is! KeyDownEvent) return KeyEventResult.ignored;
@@ -708,6 +719,7 @@ class _LiveCategoriesScreenState extends State<LiveCategoriesScreen> {
                       isTv: true,
                       isFocused: isItemFocused,
                       onTap: () => _play(displayStreams[index]),
+                      onLongPress: () => FavoriteActions.add(context, displayStreams[index]),
                     );
                   },
                 ),

@@ -43,25 +43,46 @@ class StreamHealthService {
       }
     } catch (_) {}
 
+    CancelToken? cancelToken;
+    int? getStatusCode;
+    final bytes = <int>[];
     try {
-      final response = await _dio.get<List<int>>(
+      cancelToken = CancelToken();
+      final response = await _dio.get<ResponseBody>(
         url,
         options: Options(
-          responseType: ResponseType.bytes,
+          responseType: ResponseType.stream,
           validateStatus: (status) => status != null && status < 500,
+          headers: const {'Range': 'bytes=0-512'},
         ),
+        cancelToken: cancelToken,
       );
-      final bytes = response.data ?? const <int>[];
+      getStatusCode = response.statusCode;
+      final stream = response.data?.stream;
+      if (stream != null) {
+        try {
+          await for (final chunk in stream) {
+            bytes.addAll(chunk);
+            if (bytes.length >= 96) {
+              cancelToken.cancel('probe_bytes_satisfied');
+              break;
+            }
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+
+    if (bytes.isNotEmpty || getStatusCode != null) {
       final preview = String.fromCharCodes(
         bytes.take(96).where((b) => b >= 9 && b < 127),
       );
-      final classified = _classify(response.statusCode, preview);
+      final classified = _classify(getStatusCode, preview);
       if (classified != StreamProbeResult.unknown) return classified;
-      if ((response.statusCode == 200 || response.statusCode == 206) &&
+      if ((getStatusCode == 200 || getStatusCode == 206) &&
           bytes.isNotEmpty) {
         return StreamProbeResult.ok;
       }
-    } catch (_) {}
+    }
 
     // Do not block potentially working streams (some CDNs reject HEAD/range).
     return StreamProbeResult.unknown;

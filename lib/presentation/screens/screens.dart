@@ -39,6 +39,7 @@ import '../../logic/cubits/video/video_cubit.dart';
 import '../../logic/cubits/watch/watching_cubit.dart';
 import '../../repository/api/api.dart';
 import '../../repository/api/hls_vod_playlist.dart';
+import '../../repository/api/intro_skip_service.dart';
 import '../../repository/models/user_preference_profile.dart';
 import '../../repository/api/location_preference_service.dart';
 import '../../repository/api/local_market_service.dart';
@@ -61,8 +62,12 @@ import '../widgets/widgets.dart';
 import '../widgets/premium_channel_card.dart';
 import '../shared/widgets/stream_launcher.dart';
 import '../shared/widgets/tv_parser_stream_loading_overlay.dart';
+import '../shared/widgets/now_watching_lower_third.dart';
+import 'series/serie_details_widgets.dart';
 import '../tv/tv_dashboard_shell.dart';
 import '../tv/live/live_preview_trace.dart';
+import '../tv/playback_report.dart';
+import '../tv/remote_watch_service.dart';
 import '../tv/live/live_browse_gate.dart';
 import '../tv/cinematic/cinematic_prefs.dart';
 import '../tv/widgets/tv_epg_peek.dart';
@@ -71,6 +76,9 @@ import '../tv/widgets/tv_channel_grid.dart';
 import '../../repository/provider/title_normalizer.dart';
 import '../../repository/provider/tmdb_enrichment_worker.dart';
 import '../../repository/provider/tmdb_client.dart';
+import '../../repository/provider/series_artwork_service.dart';
+import '../../repository/api/artwork_url_resolver.dart';
+import '../../repository/api/metadata_enrichment_service.dart';
 import '../mobile/mobile_watch_screen.dart';
 import '../mobile/mobile_detail_screen.dart';
 
@@ -131,6 +139,14 @@ Map<String, int> getStreamQualityBuffers({required bool isLive}) {
 /// True for HLS / provider live paths that are not classic Xtream `/live/<id>.ts`.
 bool isLikelyLiveStreamUrl(String url) {
   final lower = url.toLowerCase();
+  // Xtream movies and episodes (`/movie/u/p/<id>.m3u8`, `/series/u/p/<id>.mkv`)
+  // are never live, even when the provider serves them as HLS. Sending them to
+  // the live player skipped the VOD audio trim and crashed VLC on the
+  // Chromecast (Vizio, 2026-11-16: "too low audio sample frequency (0)").
+  if (!lower.contains('/live/') &&
+      (lower.contains('/movie/') || lower.contains('/series/'))) {
+    return false;
+  }
   if (lower.contains('/live/') ||
       lower.contains('/api/stream/') ||
       lower.contains('livetv') ||

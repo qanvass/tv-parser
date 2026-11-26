@@ -1,3 +1,4 @@
+import '../shared/favorite_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../repository/models/channel_live.dart';
@@ -297,6 +298,7 @@ class _LocalTvScreenState extends State<LocalTvScreen>
               size: 28,
             ),
             onTap: () => widget.onPlayChannel(channel),
+            onLongPress: () => FavoriteActions.add(context, channel),
           ),
         );
       },

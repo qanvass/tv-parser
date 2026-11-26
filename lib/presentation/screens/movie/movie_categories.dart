@@ -9,7 +9,7 @@ class MovieCategoriesScreen extends StatefulWidget {
   State<MovieCategoriesScreen> createState() => _MovieCategoriesScreenState();
 }
 
-class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
+class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> with HoldToFavorite<MovieCategoriesScreen> {
   List<CategoryModel> _cats = [];
   int _catIdx = 0;
 
@@ -131,6 +131,17 @@ class _MovieCategoriesScreenState extends State<MovieCategoriesScreen> {
   }
 
   KeyEventResult _onKey(FocusNode _, KeyEvent e) {
+    if (!_appbarActive && !_isSearchEditing && !_searchFocus.hasFocus && _panel == 1) {
+      final items = _filteredMovies;
+      if (_movieIdx >= 0 && _movieIdx < items.length) {
+        final item = items[_movieIdx];
+        final result = favoriteKey(e,
+          onOpen: () => _dpadSelect(),
+          onFavorite: () => FavoriteActions.add(context, item));
+        if (result == KeyEventResult.handled) return result;
+      }
+    }
+
     if (_searchFocus.hasFocus) return KeyEventResult.ignored;
     if (e is! KeyDownEvent) return KeyEventResult.ignored;
     final k = e.logicalKey;
@@ -638,6 +649,7 @@ class _MovieGridPanel extends StatelessWidget {
             isSelected: isSelected,
             isHighlighted: isItemFocused,
             onTap: () => onMovieTap(movie, index),
+            onLongPress: () => FavoriteActions.add(context, movie),
           );
         },
       ),
@@ -651,17 +663,20 @@ class _MovieGridItem extends StatelessWidget {
     required this.isSelected,
     required this.isHighlighted,
     required this.onTap,
+    this.onLongPress,
   });
 
   final ChannelMovie movie;
   final bool isSelected;
   final bool isHighlighted;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 130),
         decoration: BoxDecoration(

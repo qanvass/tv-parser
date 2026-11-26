@@ -67,6 +67,13 @@ class ArtworkUrlResolver {
     return '$tmdbImageHost/w1280$p';
   }
 
+  /// TMDB episode still path → HTTPS 16:9 image.
+  static String? tmdbStill(String? path) {
+    final p = _tmdbPath(path);
+    if (p == null) return null;
+    return '$tmdbImageHost/w300$p';
+  }
+
   static String? _tmdbPath(String? path) {
     if (path == null) return null;
     final s = path.trim();

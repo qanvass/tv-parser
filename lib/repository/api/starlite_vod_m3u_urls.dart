@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 /// Pure helpers for `/api/list/{user}/{pass}` VOD M3U URL variants.
 ///
 /// Builds movies / tvshows shard URLs from a Live playlist URL. Never logs
@@ -116,7 +118,8 @@ class StarliteVodM3uUrls {
     if (body == null || body.isEmpty) return 0;
     if (!body.contains('#EXTINF')) return 0;
     var n = 0;
-    for (final line in body.split(RegExp(r'\r?\n'))) {
+    final lines = const LineSplitter().convert(body);
+    for (final line in lines) {
       if (line.startsWith('#EXTINF:')) n++;
     }
     return n;
@@ -124,14 +127,19 @@ class StarliteVodM3uUrls {
 
   /// Cheap fingerprint for duplicate-shard detection (no secrets logged).
   static String bodyFingerprint(String body) {
-    final extinf = countExtinf(body);
-    // First non-comment URL line (stable across identical shards).
+    if (body.isEmpty) return 'extinf=0|url=0';
+    final lines = const LineSplitter().convert(body);
+    var extinf = 0;
     String firstUrl = '';
-    for (final line in body.split(RegExp(r'\r?\n'))) {
-      final t = line.trim();
-      if (t.isEmpty || t.startsWith('#')) continue;
-      firstUrl = t.length > 120 ? t.substring(0, 120) : t;
-      break;
+    for (final line in lines) {
+      if (line.startsWith('#EXTINF:')) {
+        extinf++;
+      } else if (firstUrl.isEmpty) {
+        final t = line.trim();
+        if (t.isNotEmpty && !t.startsWith('#')) {
+          firstUrl = t.length > 120 ? t.substring(0, 120) : t;
+        }
+      }
     }
     return 'extinf=$extinf|url=${firstUrl.hashCode}';
   }

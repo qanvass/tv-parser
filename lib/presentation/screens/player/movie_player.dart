@@ -362,6 +362,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
   @override
   void initState() {
     super.initState();
+    PlaybackWakeLock.acquire(this);
     _initPlayer();
   }
 
@@ -392,6 +393,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
         _ctrlInitialized = false;
         _deadStreamMessage = StreamHealthService.messageFor(probe);
       });
+      PlaybackReport.failed();
       OrientationGuard.applyPlayerOrientation();
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -437,6 +439,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
 
   @override
   void dispose() {
+    PlaybackWakeLock.release(this);
     _mediaLoad++;
     if (_ctrlInitialized) {
       try {
@@ -481,6 +484,9 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
         _isDeadStream = true;
         _isCheckingHealth = false;
       });
+      PlaybackReport.failed();
+    } else if (v.isPlaying && !v.isBuffering && !_isDeadStream) {
+      PlaybackReport.playing();
     }
     if (v.isInitialized && !_tracksLoaded) {
       _tracksLoaded = true;
@@ -897,22 +903,28 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
     }
   }
 
+  ChannelLive _favoriteTarget() {
+    return resolveLiveFavoriteChannel(
+      link: widget.link,
+      streamId: widget.streamId,
+      title: widget.title,
+      streamIcon: widget.streamIcon,
+      catalog: IptvProviderSession.instance.liveChannels(),
+    );
+  }
+
   void _toggleFavorite() {
-    final sid = widget.streamId ?? extractStreamIdFromUrl(widget.link);
-    if (sid == null) return;
+    final target = _favoriteTarget();
+    final id = target.streamId?.trim() ?? '';
+    if (id.isEmpty) return;
     final favState = context.read<FavoritesCubit>().state;
-    final existing = favState.lives.where((l) => l.streamId == sid).toList();
+    final existing = favState.lives
+        .where((live) => sameLiveFavorite(live, target))
+        .toList();
     if (existing.isNotEmpty) {
       context.read<FavoritesCubit>().addLive(existing.first, isAdd: false);
     } else {
-      context.read<FavoritesCubit>().addLive(
-        ChannelLive(
-          streamId: sid,
-          name: widget.title,
-          streamIcon: widget.streamIcon,
-        ),
-        isAdd: true,
-      );
+      context.read<FavoritesCubit>().addLive(target, isAdd: true);
     }
     _scheduleHide();
   }
@@ -1092,6 +1104,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
                       ),
                     ),
 
+
                   // 6. Track Selector Panel
                   if (!_isCheckingHealth &&
                       !_isDeadStream &&
@@ -1211,11 +1224,10 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
             if (isTvDevice()) ...[
               BlocBuilder<FavoritesCubit, FavoritesState>(
                 builder: (context, favState) {
-                  final sid =
-                      widget.streamId ?? extractStreamIdFromUrl(widget.link);
-                  final isFav =
-                      sid != null &&
-                      favState.lives.any((l) => l.streamId == sid);
+                  final target = _favoriteTarget();
+                  final isFav = favState.lives.any(
+                    (live) => sameLiveFavorite(live, target),
+                  );
                   return _FsBtn(
                     icon: isFav
                         ? FontAwesomeIcons.solidHeart.data
@@ -1376,6 +1388,9 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
 
   // Playback state
   bool _isPlaying = false;
+
+  /// True from the player's pause event until it plays or stops again.
+  bool _isPaused = false;
   bool _isBuffering = true;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
@@ -1383,8 +1398,25 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
   bool _isCastPlaying = true;
 
   // Seek HUD feedback
-  String? _seekHudText;
   Timer? _seekHudTimer;
+
+  // Adaptive Seeking & Scrubbing State
+  bool _isSeeking = false;
+  Duration _seekTarget = Duration.zero;
+  Duration _seekOrigin = Duration.zero;
+  int _seekDir = 0; // -1 rewind, 1 fast-forward, 0 idle
+  int _seekStreak = 0;
+  DateTime? _lastSeekTapTime;
+  Timer? _seekDebounceTimer;
+  Timer? _seekHudFadeTimer;
+  bool _seekHudVisible = false;
+  String _seekHudBadge = '';
+  DateTime? _suppressVlcPositionUntil;
+
+  // Hold-to-scrub state
+  bool _isHoldingKey = false;
+  final Stopwatch _holdDuration = Stopwatch();
+  DateTime _lastHoldTick = DateTime.now();
 
   // Controls visibility
   bool _showControls = true;
@@ -1417,6 +1449,7 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
   @override
   void initState() {
     super.initState();
+    PlaybackWakeLock.acquire(this);
     _initPlayer();
   }
 
@@ -1464,6 +1497,7 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
   @override
   void dispose() {
     _mediaLoad++;
+    PlaybackWakeLock.release(this);
     if (_ctrlInitialized) {
       try {
         _ctrl.removeListener(_onVlc);
@@ -1475,6 +1509,8 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
     }
     _hideTimer?.cancel();
     _seekHudTimer?.cancel();
+    _seekDebounceTimer?.cancel();
+    _seekHudFadeTimer?.cancel();
     _focusNode.dispose();
     OrientationGuard.applyPlayerExitOrientation();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -1497,12 +1533,46 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
   void _onVlc() {
     if (!mounted) return;
     final v = _ctrl.value;
+    final now = DateTime.now();
+    final shouldUpdatePos = !_isSeeking &&
+        (_suppressVlcPositionUntil == null || now.isAfter(_suppressVlcPositionUntil!));
+
     setState(() {
       _isPlaying = v.isPlaying;
       _isBuffering = !v.isInitialized || v.isBuffering;
-      _position = v.position;
+      if (shouldUpdatePos) {
+        _position = v.position;
+      }
       _duration = v.duration;
     });
+    // Paused comes from the player's own pause event and holds through the
+    // buffering a seek causes, until the player reports playing or stopped.
+    final nowPaused = v.playingState == PlayingState.paused
+        ? true
+        : (v.isPlaying ||
+                  v.isEnded ||
+                  v.hasError ||
+                  v.playingState == PlayingState.stopped)
+              ? false
+              : _isPaused;
+    if (nowPaused != _isPaused) {
+      setState(() {
+        _isPaused = nowPaused;
+        if (nowPaused) _showControls = true;
+      });
+      if (nowPaused) {
+        _hideTimer?.cancel();
+      } else {
+        _scheduleHide();
+      }
+    }
+    // Screen stays on only while this is really playing, so a paused,
+    // finished or failed title still lets the TV go to its screensaver.
+    if (nowPaused || v.isEnded || v.hasError) {
+      PlaybackWakeLock.release(this);
+    } else if (v.isPlaying || v.isBuffering) {
+      PlaybackWakeLock.acquire(this);
+    }
     _resumeOnce(v);
     if (v.isInitialized && _stopwatch.isRunning) {
       _stopwatch.stop();
@@ -1521,6 +1591,9 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
         _isDeadStream = true;
         _isCheckingHealth = false;
       });
+      PlaybackReport.failed();
+    } else if (v.isPlaying && !v.isBuffering && !_isDeadStream) {
+      PlaybackReport.playing();
     }
     if (v.isInitialized && !_tracksLoaded) {
       _tracksLoaded = true;
@@ -1546,7 +1619,8 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
     _hideTimer?.cancel();
     if (_trackPanel != null) return;
     _hideTimer = Timer(const Duration(seconds: 5), () {
-      if (mounted) setState(() => _showControls = false);
+      // Controls stay up while paused; resuming schedules the hide again.
+      if (mounted && !_isPaused) setState(() => _showControls = false);
     });
   }
 
@@ -1570,76 +1644,277 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
     _scheduleHide();
   }
 
-  void _showSeekHud(String text) {
-    _seekHudTimer?.cancel();
-    setState(() => _seekHudText = text);
-    _seekHudTimer = Timer(const Duration(milliseconds: 1200), () {
-      if (mounted) setState(() => _seekHudText = null);
+  bool get _canScrub => _ctrlInitialized && _duration > Duration.zero;
+
+  Duration get _displayPosition => _isSeeking ? _seekTarget : _position;
+
+  void _adaptiveSeek(int dir, {bool isHold = false}) {
+    if (!_canScrub) return;
+
+    final now = DateTime.now();
+    _seekDebounceTimer?.cancel();
+    _seekHudFadeTimer?.cancel();
+
+    if (!_isSeeking) {
+      _isSeeking = true;
+      _seekOrigin = _position;
+      _seekTarget = _position;
+      _seekStreak = 1;
+      _seekDir = dir;
+      _lastSeekTapTime = now;
+    } else if (_seekDir != dir) {
+      // Changed direction: reset streak
+      _seekDir = dir;
+      _seekStreak = 1;
+      _seekOrigin = _seekTarget;
+      _lastSeekTapTime = now;
+    } else if (!isHold) {
+      // Tap in same direction within 900ms: increment streak
+      if (_lastSeekTapTime != null &&
+          now.difference(_lastSeekTapTime!).inMilliseconds < 900) {
+        _seekStreak++;
+      } else {
+        _seekStreak = 1;
+        _seekOrigin = _seekTarget;
+      }
+      _lastSeekTapTime = now;
+    }
+
+    if (isHold) {
+      // Continuous smooth scrub based on elapsed hold time
+      final heldMs = _holdDuration.elapsedMilliseconds;
+      double speed;
+      if (heldMs < 1500) {
+        speed = 15.0; // 15s per real second
+      } else if (heldMs < 3500) {
+        speed = 45.0; // 45s per real second
+      } else {
+        speed = 120.0; // 120s per real second
+      }
+
+      final dtMs =
+          now.difference(_lastHoldTick).inMilliseconds.clamp(16, 250);
+      _lastHoldTick = now;
+
+      final deltaMs = (dtMs * speed).round() * dir;
+      var newTarget = _seekTarget + Duration(milliseconds: deltaMs);
+      if (newTarget < Duration.zero) newTarget = Duration.zero;
+      if (newTarget > _duration) newTarget = _duration;
+      _seekTarget = newTarget;
+
+      _seekHudBadge = '${dir < 0 ? '-' : '+'}${speed.round()}x';
+    } else {
+      // Stepped adaptive jump
+      int stepSec;
+      if (_seekStreak <= 1) {
+        stepSec = 10;
+      } else if (_seekStreak == 2) {
+        stepSec = 15;
+      } else if (_seekStreak == 3) {
+        stepSec = 30;
+      } else if (_seekStreak == 4) {
+        stepSec = 60;
+      } else if (_seekStreak == 5) {
+        stepSec = 120;
+      } else {
+        stepSec = 300; // 5 min per tap for 6+ taps
+      }
+
+      var newTarget = _seekTarget + Duration(seconds: stepSec * dir);
+      if (newTarget < Duration.zero) newTarget = Duration.zero;
+      if (newTarget > _duration) newTarget = _duration;
+      _seekTarget = newTarget;
+
+      final offsetSec = (_seekTarget - _seekOrigin).inSeconds;
+      final sign = offsetSec >= 0 ? '+' : '-';
+      final absSec = offsetSec.abs();
+      final m = absSec ~/ 60;
+      final s = absSec % 60;
+      final offsetStr =
+          m > 0 ? (s > 0 ? '${m}m ${s}s' : '${m}m') : '${s}s';
+      _seekHudBadge = '$sign$offsetStr';
+    }
+
+    debugPrint(
+      '[SEEK_ADAPTIVE] dir=$dir isHold=$isHold badge=$_seekHudBadge target=${_fmt(_seekTarget)}',
+    );
+
+    setState(() {
+      _showControls = true;
+      _seekHudVisible = true;
     });
-  }
 
-  Future<void> _rewind10s() async {
-    try {
-      final t = _position - const Duration(seconds: 10);
-      await _ctrl.seekTo(t < Duration.zero ? Duration.zero : t);
-      _showSeekHud('-10s');
-    } catch (_) {}
+    // Debounce actual VLC seek commit: 750ms for taps, 1500ms safety fallback for holds
+    if (!isHold) {
+      _seekDebounceTimer = Timer(const Duration(milliseconds: 750), () {
+        _commitSeek();
+      });
+    } else {
+      _seekDebounceTimer = Timer(const Duration(milliseconds: 1500), () {
+        _commitSeek();
+      });
+    }
+
     _scheduleHide();
   }
 
-  Future<void> _forward10s() async {
+  void _commitSeek() {
+    _seekDebounceTimer?.cancel();
+    _holdDuration.stop();
+    _isHoldingKey = false;
+
+    if (!_isSeeking || !_ctrlInitialized) return;
+
+    final target = _seekTarget;
+    _position = target;
+    // Suppress VLC position events for 500ms while VLC buffers new target
+    _suppressVlcPositionUntil =
+        DateTime.now().add(const Duration(milliseconds: 500));
+
+    debugPrint(
+      '[SEEK_COMMIT] target=${_fmt(target)} / ${_fmt(_duration)}',
+    );
+
     try {
-      final t = _position + const Duration(seconds: 10);
-      await _ctrl.seekTo(t > _duration ? _duration : t);
-      _showSeekHud('+10s');
+      _ctrl.seekTo(target).catchError((_) {});
     } catch (_) {}
+
+    setState(() {
+      _isSeeking = false;
+      _seekStreak = 0;
+      _seekDir = 0;
+    });
+
+    // Linger HUD for 500ms then fade out
+    _seekHudFadeTimer?.cancel();
+    _seekHudFadeTimer = Timer(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        setState(() {
+          _seekHudVisible = false;
+        });
+      }
+    });
+
     _scheduleHide();
   }
+
+  void _rewind10s() => _adaptiveSeek(-1);
+  void _forward10s() => _adaptiveSeek(1);
 
   Widget _buildSeekHud() {
-    if (_seekHudText == null) return const SizedBox.shrink();
-    final isRewind = _seekHudText!.contains('-');
-    return Positioned.fill(
+    if (!_seekHudVisible && !_isSeeking) return const SizedBox.shrink();
+    final isRewind = _seekDir < 0;
+
+    return Positioned(
+      bottom: 90,
+      left: 0,
+      right: 0,
       child: IgnorePointer(
         child: Center(
           child: AnimatedOpacity(
-            opacity: _seekHudText != null ? 1.0 : 0.0,
+            opacity: _seekHudVisible ? 1.0 : 0.0,
             duration: const Duration(milliseconds: 200),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.8),
-                borderRadius: BorderRadius.circular(20),
+                color: const Color(0xE612141A),
+                borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: kColorPrimary.withValues(alpha: 0.6),
+                  color: kColorFocus.withValues(alpha: 0.7),
                   width: 1.5,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: kColorPrimary.withValues(alpha: 0.35),
-                    blurRadius: 20,
+                    color: Colors.black.withValues(alpha: 0.6),
+                    blurRadius: 24,
+                    offset: const Offset(0, 4),
+                  ),
+                  BoxShadow(
+                    color: kColorPrimary.withValues(alpha: 0.25),
+                    blurRadius: 16,
                   ),
                 ],
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    isRewind
-                        ? FontAwesomeIcons.rotateLeft.data
-                        : FontAwesomeIcons.rotateRight.data,
-                    color: kColorFocus,
-                    size: 24,
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    _seekHudText!,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                      letterSpacing: 0.5,
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: kColorFocus.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
                     ),
+                    child: Icon(
+                      isRewind
+                          ? FontAwesomeIcons.rotateLeft.data
+                          : FontAwesomeIcons.rotateRight.data,
+                      color: kColorFocus,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            isRewind ? 'REWIND' : 'FAST FORWARD',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.7),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: kColorFocus,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              _seekHudBadge,
+                              style: const TextStyle(
+                                color: Colors.black,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _fmt(_displayPosition),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          Text(
+                            ' / ${_fmt(_duration)}',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.5),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -1781,8 +2056,62 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
       _showControls && _focusRow == row && _focusCol == col;
 
   KeyEventResult _onKey(FocusNode _, KeyEvent e) {
-    if (e is! KeyDownEvent) return KeyEventResult.ignored;
     final k = e.logicalKey;
+    final isHorizontal = k == LogicalKeyboardKey.arrowLeft ||
+        k == LogicalKeyboardKey.arrowRight;
+    final isMediaSeek = k == LogicalKeyboardKey.mediaRewind ||
+        k == LogicalKeyboardKey.mediaSkipBackward ||
+        k == LogicalKeyboardKey.mediaFastForward ||
+        k == LogicalKeyboardKey.mediaSkipForward;
+
+    // Hold-to-scrub: releasing Left/Right commits the scrub position.
+    if (e is KeyUpEvent) {
+      if ((isHorizontal || isMediaSeek) && _isHoldingKey) {
+        _commitSeek();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
+
+    // Hold-to-scrub: key-repeat (button held) rewinds / fast-forwards.
+    if (e is KeyRepeatEvent) {
+      if (_trackPanel == null &&
+          !_isDeadStream &&
+          !_isCheckingHealth &&
+          _canScrub) {
+        // If on top row and controls are visible, let normal horizontal navigation happen
+        if (_showControls && _focusRow == 0) {
+          // let normal key navigation proceed below
+        } else if (isHorizontal || isMediaSeek) {
+          if (!_isHoldingKey) {
+            _isHoldingKey = true;
+            _holdDuration.reset();
+            _holdDuration.start();
+            _lastHoldTick = DateTime.now();
+          }
+          final dir = (k == LogicalKeyboardKey.arrowRight ||
+                  k == LogicalKeyboardKey.mediaFastForward ||
+                  k == LogicalKeyboardKey.mediaSkipForward)
+              ? 1
+              : -1;
+          _adaptiveSeek(dir, isHold: true);
+          return KeyEventResult.handled;
+        }
+      }
+      return KeyEventResult.ignored;
+    }
+
+    if (e is! KeyDownEvent) return KeyEventResult.ignored;
+
+    // If actively seeking and user presses Select or Play/Pause, commit immediately!
+    if (_isSeeking &&
+        (_isSelectKey(k) ||
+            k == LogicalKeyboardKey.mediaPlayPause ||
+            k == LogicalKeyboardKey.mediaPlay ||
+            k == LogicalKeyboardKey.mediaPause)) {
+      _commitSeek();
+      return KeyEventResult.handled;
+    }
 
     // Track panel open
     if (_trackPanel != null) {
@@ -1833,6 +2162,9 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
 
     // goBack: consume so it cannot bubble; PopScope is the sole popper.
     if (_isBackKey(k)) {
+      if (_isSeeking) {
+        _commitSeek();
+      }
       if (k == LogicalKeyboardKey.escape) {
         _handleMovieBack(source: 'focus');
       }
@@ -1842,12 +2174,12 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
     // Direct Remote Media Keys
     if (k == LogicalKeyboardKey.mediaRewind ||
         k == LogicalKeyboardKey.mediaSkipBackward) {
-      _rewind10s();
+      _adaptiveSeek(-1, isHold: false);
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.mediaFastForward ||
         k == LogicalKeyboardKey.mediaSkipForward) {
-      _forward10s();
+      _adaptiveSeek(1, isHold: false);
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.mediaPlayPause ||
@@ -1857,41 +2189,76 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
       return KeyEventResult.handled;
     }
 
-    // Controls hidden: directional / select shows them
-    if (!_showControls) {
-      setState(() => _showControls = true);
+    // Up / Down navigation between Top Bar (row 0) and Bottom Bar (row 1)
+    if (k == LogicalKeyboardKey.arrowUp) {
+      if (!_showControls) {
+        setState(() {
+          _showControls = true;
+          _focusRow = 0;
+          _focusCol = 0;
+        });
+      } else if (_focusRow == 1) {
+        setState(() {
+          _focusRow = 0;
+          _focusCol = _focusCol.clamp(0, supportsCasting() ? 4 : 3);
+        });
+      }
       _scheduleHide();
       return KeyEventResult.handled;
     }
 
-    if (k == LogicalKeyboardKey.arrowUp) {
-      if (_focusRow == 1)
+    if (k == LogicalKeyboardKey.arrowDown) {
+      if (!_showControls) {
         setState(() {
-          _focusRow = 0;
-          // TV: Back/SUB/AUD (no Cast). Mobile: Back/Cast/SUB/AUD.
-          _focusCol = _focusCol.clamp(0, supportsCasting() ? 3 : 2);
+          _showControls = true;
+          _focusRow = 1;
+          _focusCol = 1; // Play/Pause
         });
-      _scheduleHide();
-    } else if (k == LogicalKeyboardKey.arrowDown) {
-      if (_focusRow == 0)
+      } else if (_focusRow == 0) {
         setState(() {
           _focusRow = 1;
-          _focusCol = _focusCol.clamp(0, 3);
+          _focusCol = 1;
         });
+      }
       _scheduleHide();
-    } else if (k == LogicalKeyboardKey.arrowLeft) {
-      if (_focusCol > 0) setState(() => _focusCol--);
-      _scheduleHide();
-    } else if (k == LogicalKeyboardKey.arrowRight) {
-      final maxCol = _focusRow == 0 ? (supportsCasting() ? 3 : 2) : 3;
-      if (_focusCol < maxCol) setState(() => _focusCol++);
-      _scheduleHide();
-    } else if (_isSelectKey(k)) {
-      _activate();
-    } else {
-      return KeyEventResult.ignored;
+      return KeyEventResult.handled;
     }
-    return KeyEventResult.handled;
+
+    // If Top Bar (row 0) is active and controls are visible, Left/Right navigates between top controls
+    if (_showControls && _focusRow == 0) {
+      final maxCol = supportsCasting() ? 4 : 3;
+      if (k == LogicalKeyboardKey.arrowLeft) {
+        if (_focusCol > 0) setState(() => _focusCol--);
+        _scheduleHide();
+        return KeyEventResult.handled;
+      } else if (k == LogicalKeyboardKey.arrowRight) {
+        if (_focusCol < maxCol) setState(() => _focusCol++);
+        _scheduleHide();
+        return KeyEventResult.handled;
+      }
+    }
+
+    // Direct D-pad Left / Right seeks immediately! (whether controls are hidden or bottom bar is focused)
+    if (k == LogicalKeyboardKey.arrowLeft) {
+      _adaptiveSeek(-1, isHold: false);
+      return KeyEventResult.handled;
+    }
+    if (k == LogicalKeyboardKey.arrowRight) {
+      _adaptiveSeek(1, isHold: false);
+      return KeyEventResult.handled;
+    }
+
+    if (_isSelectKey(k)) {
+      if (!_showControls) {
+        setState(() => _showControls = true);
+        _scheduleHide();
+      } else {
+        _activate();
+      }
+      return KeyEventResult.handled;
+    }
+
+    return KeyEventResult.ignored;
   }
 
   void _openCastDialog() {
@@ -1925,9 +2292,11 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
             if (_subtitleTracks.isNotEmpty) _openTrackPanel('sub');
           case 3:
             if (_audioTracks.isNotEmpty) _openTrackPanel('audio');
+          case 4:
+            _cycleAspect();
         }
       } else {
-        // TV chrome: Back, SUB, AUD (Cast removed).
+        // TV chrome: Back, SUB, AUD, ASPECT (Cast removed).
         switch (_focusCol) {
           case 0:
             _goBack();
@@ -1935,6 +2304,8 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
             if (_subtitleTracks.isNotEmpty) _openTrackPanel('sub');
           case 2:
             if (_audioTracks.isNotEmpty) _openTrackPanel('audio');
+          case 3:
+            _cycleAspect();
         }
       }
     } else {
@@ -2124,6 +2495,19 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
                       _castDevice == null)
                     _buildSeekHud(),
 
+                  // 4b. Paused: centre mark and the NOW WATCHING lower third
+                  if (!_isCheckingHealth &&
+                      !_isDeadStream &&
+                      _castDevice == null) ...[
+                    PausedIndicator(visible: _isPaused && !_isSeeking),
+                    NowWatchingLowerThird(
+                      visible: _isPaused,
+                      title: nowWatchingLabel(widget.title).title,
+                      detail: nowWatchingLabel(widget.title).detail,
+                      bottom: 96,
+                    ),
+                  ],
+
                   // 5. Controls Overlay
                   if (!_isCheckingHealth &&
                       !_isDeadStream &&
@@ -2136,6 +2520,7 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
                         child: _buildOverlay(),
                       ),
                     ),
+
 
                   // 6. Track Selector Panel
                   if (!_isCheckingHealth &&
@@ -2257,6 +2642,13 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
               isDisabled: _audioTracks.isEmpty,
               onTap: () => _openTrackPanel('audio'),
             ),
+            const SizedBox(width: 8),
+            _FsBtn(
+              icon: FontAwesomeIcons.expand.data,
+              label: _kVodAspects[_aspectIdx],
+              isFocused: _isFocused(0, supportsCasting() ? 4 : 3),
+              onTap: _cycleAspect,
+            ),
           ],
         ),
       ),
@@ -2265,8 +2657,9 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
 
   Widget _buildBottomBar() {
     final totalMs = _duration.inMilliseconds;
+    final currentPos = _displayPosition;
     final pos = totalMs > 0
-        ? (_position.inMilliseconds / totalMs).clamp(0.0, 1.0)
+        ? (currentPos.inMilliseconds / totalMs).clamp(0.0, 1.0)
         : 0.0;
 
     return SafeArea(
@@ -2303,32 +2696,54 @@ class _MoviePlayerScreenState extends State<MoviePlayerScreen> {
               child: Row(
                 children: [
                   Text(
-                    _fmt(_position),
-                    style: const TextStyle(color: Colors.white70, fontSize: 11),
+                    _fmt(currentPos),
+                    style: TextStyle(
+                      color: _isSeeking ? kColorFocus : Colors.white70,
+                      fontWeight:
+                          _isSeeking ? FontWeight.bold : FontWeight.normal,
+                      fontSize: 11,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: SliderTheme(
                       data: SliderTheme.of(context).copyWith(
-                        activeTrackColor: kColorPrimary,
+                        activeTrackColor:
+                            _isSeeking ? kColorFocus : kColorPrimary,
                         inactiveTrackColor: Colors.white24,
                         thumbColor: kColorFocus,
-                        thumbShape: const RoundSliderThumbShape(
-                          enabledThumbRadius: 6,
+                        thumbShape: RoundSliderThumbShape(
+                          enabledThumbRadius: _isSeeking ? 8 : 6,
                         ),
                         overlayShape: const RoundSliderOverlayShape(
                           overlayRadius: 0,
                         ),
-                        trackHeight: 3,
+                        trackHeight: _isSeeking ? 5 : 3,
                       ),
                       child: Slider(
                         value: pos,
-                        onChanged: (v) async {
-                          try {
-                            await _ctrl.seekTo(
-                              Duration(milliseconds: (v * totalMs).round()),
-                            );
-                          } catch (_) {}
+                        onChanged: (v) {
+                          if (!_canScrub) return;
+                          final targetMs = (v * totalMs).round();
+                          _seekTarget = Duration(milliseconds: targetMs);
+                          _isSeeking = true;
+                          final offsetSec =
+                              (_seekTarget - _position).inSeconds;
+                          final sign = offsetSec >= 0 ? '+' : '-';
+                          final absSec = offsetSec.abs();
+                          final m = absSec ~/ 60;
+                          final s = absSec % 60;
+                          final offsetStr = m > 0
+                              ? (s > 0 ? '${m}m ${s}s' : '${m}m')
+                              : '${s}s';
+                          _seekHudBadge = '$sign$offsetStr';
+                          _seekHudVisible = true;
+                          _seekDebounceTimer?.cancel();
+                          _seekDebounceTimer = Timer(
+                            const Duration(milliseconds: 750),
+                            _commitSeek,
+                          );
+                          setState(() {});
                         },
                       ),
                     ),

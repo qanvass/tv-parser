@@ -362,15 +362,15 @@ class _MobileSearchScreenState extends State<MobileSearchScreen> {
                                           if (isLive) {
                                             context
                                                 .read<FavoritesCubit>()
-                                                .addLive(item, isAdd: !isFav);
+                                                .addLive(item, isAdd: true);
                                           } else if (isMovie) {
                                             context
                                                 .read<FavoritesCubit>()
-                                                .addMovie(item, isAdd: !isFav);
+                                                .addMovie(item, isAdd: true);
                                           } else {
                                             context
                                                 .read<FavoritesCubit>()
-                                                .addSerie(item, isAdd: !isFav);
+                                                .addSerie(item, isAdd: true);
                                           }
                                           ScaffoldMessenger.of(
                                             context,
@@ -378,7 +378,7 @@ class _MobileSearchScreenState extends State<MobileSearchScreen> {
                                             SnackBar(
                                               content: Text(
                                                 isFav
-                                                    ? "Removed from Favourites"
+                                                    ? "Already in Favorites"
                                                     : "Added to Favourites",
                                                 style: const TextStyle(
                                                   fontWeight: FontWeight.bold,
@@ -439,14 +439,14 @@ class _MobileSearchScreenState extends State<MobileSearchScreen> {
                                         onLongPress: () {
                                           context
                                               .read<FavoritesCubit>()
-                                              .addLive(ch, isAdd: !isFav);
+                                              .addLive(ch, isAdd: true);
                                           ScaffoldMessenger.of(
                                             context,
                                           ).showSnackBar(
                                             SnackBar(
                                               content: Text(
                                                 isFav
-                                                    ? "Removed from Favourites"
+                                                    ? "Already in Favorites"
                                                     : "Added to Favourites",
                                                 style: const TextStyle(
                                                   fontWeight: FontWeight.bold,
@@ -500,14 +500,14 @@ class _MobileSearchScreenState extends State<MobileSearchScreen> {
                                         onLongPress: () {
                                           context
                                               .read<FavoritesCubit>()
-                                              .addMovie(movie, isAdd: !isFav);
+                                              .addMovie(movie, isAdd: true);
                                           ScaffoldMessenger.of(
                                             context,
                                           ).showSnackBar(
                                             SnackBar(
                                               content: Text(
                                                 isFav
-                                                    ? "Removed from Favourites"
+                                                    ? "Already in Favorites"
                                                     : "Added to Favourites",
                                                 style: const TextStyle(
                                                   fontWeight: FontWeight.bold,
@@ -561,14 +561,14 @@ class _MobileSearchScreenState extends State<MobileSearchScreen> {
                                         onLongPress: () {
                                           context
                                               .read<FavoritesCubit>()
-                                              .addSerie(serie, isAdd: !isFav);
+                                              .addSerie(serie, isAdd: true);
                                           ScaffoldMessenger.of(
                                             context,
                                           ).showSnackBar(
                                             SnackBar(
                                               content: Text(
                                                 isFav
-                                                    ? "Removed from Favourites"
+                                                    ? "Already in Favorites"
                                                     : "Added to Favourites",
                                                 style: const TextStyle(
                                                   fontWeight: FontWeight.bold,
