@@ -1,11 +1,14 @@
 package com.quasar.tvparser
 
 import android.app.UiModeManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.os.Build
 import android.os.Bundle
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.plugin.common.MethodChannel
@@ -19,6 +22,18 @@ class MainActivity : FlutterActivity() {
     private val EXTRA_WATCH_ID = "tvp_watch_id"
     private val EXTRA_WATCH_SEASON = "tvp_watch_season"
     private val EXTRA_WATCH_EPISODE = "tvp_watch_episode"
+
+    private val ACTION_WATCH = "com.quasar.tvparser.WATCH"
+
+    // While the app is on screen a request comes as a broadcast: starting the
+    // activity again would pause and resume it, which shuts the Live preview
+    // down at the same moment the request wants to hand playback over.
+    private val watchReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            deliverWatch(readWatchCommand(intent) ?: return)
+        }
+    }
+    private var watchReceiverOn = false
 
     private var watchChannel: MethodChannel? = null
     private var pendingWatch: HashMap<String, String>? = null
@@ -53,7 +68,7 @@ class MainActivity : FlutterActivity() {
                     // Names only: never a stream address.
                     android.util.Log.i(
                         WATCH_TAG,
-                        "id=${call.argument<String>("id") ?: ""} " +
+                        "id=${(call.argument<String>("id") ?: "").take(40)} " +
                             "status=${call.argument<String>("status") ?: ""} " +
                             "kind=${call.argument<String>("kind") ?: ""} " +
                             "title=${(call.argument<String>("title") ?: "").take(80)} " +
@@ -67,17 +82,41 @@ class MainActivity : FlutterActivity() {
         if (savedInstanceState == null) {
             pendingWatch = readWatchCommand(intent)
         }
+        try {
+            val filter = IntentFilter(ACTION_WATCH)
+            if (Build.VERSION.SDK_INT >= 33) {
+                registerReceiver(watchReceiver, filter, Context.RECEIVER_EXPORTED)
+            } else {
+                registerReceiver(watchReceiver, filter)
+            }
+            watchReceiverOn = true
+        } catch (_: Exception) {
+        }
     }
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        val cmd = readWatchCommand(intent) ?: return
+    override fun onDestroy() {
+        if (watchReceiverOn) {
+            try {
+                unregisterReceiver(watchReceiver)
+            } catch (_: Exception) {
+            }
+            watchReceiverOn = false
+        }
+        super.onDestroy()
+    }
+
+    private fun deliverWatch(cmd: HashMap<String, String>) {
         val channel = watchChannel
         if (dartWatchReady && channel != null) {
             channel.invokeMethod("watch", cmd)
         } else {
             pendingWatch = cmd
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        deliverWatch(readWatchCommand(intent) ?: return)
     }
 
     /// Reads and removes the watch extras so the same command cannot run twice.

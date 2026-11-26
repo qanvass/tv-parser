@@ -4,6 +4,7 @@ import '../models/category.dart';
 import '../models/channel_live.dart';
 import '../models/channel_movie.dart';
 import '../models/channel_serie.dart';
+import '../provider/catalog_age_policy.dart';
 import '../provider/tmdb_match.dart';
 import 'artwork_url_resolver.dart';
 
@@ -139,6 +140,8 @@ class M3uParser {
             );
             break;
           case M3uEntryType.movie:
+            // Too old to keep: not loaded. The id counter below still moves on.
+            if (CatalogAgePolicy.movieTooOld(name, groupTitle)) break;
             final catId = _ensureCategory(
               groupTitle: groupTitle,
               nameToId: movieCatIds,
@@ -162,6 +165,7 @@ class M3uParser {
             );
             break;
           case M3uEntryType.series:
+            if (CatalogAgePolicy.seriesRowTooOld(name, group: groupTitle)) break;
             final catId = _ensureCategory(
               groupTitle: groupTitle,
               nameToId: seriesCatIds,

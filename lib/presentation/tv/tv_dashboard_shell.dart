@@ -48,7 +48,8 @@ import 'widgets/tv_shell_backdrop.dart';
 import 'widgets/tv_status_clock.dart';
 import 'tv_search_screen.dart';
 import 'remote_watch_service.dart';
-import '../screens/screens.dart' show SerieContent;
+import '../screens/screens.dart' show LivePlayerScreen, SerieContent;
+import 'widgets/tv_epg_peek.dart' show extractStreamIdFromUrl;
 import 'cinematic/cinematic_movies_page.dart';
 import 'cinematic/cinematic_series_page.dart';
 import 'live/live_hero_preview_controller.dart';
@@ -234,7 +235,50 @@ class _TvDashboardShellState extends State<TvDashboardShell>
   }
 
   late final RemoteWatchHost _remoteWatchHost = RemoteWatchHost(
-    playLive: _openPlayback,
+    // Known to be a live channel, so the live player opens directly: the
+    // general link opener first searches the whole series catalog for the
+    // address, which takes many seconds on a large playlist.
+    playLive: (url, {title, streamId}) async {
+      final resolved = await _resolveStreamUrl(url, isVod: false);
+      await _livePreview.stopAndRelease(reason: 'fullscreen_handoff');
+      if (!mounted) return;
+      LivePreviewTrace.log('watch_live_handoff', 'source=remote_by_name');
+      unawaited(
+        Get.to(
+          () => LivePlayerScreen(
+            link: resolved,
+            title: (title == null || title.trim().isEmpty)
+                ? 'TV Stream'
+                : title.trim(),
+            streamId: (streamId == null || streamId.isEmpty)
+                ? extractStreamIdFromUrl(resolved)
+                : streamId,
+          ),
+        ),
+      );
+      unawaited(_resumePreviewWhenDashboardCurrent());
+    },
+    resyncPreview: () {
+      if (mounted) _syncLivePreview(immediate: true);
+    },
+    adultCategoryIds: () {
+      final ids = <String>{};
+      if (!mounted) return ids;
+      final movieState = context.read<MovieCatyBloc>().state;
+      final seriesState = context.read<SeriesCatyBloc>().state;
+      final cats = <CategoryModel>[
+        if (movieState is MovieCatySuccess) ...movieState.categories,
+        if (seriesState is SeriesCatySuccess) ...seriesState.categories,
+      ];
+      for (final cat in cats) {
+        final id = cat.categoryId;
+        final name = cat.categoryName;
+        if (id != null && id.isNotEmpty && name != null) {
+          if (ProviderCurationRules.isAdultCategory(name)) ids.add(id);
+        }
+      }
+      return ids;
+    },
     playMovie: (url) async {
       await _openMovieFromCatalog(url);
       // A movie started from the Live tab: bring the hero back on return.
@@ -261,6 +305,9 @@ class _TvDashboardShellState extends State<TvDashboardShell>
 
   bool get _liveSurfaceVisible {
     if (!mounted || _selectedNavIndex != _TvNav.live) return false;
+    // A remote "play by name" is about to open a player: starting the hero
+    // preview now would only have to be torn down again, which takes seconds.
+    if (RemoteWatchService.instance.handoffPending) return false;
     final route = ModalRoute.of(context);
     return route == null || route.isCurrent;
   }

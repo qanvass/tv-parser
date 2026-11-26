@@ -78,7 +78,8 @@ class RemoteWatchCommand {
   bool isStale(DateTime now) {
     final head = id.split('-').first;
     final sentMs = int.tryParse(head);
-    if (sentMs == null || sentMs < 1000000000000) return false;
+    // No send time: it cannot be told apart from an old, redelivered one.
+    if (sentMs == null || sentMs < 1000000000000) return true;
     final ageMs = now.millisecondsSinceEpoch - sentMs;
     return ageMs > const Duration(minutes: 3).inMilliseconds;
   }
@@ -87,17 +88,26 @@ class RemoteWatchCommand {
 /// The dashboard registers these so a remote play releases the Live preview's
 /// provider connection exactly as a remote-control click does.
 class RemoteWatchHost {
-  final Future<void> Function(String url) playLive;
+  final Future<void> Function(String url, {String? title, String? streamId})
+  playLive;
   final Future<void> Function(String url) playMovie;
 
   /// Opens the show's own page, which starts the episode itself.
   final Future<void> Function(ChannelSerie show, {int? season, int? episode})
   openSeries;
 
+  /// Ids of the adult movie and series groups the dashboard knows about.
+  final Set<String> Function() adultCategoryIds;
+
+  /// Lets the Live preview start again when a request ends without a player.
+  final void Function() resyncPreview;
+
   const RemoteWatchHost({
     required this.playLive,
     required this.playMovie,
     required this.openSeries,
+    required this.adultCategoryIds,
+    required this.resyncPreview,
   });
 }
 
@@ -109,6 +119,10 @@ class RemoteWatchService {
 
   RemoteWatchHost? _host;
   bool _started = false;
+
+  /// True from the moment a request closes the open player until its own
+  /// player has been asked to open. The dashboard holds its Live preview off.
+  bool handoffPending = false;
   int _gen = 0;
 
   /// Called once after the first frame. Safe to call on any platform.
@@ -160,12 +174,23 @@ class RemoteWatchService {
     // Latest command wins; an older one stops at its next checkpoint.
     final gen = ++_gen;
     bool superseded() => gen != _gen;
+    // Held for the whole request, so the dashboard never starts its Live
+    // preview only to have it torn down a moment later.
+    handoffPending = true;
+    var handedOff = false;
     try {
       if (cmd.isStale(DateTime.now())) {
         await _report(cmd, 'stale');
         return;
       }
       await _report(cmd, 'received');
+      // The request arrives as an Android intent, which pauses and resumes the
+      // app for an instant; the dashboard's Live preview shuts down on that
+      // pause. Shutting it down again while that is still in progress left a
+      // video decoder running with nowhere to draw (seen on a Chromecast as
+      // endless "BufferQueue has been abandoned" errors and a skipping
+      // picture). Nothing is handed off until that first shutdown has settled.
+      final received = DateTime.now();
 
       // Cold start: splash, saved-login resume, then the dashboard.
       final host = await _waitForHost(superseded);
@@ -179,6 +204,9 @@ class RemoteWatchService {
       if (superseded()) return;
 
       final adultIds = _adultCategoryIds();
+      try {
+        adultIds.addAll(host.adultCategoryIds());
+      } catch (_) {}
 
       ChannelLive? live;
       var liveRank = 99;
@@ -206,12 +234,17 @@ class RemoteWatchService {
         );
         live = pick?.item;
         liveRank = pick?.rank ?? 99;
-        liveAlts = otherNames(candidates, live, (c) => c.name ?? '');
+        liveAlts = otherNames(
+          candidates,
+          live,
+          (c) => c.name ?? '',
+          query: cmd.query,
+        );
       }
 
       // 'any' takes a clear channel-name match; otherwise it looks at movies.
       final wantMovie =
-          cmd.kind == 'movie' || (cmd.kind == 'any' && liveRank > 1);
+          cmd.kind == 'movie' || (cmd.kind == 'any' && liveRank > 0);
       ChannelMovie? movie;
       var movieRank = 99;
       if (wantMovie) {
@@ -233,18 +266,26 @@ class RemoteWatchService {
           cmd.query,
           candidates,
           (m) => m.name ?? '',
+          channel: false,
         );
         movie = pick?.item;
         movieRank = pick?.rank ?? 99;
-        movieAlts = otherNames(candidates, movie, (m) => m.name ?? '');
+        movieAlts = otherNames(
+          candidates,
+          movie,
+          (m) => m.name ?? '',
+          query: cmd.query,
+          channel: false,
+        );
       }
 
       // A series when it was asked for, or when no channel or movie has
       // exactly that name.
       final wantSeries =
           cmd.kind == 'series' ||
-          (cmd.kind == 'any' && liveRank > 1 && movieRank > 0);
+          (cmd.kind == 'any' && liveRank > 0 && movieRank > 0);
       ChannelSerie? show;
+      var showRank = 99;
       var showAlts = const <String>[];
       if (wantSeries) {
         // The dashboard fills the series search list shortly after it opens.
@@ -258,16 +299,34 @@ class RemoteWatchService {
               .where((s) => !adultIds.contains(s.categoryId))
               .toList(),
         );
-        final pick = pickBest<ChannelSerie>(cmd.query, candidates, showName);
-        showAlts = otherNames(candidates, pick?.item, showName);
-        // 'any': the series wins only with a better name match than the movie.
-        if (pick != null &&
-            (cmd.kind == 'series' || movie == null || pick.rank < movieRank)) {
-          show = pick.item;
-          movie = null;
-          live = null;
-        }
+        final pick = pickBest<ChannelSerie>(
+          cmd.query,
+          candidates,
+          showName,
+          channel: false,
+        );
+        showAlts = otherNames(
+          candidates,
+          pick?.item,
+          showName,
+          query: cmd.query,
+          channel: false,
+        );
+        show = pick?.item;
+        showRank = pick?.rank ?? 99;
       }
+
+      // One of the three: an exact name first (channel, movie, series), then
+      // a channel that starts with it, then the nearest movie, series, channel.
+      final order = <(int, String)>[
+        (liveRank * 10 + (liveRank == 2 ? 5 : 0), 'live'),
+        (movieRank * 10 + 1, 'movie'),
+        (showRank * 10 + 2, 'series'),
+      ]..sort((a, b) => a.$1.compareTo(b.$1));
+      final choice = order.first.$2;
+      if (choice != 'live') live = null;
+      if (choice != 'movie') movie = null;
+      if (choice != 'series') show = null;
 
       // Nothing by that name: leave whatever is on the screen alone.
       if (movie == null && live == null && show == null) {
@@ -276,9 +335,18 @@ class RemoteWatchService {
       }
       // Something to put on: close any open player first so only one
       // provider connection is used.
+      handedOff = true;
+      final settleMs =
+          2500 - DateTime.now().difference(received).inMilliseconds;
+      if (settleMs > 0) {
+        await Future<void>.delayed(Duration(milliseconds: settleMs));
+        if (superseded()) return;
+      }
       if (Get.currentRoute != screenWelcome) {
         Get.until((route) => route.settings.name == screenWelcome);
-        await Future<void>.delayed(const Duration(milliseconds: 900));
+        // The closed player is still on screen, and still reporting, while
+        // its route animates out.
+        await Future<void>.delayed(const Duration(milliseconds: 1500));
         if (superseded()) return;
       }
 
@@ -327,7 +395,14 @@ class RemoteWatchService {
         final url = await PlaybackUrlBuilder.resolveLivePlaybackUrl(live);
         if (superseded()) return;
         if (url.isNotEmpty) {
-          final outcome = await _playAndConfirm(() => host.playLive(url));
+          final picked = live;
+          final outcome = await _playAndConfirm(
+            () => host.playLive(
+              url,
+              title: picked.name,
+              streamId: picked.streamId,
+            ),
+          );
           if (superseded()) return;
           await _report(
             cmd,
@@ -343,6 +418,16 @@ class RemoteWatchService {
     } catch (e) {
       debugPrint('[RemoteWatch] failed: ${e.runtimeType}');
       await _report(cmd, 'error');
+    } finally {
+      if (!superseded()) {
+        handoffPending = false;
+        // Nothing was opened: the preview that was held off may run again.
+        if (!handedOff) {
+          try {
+            _host?.resyncPreview();
+          } catch (_) {}
+        }
+      }
     }
   }
 
@@ -359,7 +444,12 @@ class RemoteWatchService {
       if (!done.isCompleted) done.complete(outcome);
     }
 
+    // Nothing a player says counts until the new one has been asked to open:
+    // the one being closed can still report for a moment.
+    var armed = false;
     PlaybackReport.listener = (outcome) {
+      // Only "playing" can come from the player that is being closed.
+      if (!armed && outcome == 'playing') return;
       if (outcome != 'playing') {
         finish(outcome);
         return;
@@ -369,12 +459,22 @@ class RemoteWatchService {
         finish('playing');
       });
     };
+    final mine = PlaybackReport.listener;
     final timeout = Timer(wait, () => finish('opened'));
     try {
-      await start();
+      // The handoff itself must not be able to hang the request.
+      await start().timeout(const Duration(seconds: 20), onTimeout: () {});
+      // The player has been asked to open: the dashboard may run its Live
+      // preview again when the viewer comes back to it.
+      handoffPending = false;
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      armed = true;
       return await done.future;
     } finally {
-      PlaybackReport.listener = null;
+      // A newer request may already be listening; leave its listener alone.
+      if (identical(PlaybackReport.listener, mine)) {
+        PlaybackReport.listener = null;
+      }
       settle?.cancel();
       timeout.cancel();
     }
@@ -408,6 +508,7 @@ class RemoteWatchService {
     final cats = <CategoryModel>[
       ...LocaleApi.getM3uCategories(),
       ...LocaleApi.getM3uMovieCategories(),
+      ...LocaleApi.getM3uSeriesCategories(),
       ...IptvProviderSession.instance.categoriesForAction(
         'get_live_categories',
       ),
@@ -492,7 +593,14 @@ class RemoteWatchService {
     for (var i = 0; i < labels.length; i++) {
       if (firstNumber(labels[i]) == want) return i;
     }
-    if (byPosition && want >= 1 && want <= labels.length) return want - 1;
+    // Position only when the list carries no numbers at all: with episodes
+    // 1, 2, 3, 5 a request for 4 must not land on 5.
+    if (byPosition &&
+        want >= 1 &&
+        want <= labels.length &&
+        labels.every((l) => firstNumber(l) == null)) {
+      return want - 1;
+    }
     return -1;
   }
 
@@ -501,7 +609,7 @@ class RemoteWatchService {
     caseSensitive: false,
   );
   static final RegExp _qualityTag = RegExp(
-    r'\b(uhd|fhd|hd|sd|4k|8k|hevc|h265|h264|raw|backup|1080p|720p|50fps|60fps)\b',
+    r'\b(uhd|fhd|hd|sd|4k|8k|hevc|h265|h264|1080p|720p|50fps|60fps)\b',
     caseSensitive: false,
   );
   // Only a bracketed or dashed year: "Blade Runner 2049" keeps its number.
@@ -520,11 +628,12 @@ class RemoteWatchService {
     'brasil', 'brazil', 'portugal', 'turk', 'india', 'philippines', 'chile',
     'french', 'france', 'deutsch', 'germany', 'italia', 'canada', 'indonesia',
     'plus', 'kids', 'jr', 'junior', 'deportes', 'alt', 'alternate',
+    'raw', 'backup',
   };
 
   /// A title reduced to the words a person would say.
   @visibleForTesting
-  static String spokenName(String raw) {
+  static String spokenName(String raw, {bool channel = true}) {
     var s = raw.toLowerCase();
     // Providers stack prefixes ("US: ", "USA | "); strip up to two.
     for (var i = 0; i < 2; i++) {
@@ -538,7 +647,9 @@ class RemoteWatchService {
         .split(' ')
         .where((w) => w.isNotEmpty)
         .toList();
-    // "CNN US", "US CNN": the country tag is not part of the name.
+    // "CNN US", "US CNN": the country tag is not part of a channel's name.
+    // A title keeps it: "The Last of Us", "This Is Us".
+    if (!channel) return words.join(' ');
     while (words.length > 1 && _regionWord.hasMatch(words.last)) {
       words.removeLast();
     }
@@ -559,10 +670,11 @@ class RemoteWatchService {
   static ({T item, int rank})? pickBest<T>(
     String query,
     List<T> candidates,
-    String Function(T) nameOf,
-  ) {
+    String Function(T) nameOf, {
+    bool channel = true,
+  }) {
     if (candidates.isEmpty) return null;
-    final want = spokenName(query);
+    final want = spokenName(query, channel: channel);
     if (want.isEmpty) return null;
     final wantList = want.split(' ');
     final wantWords = wantList.toSet();
@@ -570,7 +682,7 @@ class RemoteWatchService {
     var prefixCost = 1 << 30;
     T? allWords;
     for (final candidate in candidates) {
-      final name = spokenName(nameOf(candidate));
+      final name = spokenName(nameOf(candidate), channel: channel);
       if (name == want) return (item: candidate, rank: 0);
       if (name.startsWith('$want ')) {
         final extra = name.substring(want.length + 1).split(' ');
@@ -601,11 +713,26 @@ class RemoteWatchService {
   static List<String> otherNames<T>(
     List<T> candidates,
     T? picked,
-    String Function(T) nameOf,
-  ) {
+    String Function(T) nameOf, {
+    String query = '',
+    bool channel = true,
+  }) {
+    // Only names that hold every word that was asked for: a search for
+    // "Breaking Bad" also returns every other title with "Bad" in it.
+    final want = spokenName(
+      query,
+      channel: channel,
+    ).split(' ').where((w) => w.isNotEmpty);
     final out = <String>[];
     for (final c in candidates) {
       if (identical(c, picked)) continue;
+      if (want.isNotEmpty) {
+        final have = spokenName(
+          nameOf(c),
+          channel: channel,
+        ).split(' ').toSet();
+        if (!want.every(have.contains)) continue;
+      }
       final name = nameOf(c).replaceAll('|', ' ').trim();
       if (name.isEmpty || out.contains(name)) continue;
       out.add(name.length > 32 ? name.substring(0, 32) : name);

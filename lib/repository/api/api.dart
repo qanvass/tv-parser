@@ -34,6 +34,7 @@ import '../provider/provider_capability_inspector.dart';
 import '../provider/provider_capability_store.dart';
 import '../provider/xtream_probe_url_builder.dart';
 import '../epg/xmltv_repository.dart';
+import '../provider/catalog_age_policy.dart';
 import '../provider/title_normalizer.dart';
 import '../provider/series_collapse.dart';
 import '../../presentation/tv/series_shelf_planner.dart';

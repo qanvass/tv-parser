@@ -90,7 +90,53 @@ void main() {
     });
   });
 
+  group('titles', () {
+    ({String item, int rank})? title(String q, List<String> names) =>
+        RemoteWatchService.pickBest<String>(q, names, (n) => n, channel: false);
+
+    test('a title keeps "us" and words that look like quality tags', () {
+      expect(
+        title('The Last of Us', ['The Last of the Mohicans (1992)']),
+        isNull,
+      );
+      expect(
+        title('The Last of Us', ['The Last of Us', 'The Last of the Mohicans'])
+            ?.item,
+        'The Last of Us',
+      );
+      expect(RemoteWatchService.spokenName('WWE Raw'), 'wwe raw');
+      expect(
+        RemoteWatchService.spokenName('The Backup Plan (2010)', channel: false),
+        'the backup plan',
+      );
+    });
+
+    test('a missing episode number is not replaced by its neighbour', () {
+      expect(
+        RemoteWatchService.numberedIndex(
+          ['1', '2', '3', '5', '6'],
+          4,
+          byPosition: true,
+        ),
+        -1,
+      );
+    });
+  });
+
   group('series', () {
+    test('other matches must hold every asked word', () {
+      final names = ['Breaking Bad', 'Bad Banks', 'Bad Blood', 'Breaking Bad 4K'];
+      expect(
+        RemoteWatchService.otherNames<String>(
+          names,
+          names.first,
+          (n) => n,
+          query: 'Breaking Bad',
+        ),
+        ['Breaking Bad 4K'],
+      );
+    });
+
     test('season and episode labels', () {
       expect(RemoteWatchService.firstNumber('Season 02'), 2);
       expect(RemoteWatchService.firstNumber('specials'), isNull);
@@ -143,7 +189,8 @@ void main() {
           RemoteWatchCommand(id: id, kind: 'any', query: 'CNN');
       expect(cmd('${1795000000000 - 10000}-ab').isStale(now), isFalse);
       expect(cmd('${1795000000000 - 600000}-ab').isStale(now), isTrue);
-      expect(cmd('').isStale(now), isFalse);
+      expect(cmd('').isStale(now), isTrue);
+      expect(cmd('abc-1').isStale(now), isTrue);
     });
   });
 }

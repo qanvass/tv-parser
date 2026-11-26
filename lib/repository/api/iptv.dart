@@ -271,6 +271,45 @@ class IpTvApi {
     String serieId, {
     ChannelSerie? saved,
   }) async {
+    final details = await _getSerieDetailsAllSeasons(serieId, saved: saved);
+    return details == null ? null : _withoutOldSeasons(details, saved);
+  }
+
+  /// A show that is kept only because it is still running loses its seasons
+  /// from before the cutoff (see [CatalogAgePolicy]).
+  static SerieDetails _withoutOldSeasons(
+    SerieDetails details,
+    ChannelSerie? saved,
+  ) {
+    final date = details.info?.releaseDate ?? '';
+    final year = date.length >= 4 ? int.tryParse(date.substring(0, 4)) : null;
+    final from = CatalogAgePolicy.seriesVerdict(
+      saved?.name ?? details.info?.name,
+      startYear: (year != null && year > 1900 && year < 2100) ? year : null,
+    );
+    final episodes = details.episodes;
+    if (from <= CatalogAgePolicy.keepAll || episodes == null) return details;
+    final kept = <String, List<Episode?>?>{
+      for (final entry in episodes.entries)
+        if (CatalogAgePolicy.seasonKept(entry.key, from)) entry.key: entry.value,
+    };
+    // Never leave a show page empty: if the labels did not line up, show all.
+    if (kept.isEmpty || kept.length == episodes.length) return details;
+    return SerieDetails(
+      info: details.info,
+      episodes: kept,
+      seasons: details.seasons
+          ?.where(
+            (s) => CatalogAgePolicy.seasonKept(s.seasonNumber ?? '', from),
+          )
+          .toList(),
+    );
+  }
+
+  static Future<SerieDetails?> _getSerieDetailsAllSeasons(
+    String serieId, {
+    ChannelSerie? saved,
+  }) async {
     try {
       final user = await LocaleApi.getUser();
       if (user != null &&
@@ -605,10 +644,26 @@ List<ChannelLive> _parseLiveChannels(String data) {
 
 List<ChannelMovie> _parseMovieChannels(String data) {
   final List<dynamic> json = jsonDecode(data);
-  return json.map((e) => ChannelMovie.fromJson(e)).toList();
+  return json
+      .map((e) => ChannelMovie.fromJson(e))
+      .where((m) => !CatalogAgePolicy.movieTooOld(m.name))
+      .toList();
 }
 
 List<ChannelSerie> _parseSeriesChannels(String data) {
   final List<dynamic> json = jsonDecode(data);
-  return json.map((e) => ChannelSerie.fromJson(e)).toList();
+  final out = <ChannelSerie>[];
+  for (final e in json) {
+    final serie = ChannelSerie.fromJson(e);
+    // Providers give the first-air date as "releaseDate" or "year".
+    final raw = e is Map ? (e['releaseDate'] ?? e['release_date'] ?? e['year']) : null;
+    final text = raw?.toString() ?? '';
+    final year = text.length >= 4 ? int.tryParse(text.substring(0, 4)) : null;
+    final startYear = (year != null && year > 1900 && year < 2100) ? year : null;
+    if (CatalogAgePolicy.seriesRowTooOld(serie.name, startYear: startYear)) {
+      continue;
+    }
+    out.add(serie);
+  }
+  return out;
 }

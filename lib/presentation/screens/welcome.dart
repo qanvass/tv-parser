@@ -281,7 +281,14 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     // Playlist movies/episodes share the /api/stream/ URL shape with
     // live channels; the catalog says which player they belong in.
     if (_openCatalogVod(url)) return;
-    if (LocaleApi.m3uSeriesShowsOnly) {
+    // A live channel's address is never an episode. Without this check every
+    // channel waited on a search of the whole stored series list (seconds on
+    // a large playlist) before its player opened.
+    final isLiveChannel = url.isNotEmpty &&
+        IptvProviderSession.instance
+            .liveChannels()
+            .any((c) => c.directSource == url);
+    if (!isLiveChannel && LocaleApi.m3uSeriesShowsOnly) {
       final stored = await LocaleApi.m3uSeriesByDirectSource(url);
       if (!mounted) return;
       if (stored != null) {
